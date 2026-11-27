@@ -8,6 +8,12 @@ importers:
 
   .:
     devDependencies:
+      '@smash/content':
+        specifier: workspace:*
+        version: link:packages/content
+      '@smash/sim':
+        specifier: workspace:*
+        version: link:packages/sim
       '@types/node':
         specifier: ^26.6.11
         version: 26.6.11

@@ -1,16 +1,19 @@
+/* Warm gladiator arena at dusk: umber, sandstone, fire and gold; ally cyan, enemy red. Russo One + Rubik. */
 :root {
   color-scheme: dark;
   --bg: #160e0a;
   --ink: #f7ebd9;
-  --muted: #c4ad91;
+  --mut: #c4ad91;
   --panel: rgba(24, 15, 10, 0.86);
   --line: rgba(255, 222, 176, 0.16);
-  --ally: #39d0ff;
-  --enemy: #ff4d3d;
   --fire: #ff7a2b;
+  --gold: #ffc93c;
+  --ally: #39d0ff;
+  --foe: #ff4d3d;
 }
 * {
   box-sizing: border-box;
+  min-width: 0;
 }
 html,
 body,
@@ -19,7 +22,10 @@ body,
   height: 100%;
   background: var(--bg);
   color: var(--ink);
-  font: 15px/1.5 system-ui, sans-serif;
+  font: 15px/1.5 Rubik, system-ui, sans-serif;
+  overflow: hidden;
+  -webkit-user-select: none;
+  user-select: none;
 }
 .stage {
   position: fixed;
@@ -27,110 +33,725 @@ body,
   width: 100%;
   height: 100%;
   display: block;
+  outline: none;
+  cursor: crosshair;
+  touch-action: none;
 }
-.panel {
+[hidden] {
+  display: none !important;
+}
+
+/* ---------- world-anchored overlay ---------- */
+.ov {
   position: fixed;
-  top: 16px;
-  left: 16px;
-  width: min(460px, calc(100% - 32px));
-  max-height: calc(100% - 32px);
-  overflow: auto;
-  padding: 18px;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.hb {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 96px;
+  text-align: center;
+  will-change: transform;
+}
+.hb b {
+  display: block;
+  font: 400 12px/1.2 "Russo One", sans-serif;
+  text-shadow: 0 1px 3px #000;
+  margin-bottom: 2px;
+  white-space: nowrap;
+}
+.hb.me {
+  --hc: var(--ally);
+}
+.hb.foe {
+  --hc: var(--foe);
+}
+.hb.orb {
+  --hc: var(--gold);
+  width: 70px;
+}
+.hb b {
+  color: var(--hc);
+}
+.hb .tr {
+  position: relative;
+  height: 9px;
+  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.7);
+  overflow: hidden;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6);
+}
+.hb .f {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: var(--hc);
+}
+.hb .s {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: #fff3d6;
+}
+.hb.pet {
+  width: 44px;
+}
+.hb.pet .tr {
+  height: 5px;
+}
+.hb .en {
+  height: 3px;
+  margin-top: 2px;
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+}
+.hb .en i {
+  display: block;
+  height: 100%;
+  background: var(--gold);
+}
+/* Cast bar: every wind-up is visible above the caster. */
+.hb .cast {
+  height: 5px;
+  margin-top: 3px;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.75);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.35);
+  overflow: hidden;
+  visibility: hidden;
+}
+.hb .cast i {
+  display: block;
+  height: 100%;
+  background: #fff;
+}
+.hb .st {
+  font: 600 11px/1.2 Rubik, sans-serif;
+  min-height: 14px;
+  margin-top: 2px;
+  color: #ffe2a8;
+  text-shadow: 0 1px 3px #000;
+  white-space: nowrap;
+}
+.ft {
+  position: absolute;
+  left: 0;
+  top: 0;
+  font: 700 18px/1 Rubik, sans-serif;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.85);
+  white-space: nowrap;
+  will-change: transform, opacity;
+}
+.ft.big {
+  font-size: 25px;
+}
+.edge {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  border-left: 20px solid var(--foe);
+  border-top: 12px solid transparent;
+  border-bottom: 12px solid transparent;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.8));
+}
+
+/* ---------- HUD ---------- */
+.hud {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+.hud .top {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 18px;
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 14px;
-  display: grid;
-  gap: 12px;
+  padding: 6px 16px;
+  white-space: nowrap;
 }
-header {
+.side {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font: 400 15px "Russo One", sans-serif;
+}
+.side.me {
+  color: var(--ally);
+}
+.side.foe {
+  color: var(--foe);
+}
+.pip {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin: 0 2px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  vertical-align: -1px;
+}
+.pip.on {
+  background: currentColor;
+}
+.mid {
+  text-align: center;
+  line-height: 1.1;
+}
+.rnd {
+  font-size: 11px;
+  color: var(--mut);
+}
+.clock {
+  font: 400 20px "Russo One", sans-serif;
+  min-width: 60px;
+}
+.clock.danger {
+  color: var(--foe);
+}
+.msg {
+  position: absolute;
+  top: 24%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font: 400 clamp(30px, 5.5vw, 56px) / 1.1 "Russo One", sans-serif;
+  text-shadow: 0 4px 18px rgba(0, 0, 0, 0.75);
+  opacity: 0;
+  transition: opacity 0.2s;
+  text-align: center;
+  white-space: nowrap;
+}
+.msg.small {
+  font: 600 clamp(16px, 2.4vw, 22px) / 1.2 Rubik, sans-serif;
+  top: 17%;
+}
+.msg.show {
+  opacity: 1;
+}
+.dock {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.vitals {
+  width: min(420px, 92vw);
+  display: grid;
+  gap: 4px;
+}
+.vbar {
+  position: relative;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.6);
+  box-shadow: 0 0 0 1px var(--line);
+  overflow: hidden;
+}
+.vbar.hp {
+  height: 18px;
+}
+.vbar.en {
+  height: 7px;
+}
+.vbar i {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 100%;
+}
+.vbar.hp i {
+  background: linear-gradient(#5fe0ff, #1aa6d6);
+}
+.vbar.en i {
+  background: linear-gradient(#ffe08a, #e9a514);
+}
+.vbar.en.full {
+  box-shadow:
+    0 0 0 1px var(--gold),
+    0 0 12px var(--gold);
+}
+.vbar span {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font: 600 12px/1 Rubik, sans-serif;
+  text-shadow: 0 1px 2px #000;
+}
+.slots {
+  display: flex;
+  gap: 8px;
+  padding-bottom: 6px;
+}
+.slot {
+  position: relative;
+  width: 58px;
+  height: 58px;
+  border-radius: 12px;
+  background: rgba(20, 12, 8, 0.88);
+  box-shadow: 0 0 0 1.5px var(--line);
+  display: grid;
+  place-items: center;
+  color: var(--c);
+}
+.slot svg {
+  width: 30px;
+  height: 30px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.slot .cdv {
+  position: absolute;
+  inset: 0;
+  border-radius: 12px;
+  background: conic-gradient(rgba(8, 4, 2, 0.82) calc(var(--p, 0) * 1turn), transparent 0);
+}
+.slot .cdt {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font: 700 16px Rubik, sans-serif;
+  color: #fff;
+  text-shadow: 0 1px 3px #000;
+}
+.slot kbd {
+  position: absolute;
+  bottom: -9px;
+  left: 50%;
+  transform: translateX(-50%);
+  min-width: 0;
+  padding: 2px 5px;
+  font-size: 10px;
+  background: #21150e;
+}
+.slot.casting {
+  box-shadow:
+    0 0 0 2px #fff,
+    0 0 14px var(--c);
+}
+.slot.ult.ready {
+  box-shadow:
+    0 0 0 2px var(--c),
+    0 0 18px var(--c);
+  animation: pulse 0.9s infinite alternate;
+}
+@keyframes pulse {
+  to {
+    box-shadow:
+      0 0 0 2px var(--c),
+      0 0 30px var(--c);
+  }
+}
+.hint {
+  font-size: 12px;
+  color: var(--mut);
+  text-shadow: 0 1px 2px #000;
+}
+
+/* ---------- screens ---------- */
+.screen {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  overflow: auto;
+  background: radial-gradient(ellipse at 50% 35%, rgba(22, 14, 10, 0.25), rgba(12, 7, 4, 0.82));
+}
+.panel {
+  width: min(1000px, 100%);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: clamp(18px, 3vw, 32px);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+.panel.small {
+  width: min(460px, 100%);
+  text-align: center;
+}
+.panel.small .row {
+  justify-content: center;
 }
 h1 {
+  font: 400 clamp(36px, 5vw, 52px) / 1.05 "Russo One", sans-serif;
   margin: 0;
-  font-size: 32px;
-  letter-spacing: 0.04em;
+  text-wrap: balance;
 }
-.status {
-  font-size: 12px;
-  color: var(--muted);
+.sub {
+  color: var(--mut);
+  margin: 6px 0 20px;
+  font-size: 16px;
 }
-.status.online {
-  color: #7dffa0;
+.picks {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
 }
-.status.offline {
-  color: var(--enemy);
+.pick {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: rgba(255, 240, 220, 0.035);
+  border: 1.5px solid var(--line);
+  border-radius: 14px;
+  padding: 16px;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+.pick:hover {
+  background: rgba(255, 240, 220, 0.07);
+}
+.pick[aria-pressed="true"] {
+  border-color: var(--c);
+  background: color-mix(in srgb, var(--c) 9%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 22%, transparent);
+}
+.ph {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.ph svg {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  color: var(--c);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.ph h2 {
+  font: 400 26px/1.05 "Russo One", sans-serif;
+  margin: 0;
+  color: var(--c);
+}
+.role {
+  font-size: 13px;
+  color: var(--mut);
+}
+.pick p {
+  margin: 0 0 12px;
+  font-size: 14px;
+}
+.ab {
+  display: grid;
+  gap: 7px;
+  font-size: 13px;
+  line-height: 1.35;
+}
+.abrow {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  gap: 10px;
+  align-items: baseline;
+}
+.ab b {
+  font-weight: 600;
+}
+.ab span {
+  color: var(--mut);
+}
+kbd {
+  display: inline-block;
+  font: 600 11px/1 Rubik, sans-serif;
+  padding: 4px 6px;
+  border-radius: 6px;
+  background: rgba(255, 240, 220, 0.1);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  white-space: nowrap;
+  text-align: center;
 }
 .row {
   display: flex;
-  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 20px;
 }
-button,
-input {
-  min-height: 40px;
+.lbl {
+  font: 400 15px "Russo One", sans-serif;
+  color: var(--mut);
+}
+.seg {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.seg button {
+  min-height: 44px;
+  padding: 0 16px;
+  border: 0;
+  background: transparent;
+  color: var(--mut);
+  font: 500 15px Rubik, sans-serif;
+  cursor: pointer;
+}
+.seg button + button {
+  border-left: 1px solid var(--line);
+}
+.seg button[aria-pressed="true"] {
+  background: rgba(255, 201, 60, 0.16);
+  color: var(--ink);
+}
+.go,
+.ghost {
+  min-height: 48px;
+  padding: 0 26px;
+  border-radius: 12px;
+  font: 400 18px "Russo One", sans-serif;
+  cursor: pointer;
+}
+.go {
+  border: 0;
+  background: linear-gradient(#ff9a4a, #f0641c);
+  color: #1e0d04;
+  box-shadow: 0 6px 20px rgba(255, 110, 40, 0.35);
+}
+.go:hover {
+  filter: brightness(1.08);
+}
+.ghost {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--ink);
+}
+.ghost:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.ghost[aria-pressed="true"] {
+  border-color: var(--gold);
+}
+.row .go {
+  margin-left: auto;
+}
+.panel.small .row .go {
+  margin-left: 0;
+}
+button:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+.keys {
+  color: var(--mut);
+  font-size: 13px;
+  margin: 14px 0 0;
+  line-height: 1.7;
+}
+.warn {
+  color: #ffb38a;
+}
+a,
+.link {
+  color: var(--gold);
+}
+.link {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+/* ---------- online lobby (M2 preview) ---------- */
+.lobby {
+  margin-top: 8px;
+  padding: 12px 14px;
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+}
+.lobby .row {
+  margin-top: 10px;
+}
+.lobby input {
+  width: 90px;
+  min-height: 48px;
   padding: 0 14px;
-  border-radius: 10px;
+  border-radius: 12px;
   border: 1px solid var(--line);
   background: rgba(255, 240, 220, 0.06);
   color: var(--ink);
   font: inherit;
-}
-button {
-  cursor: pointer;
-}
-button:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-input {
-  width: 90px;
   text-transform: uppercase;
 }
+.lobby .ghost {
+  font-size: 15px;
+  padding: 0 16px;
+}
 .players {
-  margin: 0;
+  margin: 8px 0 0;
   padding-left: 18px;
 }
 .ally {
   color: var(--ally);
 }
 .enemy {
-  color: var(--enemy);
+  color: var(--foe);
 }
-.champs {
-  display: grid;
-  gap: 8px;
+.status.online {
+  color: #7dffa0;
 }
-.champ {
-  display: grid;
-  gap: 2px;
-  text-align: left;
-  padding: 10px 12px;
-  border-width: 1.5px;
-}
-.champ.picked {
-  background: rgba(255, 201, 60, 0.12);
-}
-.abilities,
-.hint,
-small {
-  color: var(--muted);
-  font-size: 12px;
-}
-.error {
-  color: var(--enemy);
-  margin: 0;
-}
-.notice {
-  margin: 0;
-  padding: 10px 12px;
-  border-radius: 10px;
-  background: rgba(255, 122, 43, 0.12);
-  border: 1px solid rgba(255, 122, 43, 0.35);
-}
-a {
-  color: #ffc93c;
-}
+.status.offline,
 .status.no-server {
   color: var(--fire);
+}
+
+/* ---------- training range ---------- */
+.training {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  width: 272px;
+  max-height: calc(100% - 24px);
+  overflow: auto;
+  padding: 14px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  display: grid;
+  gap: 10px;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.training h3 {
+  margin: 0;
+  font: 400 15px "Russo One", sans-serif;
+  color: var(--gold);
+}
+.dps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  text-align: center;
+}
+.dps b {
+  display: block;
+  font: 400 20px/1.1 "Russo One", sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+.dps span {
+  font-size: 11px;
+  color: var(--mut);
+}
+.cmds {
+  display: grid;
+  gap: 6px;
+}
+.cmds button,
+.training .reset {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 0 10px;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: rgba(255, 240, 220, 0.05);
+  color: var(--ink);
+  font: 500 13px Rubik, sans-serif;
+  cursor: pointer;
+  text-align: left;
+}
+.cmds button[aria-pressed="true"] {
+  border-color: var(--gold);
+  background: rgba(255, 201, 60, 0.16);
+}
+.tune {
+  display: grid;
+  gap: 2px;
+  font-size: 12px;
+  color: var(--mut);
+}
+.tune span {
+  display: flex;
+  justify-content: space-between;
+}
+.tune b {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.tune input {
+  width: 100%;
+  accent-color: var(--fire);
+}
+.training .note {
+  margin: 0;
+  font-size: 11px;
+  color: var(--mut);
+  line-height: 1.4;
+}
+
+@media (max-width: 720px) {
+  .picks {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .row .go {
+    margin-left: 0;
+    width: 100%;
+  }
+  .hud .top {
+    gap: 10px;
+    padding: 5px 10px;
+  }
+  .side {
+    font-size: 13px;
+  }
+}
+@media (max-width: 600px) {
+  .slot {
+    width: 46px;
+    height: 46px;
+  }
+  .slot svg {
+    width: 24px;
+    height: 24px;
+  }
+  .slots {
+    gap: 6px;
+  }
+  .hint {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .slot.ult.ready {
+    animation: none;
+  }
+  .msg {
+    transition: none;
+  }
 }

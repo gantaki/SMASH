@@ -1,16 +1,26 @@
-import type { ArenaConfig, MatchRules } from "./types.ts";
+import type { ArenaConfig, MatchRules, Tuning } from "./types.ts";
 
 export const arena: ArenaConfig = {
   radius: 20,
+  wallMargin: 0.75,
   spawns: [
     { x: 0, z: 10 },
     { x: 0, z: -10 },
   ],
-  pillars: [
-    { x: 7.5, z: 7.5, radius: 1.3 },
-    { x: -7.5, z: 7.5, radius: 1.3 },
-    { x: 7.5, z: -7.5, radius: 1.3 },
-    { x: -7.5, z: -7.5, radius: 1.3 },
+  // Point-symmetric for fairness.
+  obstacles: [
+    { kind: "stone", x: 7.5, z: 7.5, radius: 1.3 },
+    { kind: "stone", x: -7.5, z: 7.5, radius: 1.3 },
+    { kind: "stone", x: 7.5, z: -7.5, radius: 1.3 },
+    { kind: "stone", x: -7.5, z: -7.5, radius: 1.3 },
+    { kind: "wood", x: 0, z: 5, halfWidth: 2, halfDepth: 0.35, rotDeg: 0, hp: 60 },
+    { kind: "wood", x: 0, z: -5, halfWidth: 2, halfDepth: 0.35, rotDeg: 0, hp: 60 },
+    { kind: "wood", x: 12, z: 0, halfWidth: 2, halfDepth: 0.35, rotDeg: 90, hp: 60 },
+    { kind: "wood", x: -12, z: 0, halfWidth: 2, halfDepth: 0.35, rotDeg: 90, hp: 60 },
+    { kind: "crate", x: -3.5, z: 0, radius: 0.75 },
+    { kind: "crate", x: 3.5, z: 0, radius: 0.75 },
+    { kind: "crate", x: -12, z: 7, radius: 0.75 },
+    { kind: "crate", x: 12, z: -7, radius: 0.75 },
   ],
   orb: {
     spawnAt: 15,
@@ -19,20 +29,79 @@ export const arena: ArenaConfig = {
     respawnDelay: 20,
     reward: { heal: 20, energy: 25 },
   },
-  zone: {
-    startAt: 70,
-    shrinkSpeed: 0.5,
-    minRadius: 5,
-    damage: 5,
-    tickInterval: 0.5,
+  suddenDeath: {
+    startAt: 30,
+    zone: {
+      shrinkSpeed: 0.3,
+      minRadius: 7,
+      damage: 5,
+      tickInterval: 0.5,
+    },
+    rifts: {
+      firstAfter: 1.5,
+      interval: 7,
+      maxPairs: 5,
+      length: { min: 7, max: 11 },
+      segments: 4,
+      jitterDeg: 32,
+      halfWidth: 0.7,
+      cycle: { dormant: 3.2, warn: 1.1, erupt: 0.9 },
+      openWarn: 1.8,
+      damage: 8,
+      tickInterval: 0.3,
+      slow: { amount: 0.3, duration: 0.6 },
+    },
   },
 };
 
 export const rules: MatchRules = {
-  tickRate: 30,
+  tickRate: 60,
   roundsToWin: 2,
   countdown: 3,
   roundEndDelay: 2.6,
   inputBuffer: 0.25,
-  energy: { max: 100, perDamage: 0.55, passivePerSecond: 1.2 },
+  movement: {
+    accelTime: 0.06,
+    decelTime: 0.04,
+    turnRate: 14,
+    castTurnRate: 30,
+  },
+  energy: { max: 100, perDamage: 0.55, perCompanionDamage: 0.3, passivePerSecond: 1.2 },
+  slam: { stun: 0.6, damage: 10, woodDamage: 20, crateImpulse: 4 },
+  burn: { tickInterval: 0.5 },
+  areaBodyFactor: 0.5,
+  projectile: {
+    muzzleOffset: 0.7,
+    companionMuzzleOffset: 0.2,
+    companionArmDistance: 1.2,
+    companionTouchPad: 0.25,
+    wallMargin: 0.2,
+    pullCasterDuration: 0.24,
+    hookCrateStop: 0.4,
+  },
+  companion: { respawn: 15, killEnergy: 20, arriveDistance: 0.5, pounceTouchPad: 0.4, bitePad: 0.35, engageSpeedFactor: 1.1, championPriority: 3 },
+  obstacles: {
+    woodRespawn: 20,
+    rebuildRetry: 0.5,
+    crateTransfer: 0.7,
+    crateKeepAfterCrate: 0.25,
+    crateBounce: 1.5,
+    crateKeepAfterBounce: 0.4,
+    crateKeepAfterHit: 0.25,
+    crateWallMargin: 0.9,
+    crateWallBounce: 0.3,
+    crateFriction: 12,
+    crateHitSpeed: 3.5,
+    crateHit: { damage: 12, knockback: { distance: 2.5, duration: 0.18 } },
+    crateRamDamagePerSpeed: 1.5,
+  },
+};
+
+export const defaultTuning: Tuning = {
+  moveSpeed: 1,
+  projectileSpeed: 1,
+  castTime: 1,
+  cooldown: 1,
+  accelTime: rules.movement.accelTime,
+  decelTime: rules.movement.decelTime,
 };

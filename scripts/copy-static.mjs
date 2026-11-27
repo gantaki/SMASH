@@ -1,9 +1,9 @@
 // Lays out the static site after the client build:
-//   /            the playable prototype (until M1 makes the real client playable)
-//   /prototype/  the same prototype, stable link
-//   /app/        the real client (lobby skeleton); /r/CODE room links rewrite here (vercel.json)
-//   /assets/vfx/ Spine assets the prototype loads
-import { cpSync, existsSync, mkdirSync, renameSync } from "node:fs";
+//   /            the game client (offline vs bots, training range); /r/CODE room links rewrite here (vercel.json)
+//   /prototype/  the original single-file prototype, kept as the feel reference
+//   /sfx, /vfx   repo-level assets/, copied by Vite (publicDir)
+//   /assets/vfx/ the same Spine assets at the path the prototype loads them from
+import { cpSync, existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 const root = resolve(import.meta.dirname, "..");
@@ -15,9 +15,6 @@ if (!existsSync(join(dist, "index.html"))) {
   process.exit(1);
 }
 
-mkdirSync(join(dist, "app"), { recursive: true });
-renameSync(join(dist, "index.html"), join(dist, "app/index.html"));
 cpSync(join(root, "prototype"), join(dist, "prototype"), { recursive: true, filter: noDocs });
-cpSync(join(root, "prototype/index.html"), join(dist, "index.html"));
 cpSync(join(root, "assets/vfx"), join(dist, "assets/vfx"), { recursive: true, filter: noDocs });
-console.log("Site layout: / = prototype, /prototype/ = prototype, /app/ = client, /assets/vfx/ = Spine assets");
+console.log("Site layout: / = client, /prototype/ = prototype, /sfx + /vfx = assets");

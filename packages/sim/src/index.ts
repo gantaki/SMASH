@@ -1,6 +1,13 @@
 // @smash/sim — deterministic game simulation shared by client and server.
-// M0: math, RNG and the fixed-tick clock. M1 ports the prototype rules here.
+// createMatch(config) → state; step(state, inputs) → events. See docs/GAME_DESIGN.md §5.1.
 
 export * from "./math.ts";
 export * from "./rng.ts";
 export * from "./tick.ts";
+export * from "./events.ts";
+export * from "./state.ts";
+export { step, trainingCommand, type TrainingCommand } from "./match.ts";
+export { abilityOf, canAct, isReady } from "./abilities.ts";
+export { isUnstoppable } from "./combat.ts";
+export { blocker, clearLine, obstacleDistance, polylineDistance, reach } from "./geometry.ts";
+export { runBotMatch, type BotMatchOptions, type MatchResult } from "./headless.ts";
