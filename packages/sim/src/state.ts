@@ -230,10 +230,14 @@ export interface Orb {
   lastHitter: number;
 }
 
-export type RiftPhase = "dormant" | "warn" | "erupt";
+export type RiftPhase = "dormant" | "warn" | "erupt" | "closing";
 
 export interface Rift {
   id: number;
+  /** Both rifts of a mirrored pair share this number. */
+  pair: number;
+  /** Marked to seal: it finishes its current eruption, then closes instead of going dormant. */
+  closing: boolean;
   /** Polyline of the crack. */
   points: Vec2[];
   phase: RiftPhase;

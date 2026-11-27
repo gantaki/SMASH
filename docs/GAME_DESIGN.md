@@ -35,7 +35,7 @@ Send a link → friend joins in seconds → best-of-3 fight in a few minutes. No
 | Lobby | Room by code/link, pick champion, ready up. Empty slots can be filled by bots. |
 | Countdown | 3 s, champions frozen at spawns. |
 | Round | Fight until one team is dead. |
-| Round end | ~2.6 s, then next round. |
+| Round end | **Kill cam**: the final blow is replayed from the side in slow motion (≈3 s, Space skips it), then 2 s, then the next round. |
 | Match | **Best of 3** (first to 2 round wins). |
 
 Modes: **1v1 duel with AI companions** is developed and tested first; 2v2 / 3v3 later. Practice vs bots (easy / normal / hard).
@@ -46,15 +46,15 @@ Direction: keep Battlerite's skill-shot core, but add **companions** (each champ
 
 ### Arena
 
-- Circular arena, **radius 20 m**. Spawns at `z = ±10`.
+- Circular arena, **radius 18 m** (36 m across; 20 m felt too roomy for a duel). Spawns at `z = ±10`.
 - **4 pillars** at `(±7.5, ±7.5)`, radius 1.3 m. Block movement and projectiles.
 - **Orb** (center): spawns at **15 s**, 40 HP, blocks movement and projectiles. The **last hitter** gets **+20 HP and +25 energy**. Respawns 20 s after being broken.
 - **Sudden death** from **30 s** (ends rounds that drag on; see below).
 
 **Sudden death** has two parts:
 
-1. **The zone**: the safe radius shrinks by 0.3 m/s from 20 m down to 7 m. Outside: 5 damage every 0.5 s.
-2. **Rifts**: every 7 s (first one 1.5 s in, up to 5 pairs) the floor cracks open along a jagged line 7–11 m long, from near the zone edge toward the middle. Rifts always open in **point-symmetric pairs** so neither side is favoured. Each rift is a geyser on a loop: **dormant 3.2 s → warning 1.1 s → eruption 0.9 s**. The warning is the telegraph (the crack's danger area brightens and flickers faster; the first warning after opening lasts 1.8 s). While erupting, anyone standing over the crack takes **8 damage every 0.3 s** and is slowed 30% for 0.6 s; leaping over it is safe. Rifts hit both teams and companions.
+1. **The zone**: the safe radius shrinks by 0.3 m/s from 18 m down to 7 m. Outside: 5 damage every 0.5 s.
+2. **Rifts**: every 7 s (first one 1.5 s in) the floor cracks open along a jagged line 7–10 m long (never longer than 1.2 zone radii). A rift starts near the zone edge and cuts **across** the arena beside the middle: it never comes within **3.5 m of the centre**, which always stays safe ground, and never within 2.5 m of another open rift. Rifts always open in **point-symmetric pairs** so neither side is favoured. At most **two pairs** are open: when a third opens, the oldest pair seals (1 s, harmless). Each rift is a geyser on a loop: **dormant 3.2 s → warning 1.1 s → eruption 0.9 s**. The warning is the telegraph (the crack's danger area brightens and flickers faster; the first warning after opening lasts 1.8 s). While erupting, anyone standing over the crack takes **8 damage every 0.3 s** and is slowed 30% for 0.6 s; leaping over it is safe. Rifts hit both teams and companions.
 
 Design intent: the zone pushes players together, rifts cut the remaining space into lanes and punish standing still. Bots step off a rift when its warning starts.
 
@@ -83,11 +83,11 @@ What makes Battlerite feel the way it does, from Stunlock patch notes, the offic
 
 | Battlerite | Here |
 |---|---|
-| WASD movement independent of aim; the champion faces the cursor; near-instant acceleration ("all movement has to feel responsive") | Same. Acceleration 60 ms, deceleration 40 ms, a full reversal takes as long as a start. The same speed in every direction. |
-| Base speed 3.4–4.2 units/s; a ranged basic attack reaches 7.2–8.5 units, i.e. **≈2.1 s of walking** | 6.0–6.4 m/s; Fire Bolt reaches 13 m: **≈2.1 s of walking**. Same proportions, different unit. |
+| WASD movement independent of aim; the champion faces the cursor; near-instant acceleration ("all movement has to feel responsive") | Same model, a little more weight: **acceleration and deceleration 150 ms** (playtested; 40–60 ms felt weightless). A full reversal takes as long as a start. The same speed in every direction. |
+| Base speed 3.4–4.2 units/s; a ranged basic attack reaches 7.2–8.5 units, i.e. **≈2.1 s of walking** | **About 6 m/s** (playtested): 5.5 for the slowest champions, 6.5 for the fastest. Fire Bolt reaches 13 m: **≈2.1 s of walking**. Same proportions, different unit. |
 | **Every attack has a wind-up**: melee M1 ≈0.35 s, ranged M1 0.07–0.45 s, M2 ≈0.55 s. You keep moving while winding up, slower (melee M1 80%, ranged M1 20–60%). This is the "fighting game" rhythm. | Every attack has a wind-up with a ground telegraph and a cast bar: Fire Bolt 0.3 s at 55% speed, Cleave 0.28 s at 80%, heavier abilities 0.25–0.6 s at 40–60%. Aim stays free during the wind-up. |
-| Basic projectiles fly at ≈5× walking speed (16–20 units/s), nukes 6–9× | Deliberately slower, for readability on a bigger arena: Fire Bolt 20 m/s (3.3×), Fireball 15 m/s, Harpoon 18 m/s. Tune with the range sliders. |
-| Space ability: ≈0.1 s cast, ≈8.5 s cooldown, 0.3–0.95 s air time | Blink (instant, 8 s), Leap (0.55 s air, 8 s). |
+| Basic projectiles fly at ≈5× walking speed (16–20 units/s), nukes 6–9× | Deliberately slower, for readability (playtested): Fire Bolt 19.3 m/s (3.2×), Fireball 14.5 m/s, Harpoon 17.4 m/s. |
+| Space ability: ≈0.1 s cast, ≈8.5 s cooldown, 0.3–0.95 s air time | Blink (instant, 7 s), Leap (0.55 s air, 7 s). |
 | Stuns ≈0.6 s, snares 15–50% for 0.5–2 s | Stuns 0.5–1.2 s, slows 30–50% for 0.6–1.5 s. |
 | Sudden death at 1:30–2:00, orb at 20 s | Sudden death at 0:30 (rounds are short here), orb at 15 s. |
 
@@ -171,7 +171,7 @@ A champion is **four core stats plus a kit**. Data lives in `packages/content/sr
 | Stat | Meaning | Reference range |
 |---|---|---|
 | `hp` | Health pool | 170 squishy · 195 average · 220 tank |
-| `moveSpeed` | Top speed, m/s (the arena is 40 m across) | 6.0 ranged · 6.4 melee |
+| `moveSpeed` | Top speed, m/s (the arena is 36 m across) | about 6; 5.5 slowest · 6.5 fastest (tested) |
 | `radius` | Collision and hit radius | 0.7 m |
 | `weight` | Divides knockback distance | 1 = normal, above 1 = heavy |
 
@@ -180,11 +180,11 @@ Every kit fills the same seven slots, so champions stay comparable and opponents
 | Slot | Key | Role | Typical cooldown |
 |---|---|---|---|
 | primary | LMB | Spammable basic attack; the main energy source | 0.3–0.5 s after a 0.2–0.4 s wind-up |
-| secondary | RMB | Heavier skill-shot | 5–7 s |
-| mobility | Space | Escape or gap closer | 8 s |
-| q | Q | Control (stun, knockback) | 9 s |
-| e | E | Defence (shield, counter) | 11 s |
-| companion | R | One command for the companion | 5–7 s |
+| secondary | RMB | Heavier skill-shot | 4.5–6 s |
+| mobility | Space | Escape or gap closer | 7 s |
+| q | Q | Control (stun, knockback) | 8 s |
+| e | E | Defence (shield, counter) | 9.5 s |
+| companion | R | One command for the companion | 4.5–6 s |
 | ultimate | F | Costs 100 energy | none |
 
 ### Ember (Искра) — Fire Mage, ranged
@@ -193,11 +193,11 @@ HP 170 · speed 6.0 m/s. Kites, applies burn, punishes bad positioning.
 
 | Slot | Ability | Behaviour | Starting values |
 |---|---|---|---|
-| LMB | Fire Bolt | Projectile | Wind-up 0.3 s (move ×0.55), 20 m/s, range 13 m, 11 dmg + fading snare 25% over 0.7 s, cd 0.35 s |
-| RMB | Fireball | Heavy projectile | Wind-up 0.6 s (move ×0.4), 15 m/s, range 15 m, 20 dmg + burn 4/s for 3 s, cd 5 s. Splits into 3 when passing through the Wisp |
-| Space | Blink | Teleport to cursor | Up to 7 m, cd 8 s |
-| Q | Ring of Fire | Delayed AoE at cursor | Wind-up 0.2 s, max range 11 m, r 2.6 m, delay 0.85 s, 18 dmg + stun 0.8 s, cd 9 s |
-| E | Flame Shield | Knockback + shield | Enemies within 3.4 m: 6 dmg, knocked back 5 m (slam); pushes crates; shield 25 for 2.5 s, cd 11 s |
+| LMB | Fire Bolt | Projectile | Wind-up 0.3 s (move ×0.55), 19.3 m/s, range 13 m, 11 dmg + fading snare 25% over 0.7 s, cd 0.31 s |
+| RMB | Fireball | Heavy projectile | Wind-up 0.6 s (move ×0.4), 14.5 m/s, range 15 m, 20 dmg + burn 4/s for 3 s, cd 4.4 s. Splits into 3 when passing through the Wisp |
+| Space | Blink | Teleport to cursor | Up to 7 m, cd 7 s |
+| Q | Ring of Fire | Delayed AoE at cursor | Wind-up 0.2 s, max range 11 m, r 2.6 m, delay 0.85 s, 18 dmg + stun 0.8 s, cd 8 s |
+| E | Flame Shield | Knockback + shield | Enemies within 3.4 m: 6 dmg, knocked back 5 m (slam); pushes crates; shield 25 for 2.5 s, cd 9.5 s |
 | R | Wisp | Companion command | See §2.1 |
 | F | Meteor | Big delayed AoE | 100 energy, wind-up 0.3 s, max range 13 m, r 3.6 m, delay 1.2 s, 45 dmg + stun 0.5 s |
 
@@ -207,12 +207,12 @@ HP 220 · speed 6.4 m/s. Closes distance, hooks, doesn't let go.
 
 | Slot | Ability | Behaviour | Starting values |
 |---|---|---|---|
-| LMB | Cleave | Melee cone | Wind-up 0.28 s (move ×0.8), range 2.9 m, ±60°, 14 dmg + fading snare 25% over 0.6 s, cd 0.42 s. Empowered: 26 dmg + slow 50% 1.5 s. On-hit VFX: **Ink Blade Hit** (Spine) |
-| RMB | Harpoon | Hook | Wind-up 0.35 s (move ×0.4), 18 m/s, range 11 m, 10 dmg, pulls target to 1.5 m, cd 7 s. Pulls crates; hitting the Hound pulls Fang to it |
-| Space | Leap | Arc jump | Up to 8 m in 0.55 s, landing marker shown. Landing r 2.4 m: 14 dmg + slow 40% 1.5 s, cd 8 s |
-| Q | Shield Bash | Melee cone | Wind-up 0.25 s, range 3.1 m, ±52°, 10 dmg + stun 0.5 s, knockback 3 m; **slam: stun 1.2 s, +10 dmg**; pushes crates, cd 9 s |
+| LMB | Cleave | Melee cone | Wind-up 0.28 s (move ×0.8), range 2.9 m, ±60°, 14 dmg + fading snare 25% over 0.6 s, cd 0.37 s. Empowered: 26 dmg + slow 50% 1.5 s. On-hit VFX: **Ink Blade Hit** (Spine) |
+| RMB | Harpoon | Hook | Wind-up 0.35 s (move ×0.4), 17.4 m/s, range 11 m, 10 dmg, pulls target to 1.5 m, cd 6 s. Pulls crates; hitting the Hound pulls Fang to it |
+| Space | Leap | Arc jump | Up to 8 m in 0.55 s, landing marker shown. Landing r 2.4 m: 14 dmg + slow 40% 1.5 s, cd 7 s |
+| Q | Shield Bash | Melee cone | Wind-up 0.25 s, range 3.1 m, ±52°, 10 dmg + stun 0.5 s, knockback 3 m; **slam: stun 1.2 s, +10 dmg**; pushes crates, cd 8 s |
 | R | Hound | Companion command | See §2.1 |
-| E | Counter | Stance | 1 s, move ×0.5. Negates a hit; attacker within 8 m: stun 1 s + 12 dmg; empowers next LMB for 3 s, cd 11 s |
+| E | Counter | Stance | 1 s, move ×0.5. Negates a hit; attacker within 8 m: stun 1 s + 12 dmg; empowers next LMB for 3 s, cd 9.5 s |
 | F | Whirlwind | Channel | 100 energy, 2.4 s, move ×1.15, unstoppable, 7 dmg every 0.3 s in r 3.2 m |
 
 ### Dummy (Манекен)
@@ -301,6 +301,7 @@ Same rules as players, no cheating: a bot produces the same per-tick input a hum
 - `game/Game.ts` runs the loop (fixed ticks + render interpolation) and input; `game/render/GameView.ts` owns the scene and maps events to effects and sounds; `render/Fx.ts` draws telegraphs, `render/Hazards.ts` the zone and rifts, `render/Overlay.ts` health and cast bars; `game/Hud.ts` the HUD; `ui/` the React menu and training panel.
 - Maps gameplay events to presentation through data, e.g. `fang.cleave.onHit → vfx: "ink_blade_hit"`.
 - Camera: perspective, FOV 45°, height ~26 m, ~12.5 m back, follows the player with look-ahead toward the cursor (28%, clamped to 6 m).
+- **Kill cam** (`game/killcam.ts`): when a round is decided the client rewinds 0.6 s and **re-simulates** the final blow (the sim is deterministic and its state is plain data, so a short history of state + input is enough; in dev builds the replay is compared with the live state and a mismatch is logged). It is shown from a low side camera (1.9 m high, 8.5–13 m away, perpendicular to the line of the blow, on the side with a clear view), time eases from 0.5× down to 0.1× at the hit and back to normal, sounds are pitched down, the HUD gives way to letterbox bars. Space skips it; it is disabled with `prefers-reduced-motion`. Online (M2): the server has to hold the round-end phase for the kill cam's wall-clock length.
 
 ### 5.5 Server (`apps/server`)
 
@@ -359,9 +360,9 @@ tests/           repo-wide guards (architecture rules)
 
 ## 8. Open Questions
 
-- Pacing: are wind-ups and projectile speeds right? Tune on the training range, then update the data. Battlerite's basic projectiles are ≈5× walking speed; ours are 3.3×.
+- Pacing: move speed, acceleration, projectile speed and cooldowns were set from a first playtest on the training range. Wind-up lengths are per champion and still open.
 - Round length: bot mirrors of Fang end in ≈10 s. Is time-to-kill too short once humans dodge?
-- Rifts: 8 damage per 0.3 s and five pairs — pressure or noise?
+- Rifts: 8 damage per 0.3 s, two pairs open at a time, centre kept clear — pressure or noise?
 - Basic-attack snares (25%): do they make kiting or sticking too easy? Is a 1 s cancel cooldown the right price for a feint?
 - Snapshot rate for M2 (the sim ticks at 60 Hz; snapshots can be 20–30 Hz).
 - Custom room server vs Colyseus (Colyseus state sync may fight a custom prediction model).

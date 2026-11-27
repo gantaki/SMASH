@@ -139,7 +139,8 @@ export class Hazards {
       seen.add(r.id);
       let v = this.rifts.get(r.id);
       if (!v) this.rifts.set(r.id, (v = this.makeRift(r)));
-      const appear = Math.min(1, r.age / 0.5);
+      // Fade in when it opens, fade out while it seals.
+      const appear = r.phase === "closing" ? Math.max(0, r.time / r.total) : Math.min(1, r.age / 0.5);
       const k = 1 - r.time / r.total;
       let glow = 0.1;
       let core = 0.35 + 0.1 * Math.sin(time * 3 + r.id);

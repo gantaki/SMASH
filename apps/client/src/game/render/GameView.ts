@@ -6,6 +6,7 @@ import { abilityById, getChampion, rules } from "@smash/content";
 import { championOfTeam, type ChampionUnit, type MatchState, type SimEvent, type Unit } from "@smash/sim";
 import type { AudioEngine } from "../../audio/AudioEngine.ts";
 import { Fx } from "./Fx.ts";
+import { KILL_CAM, type KillShot } from "../killcam.ts";
 import { GOLD, ALLY, FOE, G, basic, clamp, rand, rgb, type RGB } from "./gfx.ts";
 import { Hazards } from "./Hazards.ts";
 import { Overlay } from "./Overlay.ts";
@@ -55,6 +56,10 @@ export class GameView {
   private readonly castSounds = new Map<number, () => void>();
   /** Orbiting camera with no HUD: used behind the menu. */
   orbit = false;
+  private shot: KillShot | null = null;
+  private shotTime = 0;
+  /** Playback rate for positional sounds (lowered during the kill cam's slow motion). */
+  private soundRate = 1;
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
@@ -144,7 +149,7 @@ export class GameView {
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
-    this.particles.setViewport(h * this.renderer.getPixelRatio(), CAMERA.fov);
+    this.particles.setViewport(h * this.renderer.getPixelRatio(), this.camera.fov);
   }
 
   /** Remembers where everything is before a tick, for render interpolation. */
@@ -166,6 +171,35 @@ export class GameView {
     return { x: p.x + (e.x - p.x) * a, z: p.z + (e.z - p.z) * a, face: p.face + d * a };
   };
 
+  private setFov(fov: number): void {
+    this.camera.fov = fov;
+    this.camera.updateProjectionMatrix();
+    this.particles.setViewport((this.canvas.clientHeight || window.innerHeight) * this.renderer.getPixelRatio(), fov);
+  }
+
+  /** Cuts to the kill cam (or back to the gameplay camera with null). `realTime` drives the camera's slow drift. */
+  setKillShot(shot: KillShot | null, realTime = 0): void {
+    if (!!shot !== !!this.shot) this.setFov(shot ? KILL_CAM.fov : CAMERA.fov);
+    this.shot = shot;
+    this.shotTime = realTime;
+    this.soundRate = shot ? KILL_CAM.soundRate : 1;
+  }
+
+  /** Slow motion ended: sounds play at normal pitch again, the camera stays where it is. */
+  normalSoundRate(): void {
+    this.soundRate = 1;
+  }
+
+  /** Drops short-lived effects, e.g. before rewinding for the kill cam. */
+  clearTransients(): void {
+    this.fx.clear();
+    this.particles.clear();
+    this.overlay.clearFloats();
+    this.ink.clear();
+    for (const stop of this.castSounds.values()) stop();
+    this.castSounds.clear();
+  }
+
   /** Ground point under a screen position, for aiming. */
   aimAt(clientX: number, clientY: number): { x: number; z: number } | null {
     const r = this.canvas.getBoundingClientRect();
@@ -176,8 +210,10 @@ export class GameView {
 
   // ---------- frame ----------
 
-  render(state: MatchState, alpha: number, dt: number, time: number, aim: { x: number; z: number }): void {
+  /** `dt` is scaled game time (slow motion slows effects too); `realDt` is wall-clock time for the kill cam's drift. */
+  render(state: MatchState, alpha: number, dt: number, time: number, aim: { x: number; z: number }, realDt = dt): void {
     this.alpha = alpha;
+    if (this.shot) this.shotTime += realDt;
     const me = championOfTeam(state, this.viewerTeam);
     const mePose = this.pose(me);
 
@@ -191,7 +227,32 @@ export class GameView {
     this.particles.update(dt);
 
     // Camera.
-    if (this.orbit) {
+    if (this.shot) {
+      // Kill cam: low, side-on, slowly pushing in and drifting around the final blow.
+      const shot = this.shot;
+      const ease = 1 - Math.exp(-this.shotTime * 0.9);
+      const ang = KILL_CAM.orbitDeg * DEG * (ease - 0.35);
+      const co = Math.cos(ang);
+      const si = Math.sin(ang);
+      const dist = shot.distance * (1 - KILL_CAM.dolly * ease);
+      const sx = shot.side.x * co - shot.side.z * si;
+      const sz = shot.side.x * si + shot.side.z * co;
+      // Follow the fighters with the look target (interpolated, so it stays smooth at 0.1× speed).
+      const v = state.units.find((u) => u.id === shot.victim);
+      const k = state.units.find((u) => u.id === shot.killer);
+      let fx = shot.focus.x;
+      let fz = shot.focus.z;
+      if (v) {
+        const vp = this.pose(v);
+        const kp = k ? this.pose(k) : null;
+        fx = kp ? vp.x * 0.6 + kp.x * 0.4 : (vp.x + shot.focus.x) / 2;
+        fz = kp ? vp.z * 0.6 + kp.z * 0.4 : (vp.z + shot.focus.z) / 2;
+      }
+      this.shake = Math.max(0, this.shake - dt * 2.2);
+      const sh = this.reducedMotion ? 0 : this.shake * 0.35;
+      this.camera.position.set(shot.focus.x + sx * dist, shot.height + (Math.random() - 0.5) * sh, shot.focus.z + sz * dist);
+      this.camera.lookAt(fx, KILL_CAM.lookHeight, fz);
+    } else if (this.orbit) {
       const a = time * 0.1;
       this.camera.position.set(Math.sin(a) * 24, 13, Math.cos(a) * 24);
       this.camera.lookAt(0, 1, 0);
@@ -211,7 +272,7 @@ export class GameView {
       this.camera.position.set(this.camTarget.x + sx, CAMERA.height * s, this.camTarget.z + CAMERA.back * s + sz);
       this.camera.lookAt(this.camTarget.x + sx * 0.5, 0, this.camTarget.z + sz * 0.5);
     }
-    this.reticle.visible = !this.orbit && (state.phase === "fight" || state.phase === "countdown");
+    this.reticle.visible = !this.orbit && !this.shot && (state.phase === "fight" || state.phase === "countdown");
     this.reticle.position.set(aim.x, 0.05, aim.z);
 
     this.ink.update(this.camera, dt);
@@ -219,7 +280,7 @@ export class GameView {
     this.overlay.update(
       state,
       dt,
-      !this.orbit && state.phase !== "matchEnd",
+      !this.orbit && !this.shot && state.phase !== "matchEnd",
       this.pose,
       (id) => {
         const c = this.champs.get(id);
@@ -250,7 +311,7 @@ export class GameView {
     if (!id || !this.audio) return null;
     if (x === undefined || z === undefined) return this.audio.play(id, { volume });
     const d = Math.hypot(x - this.camTarget.x, z - this.camTarget.z);
-    return this.audio.play(id, { volume: volume * clamp(1.1 - d / 34, 0.35, 1), pan: clamp((x - this.camTarget.x) / 16, -0.8, 0.8) });
+    return this.audio.play(id, { volume: volume * clamp(1.1 - d / 34, 0.35, 1), pan: clamp((x - this.camTarget.x) / 16, -0.8, 0.8), rate: this.soundRate });
   }
 
   private shakeAt(x: number, z: number, amount: number): void {

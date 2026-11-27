@@ -15,7 +15,7 @@ export const wisp: CompanionDef = {
     interval: 1.3,
     range: 8,
     projectile: {
-      speed: 12,
+      speed: 11.6,
       range: 10,
       radius: 0.24,
       onHit: { damage: 4 },

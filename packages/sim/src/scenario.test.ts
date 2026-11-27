@@ -7,6 +7,7 @@ import {
   companionOf,
   createMatch,
   currentSlow,
+  polylineDistance,
   emptyInput,
   runBotMatch,
   step,
@@ -106,7 +107,7 @@ describe("determinism", () => {
 });
 
 describe("movement", () => {
-  it("reaches top speed almost instantly and stops just as fast", () => {
+  it("reaches top speed within the acceleration time and stops within the deceleration time", () => {
     const s = scene();
     place(s.a, 0, 14);
     s.inputs[0].move = { x: 1, z: 0 };
@@ -342,9 +343,10 @@ describe("melee and control", () => {
 
   it("Shield Bash into the arena wall is a slam: longer stun and extra damage", () => {
     const s = scene("fang", "ember");
-    place(s.a, 0, 16.5);
-    place(s.b, 0, 18.4);
-    s.press(0, "q", 0, 19);
+    const edge = arena.radius - arena.wallMargin;
+    place(s.a, 0, edge - 2.4);
+    place(s.b, 0, edge - 0.5);
+    s.press(0, "q", 0, edge);
     const ev = s.run(0.6);
     expect(of(ev, "slam")).toHaveLength(1);
     expect(s.b.hp).toBe(s.b.maxHp - 10 - (rules.slam.damage + 10));
@@ -458,7 +460,7 @@ describe("sudden death", () => {
 
   it("starts at the configured time, shrinks the zone and hurts outside it", () => {
     const s = scene();
-    place(s.a, 0, 19);
+    place(s.a, 0, arena.radius - arena.wallMargin);
     s.state.roundTime = cfg.startAt - 0.05;
     const ev = s.run(0.2);
     expect(of(ev, "suddenDeath")).toHaveLength(1);
@@ -478,6 +480,27 @@ describe("sudden death", () => {
       expect(r1!.points[i]!.x).toBeCloseTo(-p.x);
       expect(r1!.points[i]!.z).toBeCloseTo(-p.z);
     });
+  });
+
+  it("keeps the centre free of rifts and never has more than the allowed number open", () => {
+    const s = scene();
+    place(s.a, 0, 2);
+    place(s.b, 0, -2);
+    s.state.roundTime = cfg.startAt;
+    let most = 0;
+    for (let i = 0; i < 80; i++) {
+      // Keep both champions alive so the round (and the rifts) keep going.
+      s.a.hp = s.a.maxHp;
+      s.b.hp = s.b.maxHp;
+      s.run(1);
+      const open = s.state.rifts.filter((r) => !r.closing && r.phase !== "closing");
+      most = Math.max(most, open.length);
+      for (const r of s.state.rifts) expect(polylineDistance(r.points, 0, 0)).toBeGreaterThanOrEqual(cfg.rifts.centerClear - 1e-9);
+    }
+    expect(most).toBe(cfg.rifts.maxActivePairs * 2);
+    // Old rifts really go away: far fewer exist than were ever opened.
+    expect(s.state.suddenDeath.pairsSpawned).toBeGreaterThan(cfg.rifts.maxActivePairs * 3);
+    expect(s.state.rifts.length).toBeLessThanOrEqual((cfg.rifts.maxActivePairs + 1) * 2);
   });
 
   it("a rift only hurts while erupting, and only who stands over the crack", () => {

@@ -3,6 +3,7 @@
 
 import { type AbilitySlot, type BotDifficulty, type Tuning } from "@smash/content";
 import {
+  TICK_DT,
   championOfTeam,
   createMatch,
   createTickClock,
@@ -15,6 +16,7 @@ import {
 } from "@smash/sim";
 import type { AudioEngine } from "../audio/AudioEngine.ts";
 import { Hud } from "./Hud.ts";
+import { KILL_CAM, KillCam, frameKill, type Frame } from "./killcam.ts";
 import { GameView } from "./render/GameView.ts";
 
 export type GameMode = "duel" | "training" | "demo";
@@ -51,6 +53,9 @@ const TRAINING_KEYS: Record<string, TrainingCommand> = {
   Digit5: { t: "resetArena" },
 };
 const DPS_WINDOW = 4;
+/** Body class while the kill cam plays: hides the HUD and shows letterbox bars (styles.css). */
+const KILLCAM_CLASS = "killcam";
+const HISTORY_TICKS = Math.round(KILL_CAM.rewind / TICK_DT) + 2;
 
 export class Game {
   readonly state: MatchState;
@@ -73,6 +78,12 @@ export class Game {
   private lastHit = 0;
   private statsTimer = 0;
   private readonly cleanup: (() => void)[] = [];
+  /** Recent ticks (state before the tick + input), for the kill cam replay. */
+  private history: Frame[] = [];
+  private killcam: KillCam | null = null;
+  /** Who last damaged each champion: the kill cam frames that pair. */
+  private readonly lastHitBy = new Map<number, number>();
+  private readonly killcamEnabled: boolean;
 
   constructor(private readonly opts: GameOptions) {
     const { mode } = opts;
@@ -84,6 +95,7 @@ export class Game {
         mode === "training" ? { champion: "dummy", controller: "dummy" } : { champion: opts.opponent, controller: "bot", difficulty: opts.difficulty },
       ],
     });
+    this.killcamEnabled = mode === "duel" && !matchMedia("(prefers-reduced-motion: reduce)").matches;
     const me = championOfTeam(this.state, 0);
     const enemy = championOfTeam(this.state, 1);
     this.hud = mode === "demo" ? null : new Hud(opts.hud, me, enemy, mode === "training");
@@ -113,6 +125,7 @@ export class Game {
       if (k === "Escape" || k === "KeyP") return this.setPaused(!this.paused);
       if (k === "KeyM") return this.opts.audio.setMuted(!this.opts.audio.muted);
       if (k === "KeyC") this.cancelPressed = true;
+      if (k === "Space" && this.killcam) return this.endKillcam(true);
       this.keys.add(k);
       const slot = KEY_SLOTS[k];
       if (slot) this.presses.push(slot);
@@ -190,6 +203,7 @@ export class Game {
     const dummy = championOfTeam(this.state, 1);
     for (const e of events) {
       if (e.t === "matchEnd") this.opts.onMatchEnd?.(e.winner === 0, e.score);
+      if (e.t === "damage" && e.targetKind === "champion") this.lastHitBy.set(e.target, e.source);
       if (this.opts.mode === "training" && e.t === "damage" && e.target === dummy.id) {
         this.hits.push({ t: this.time, amount: e.amount + e.absorbed });
         this.totalDamage += e.amount + e.absorbed;
@@ -211,6 +225,39 @@ export class Game {
     });
   }
 
+  // ---------- kill cam ----------
+
+  /** The round was just decided: rewind and replay the final blow from the side, in slow motion. */
+  private startKillcam(events: readonly SimEvent[]): boolean {
+    const death = events.find((e) => e.t === "death");
+    const victim = death?.t === "death" ? this.state.units.find((u) => u.id === death.unit) : undefined;
+    const frames = this.history.slice(-Math.round(KILL_CAM.rewind / TICK_DT));
+    this.history = [];
+    if (!victim || frames.length < 2) return false;
+    const killer = this.state.units.find((u) => u.id === this.lastHitBy.get(victim.id));
+    this.killcam = new KillCam(frames, frameKill(this.state, victim, killer));
+    // The kill tick's own events are not shown now: the replay produces them again at the dramatic moment.
+    this.view.clearTransients();
+    this.view.setKillShot(this.killcam.shot);
+    document.body.classList.add(KILLCAM_CLASS);
+    return true;
+  }
+
+  /** Back to the gameplay camera. With `skip`, the rest of the replay is fast-forwarded first. */
+  private endKillcam(skip = false): void {
+    const cam = this.killcam;
+    if (!cam) return;
+    if (skip && cam.replaying) {
+      this.view.clearTransients();
+      this.view.setKillShot(null);
+      this.view.handle(cam.finish(), this.state);
+      this.view.snapshot(this.state);
+    }
+    this.killcam = null;
+    this.view.setKillShot(null);
+    document.body.classList.remove(KILLCAM_CLASS);
+  }
+
   private frame = (now: number): void => {
     if (this.disposed) return;
     this.raf = requestAnimationFrame(this.frame);
@@ -218,18 +265,42 @@ export class Game {
     this.last = now;
     if (this.paused) dt = 0;
     this.time += dt;
+    // Slow motion scales game time; the camera and the clock on the wall keep real time.
+    const simDt = this.killcam ? dt * this.killcam.timeScale() : dt;
 
     const aim = this.view.aimAt(this.mouse.x, this.mouse.y);
-    if (aim && this.opts.mode !== "demo") this.aim = aim;
+    if (aim && this.opts.mode !== "demo" && !this.killcam) this.aim = aim;
 
-    const ticks = this.clock.advance(dt);
+    const ticks = this.clock.advance(simDt);
     // Key presses are edges: they go into the first tick of the frame only.
     const input = ticks > 0 && this.opts.mode !== "demo" ? this.input() : null;
     for (let i = 0; i < ticks; i++) {
+      const cam = this.killcam;
+      if (cam?.replaying) {
+        this.view.snapshot(cam.state);
+        this.view.handle(cam.stepReplay(), cam.state);
+        if (!cam.replaying && import.meta.env.DEV && JSON.stringify(cam.state) !== JSON.stringify(this.state)) {
+          console.warn("Kill cam replay diverged from the live state: the simulation is not deterministic.");
+        }
+        continue;
+      }
+      const tickInput = input && i > 0 ? { ...input, press: [], cancel: false } : input;
       this.view.snapshot(this.state);
-      const events = step(this.state, [input && i > 0 ? { ...input, press: [], cancel: false } : input, null]);
-      this.view.handle(events, this.state);
+      if (this.killcamEnabled && this.state.phase === "fight") {
+        this.history.push({ state: structuredClone(this.state), input: tickInput });
+        if (this.history.length > HISTORY_TICKS) this.history.shift();
+      }
+      const events = step(this.state, [tickInput, null]);
       this.track(events);
+      if (cam) {
+        cam.liveTick();
+        if (cam.settled) this.view.normalSoundRate();
+        // The next round (or the end screen) takes the camera back.
+        if (events.some((e) => e.t === "phase" && e.phase !== "roundEnd")) this.endKillcam();
+      } else if (this.killcamEnabled && events.some((e) => e.t === "roundEnd") && this.startKillcam(events)) {
+        break;
+      }
+      this.view.handle(events, this.state);
     }
     // The demo behind the menu loops forever.
     if (this.opts.mode === "demo" && this.state.phase === "matchEnd") {
@@ -237,7 +308,8 @@ export class Game {
       return;
     }
     const me = championOfTeam(this.state, 0);
-    this.view.render(this.state, this.paused ? 1 : this.clock.alpha, dt, this.time, this.aim);
+    const shown = this.killcam?.replaying ? this.killcam.state : this.state;
+    this.view.render(shown, this.paused ? 1 : this.clock.alpha, simDt, this.time, this.aim, dt);
     this.hud?.update(this.state, me, dt);
     this.statsTimer -= dt;
     if (this.statsTimer <= 0) {
@@ -248,6 +320,7 @@ export class Game {
 
   dispose(): void {
     this.disposed = true;
+    document.body.classList.remove(KILLCAM_CLASS);
     cancelAnimationFrame(this.raf);
     for (const fn of this.cleanup) fn();
     this.hud?.dispose();

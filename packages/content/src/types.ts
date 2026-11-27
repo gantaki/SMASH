@@ -225,7 +225,7 @@ export interface CompanionDef {
 export interface ChampionStats {
   /** Health pool. Reference: squishy 170, average 195, tank 220. */
   hp: number;
-  /** Top speed in m/s. Reference: 6.0 (ranged) to 6.4 (melee). The arena is 40 m across. */
+  /** Top speed in m/s. Playtested: about 6 feels right; 5.5 for the slowest champions, 6.5 for the fastest. The arena is 36 m across. */
   moveSpeed: number;
   /** Collision and hit radius in meters. */
   radius: number;
@@ -305,11 +305,23 @@ export interface SuddenDeathConfig {
     firstAfter: number;
     /** Seconds between pairs. */
     interval: number;
-    maxPairs: number;
+    /** When a new pair opens beyond this many, the oldest pair closes: the floor never fills up with cracks. */
+    maxActivePairs: number;
+    /** Seconds a closing rift takes to seal (harmless while it does). */
+    closeTime: number;
+    /** Also capped by the current zone radius, so late rifts are not longer than the play area. */
     length: { min: number; max: number };
     segments: number;
     /** Max heading change between segments. */
     jitterDeg: number;
+    /** A rift starts between this fraction of the zone radius and the zone edge. */
+    startRadiusMin: number;
+    /** A rift heads toward the centre turned aside by this much, so it cuts across the arena beside the middle. */
+    headingOffsetDeg: { min: number; max: number };
+    /** No rift comes closer than this to the arena centre: the middle (and the orb) always stays safe ground. */
+    centerClear: number;
+    /** Minimum gap between a new rift and the ones already open. */
+    minSeparation: number;
     /** Half of the crack's width; a unit is "over the rift" within halfWidth + part of its radius. */
     halfWidth: number;
     /** Geyser cycle: dormant → warn (telegraph) → erupt (damage) → dormant. */

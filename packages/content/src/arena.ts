@@ -1,7 +1,7 @@
 import type { ArenaConfig, MatchRules, Tuning } from "./types.ts";
 
 export const arena: ArenaConfig = {
-  radius: 20,
+  radius: 18,
   wallMargin: 0.75,
   spawns: [
     { x: 0, z: 10 },
@@ -40,10 +40,15 @@ export const arena: ArenaConfig = {
     rifts: {
       firstAfter: 1.5,
       interval: 7,
-      maxPairs: 5,
-      length: { min: 7, max: 11 },
+      maxActivePairs: 2,
+      closeTime: 1,
+      length: { min: 7, max: 10 },
       segments: 4,
-      jitterDeg: 32,
+      jitterDeg: 24,
+      startRadiusMin: 0.55,
+      headingOffsetDeg: { min: 25, max: 75 },
+      centerClear: 3.5,
+      minSeparation: 2.5,
       halfWidth: 0.7,
       cycle: { dormant: 3.2, warn: 1.1, erupt: 0.9 },
       openWarn: 1.8,
@@ -58,12 +63,12 @@ export const rules: MatchRules = {
   tickRate: 60,
   roundsToWin: 2,
   countdown: 3,
-  roundEndDelay: 2.6,
+  roundEndDelay: 2,
   inputBuffer: 0.25,
   cancelCast: { cooldown: 1 },
   movement: {
-    accelTime: 0.06,
-    decelTime: 0.04,
+    accelTime: 0.15,
+    decelTime: 0.15,
     turnRate: 14,
     castTurnRate: 30,
   },

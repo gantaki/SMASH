@@ -64,7 +64,9 @@ describe("champion content", () => {
 
       it("has sane numbers", () => {
         expect(c.stats.hp).toBeGreaterThan(0);
-        expect(c.stats.moveSpeed).toBeGreaterThan(0);
+        // Playtested band: about 6 m/s feels right; nobody slower than 5.5 or faster than 6.5.
+        expect(c.stats.moveSpeed).toBeGreaterThanOrEqual(5.5);
+        expect(c.stats.moveSpeed).toBeLessThanOrEqual(6.5);
         expect(c.stats.weight).toBeGreaterThan(0);
         for (const slot of ABILITY_SLOTS) {
           const a = c.abilities[slot]!;
