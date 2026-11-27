@@ -23,10 +23,10 @@ export function isUnstoppable(u: ChampionUnit): boolean {
   return a?.kind === "channel" && a.unstoppable;
 }
 
-export function cancelCast(ctx: Ctx, u: Unit): void {
+export function cancelCast(ctx: Ctx, u: Unit, reason: "cancelled" | "interrupted" = "interrupted"): void {
   if (u.kind !== "champion" || !u.cast) return;
   const a = getChampion(u.champion).abilities[u.cast.slot];
-  ctx.events.push({ t: "castCancel", unit: u.id, slot: u.cast.slot, abilityId: a?.id ?? "" });
+  ctx.events.push({ t: "castCancel", unit: u.id, slot: u.cast.slot, abilityId: a?.id ?? "", reason });
   u.cast = null;
 }
 
@@ -146,10 +146,23 @@ export function stun(ctx: Ctx, t: Unit, duration: number): void {
   ctx.events.push({ t: "status", unit: t.id, status: "stun", duration });
 }
 
-export function slow(ctx: Ctx, t: Unit, amount: number, duration: number): void {
+/** How strong the unit's slow is right now (0..1). A fading snare wears off linearly. */
+export const currentSlow = (u: Unit): number =>
+  u.slow <= 0 ? 0 : u.slowFading && u.slowTotal > 0 ? u.slowAmount * (u.slow / u.slowTotal) : u.slowAmount;
+
+/** Move speed multiplier from slows. */
+export const slowFactor = (u: Unit): number => 1 - currentSlow(u);
+
+/** Slows do not stack: the stronger one at the moment of the hit wins, so a light snare never replaces a heavy slow. */
+export function slow(ctx: Ctx, t: Unit, amount: number, duration: number, fading = false): void {
   if (!controllable(t)) return;
+  const now = currentSlow(t);
+  if (amount < now) return;
+  // Re-applying an equal flat slow keeps whichever lasts longer.
+  t.slow = !fading && !t.slowFading && amount === now ? Math.max(t.slow, duration) : duration;
   t.slowAmount = amount;
-  t.slow = Math.max(t.slow, duration);
+  t.slowTotal = t.slow;
+  t.slowFading = fading;
   ctx.events.push({ t: "status", unit: t.id, status: "slow", duration });
 }
 
@@ -258,7 +271,7 @@ export function applyOnHit(ctx: Ctx, target: Target, onHit: OnHit, source: Unit 
   if (!hurt(ctx, target, onHit.damage, source, opts)) return false;
   if (target === "orb") return true;
   if (onHit.stun) stun(ctx, target, onHit.stun);
-  if (onHit.slow) slow(ctx, target, onHit.slow.amount, onHit.slow.duration);
+  if (onHit.slow) slow(ctx, target, onHit.slow.amount, onHit.slow.duration, onHit.slow.fading);
   if (onHit.root) root(ctx, target, onHit.root);
   if (onHit.burn) burn(ctx, target, onHit.burn.dps, onHit.burn.duration, source);
   if (onHit.pull) pull(ctx, target, ox, oz, onHit.pull.stopDistance, onHit.pull.duration);

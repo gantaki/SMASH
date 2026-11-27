@@ -69,3 +69,7 @@ Post-processing (ffmpeg): leading/trailing silence trimmed at −42 dB, gain set
 1. Drop `<id>.mp3` here (mono, short, no silence at the start: latency matters more than fidelity).
 2. Add or adjust the entry in `apps/client/src/audio/manifest.ts`.
 3. Reference the id from ability data (`sfx: { cast, fire, hit }` in `packages/content`) or from the client's event mapping.
+
+## Attack time
+
+A sound must be audible within a few milliseconds of its trigger, or the game feels laggy. Files are cut at their onset (first 4 ms window above ~18–40% of the peak) with a 3 ms fade-in; check a new file's attack before adding it. Wind-up cues (`windup_*`) are capped at ~0.3 s so they end when the wind-up does, and `cast_cancel` plays when a wind-up is aborted with C.

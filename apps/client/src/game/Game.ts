@@ -62,6 +62,7 @@ export class Game {
   private readonly mouse = { x: innerWidth / 2, y: innerHeight / 2 };
   private aim = { x: 0, z: 0 };
   private holdPrimary = false;
+  private cancelPressed = false;
   private paused = false;
   private raf = 0;
   private last = performance.now();
@@ -111,6 +112,7 @@ export class Game {
       if (e.repeat) return;
       if (k === "Escape" || k === "KeyP") return this.setPaused(!this.paused);
       if (k === "KeyM") return this.opts.audio.setMuted(!this.opts.audio.muted);
+      if (k === "KeyC") this.cancelPressed = true;
       this.keys.add(k);
       const slot = KEY_SLOTS[k];
       if (slot) this.presses.push(slot);
@@ -179,7 +181,9 @@ export class Game {
     if (k.has("KeyA") || k.has("ArrowLeft")) x -= 1;
     if (k.has("KeyD") || k.has("ArrowRight")) x += 1;
     const l = Math.hypot(x, z);
-    return { move: l ? { x: x / l, z: z / l } : { x: 0, z: 0 }, aim: { ...this.aim }, press: this.presses.splice(0), holdPrimary: this.holdPrimary };
+    const cancel = this.cancelPressed;
+    this.cancelPressed = false;
+    return { move: l ? { x: x / l, z: z / l } : { x: 0, z: 0 }, aim: { ...this.aim }, press: this.presses.splice(0), holdPrimary: this.holdPrimary, cancel };
   }
 
   private track(events: SimEvent[]): void {
@@ -223,7 +227,7 @@ export class Game {
     const input = ticks > 0 && this.opts.mode !== "demo" ? this.input() : null;
     for (let i = 0; i < ticks; i++) {
       this.view.snapshot(this.state);
-      const events = step(this.state, [input && i > 0 ? { ...input, press: [] } : input, null]);
+      const events = step(this.state, [input && i > 0 ? { ...input, press: [], cancel: false } : input, null]);
       this.view.handle(events, this.state);
       this.track(events);
     }

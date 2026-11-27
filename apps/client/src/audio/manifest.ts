@@ -18,6 +18,11 @@ const s = (id: string, volume: number, variance?: number, throttleMs?: number): 
 });
 
 export const SOUNDS: Record<string, SoundDef> = {
+  // Wind-ups: quiet cues that start on the key press, so an attack is never silent until it lands.
+  windup_fire: s("windup_fire", 0.3, 0.08),
+  windup_swing: s("windup_swing", 0.32, 0.08),
+  windup_bash: s("windup_bash", 0.4, 0.05),
+  cast_cancel: s("cast_cancel", 0.45, 0.05),
   // Ember
   fire_bolt: s("fire_bolt", 0.4, 0.08, 50),
   fire_hit: s("fire_hit", 0.45, 0.1, 50),

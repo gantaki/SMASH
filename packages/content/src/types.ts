@@ -38,7 +38,8 @@ export interface OnHit {
   stun?: number;
   /** Cannot move or use mobility, can still cast. */
   root?: number;
-  slow?: { amount: number; duration: number };
+  /** `fading`: a fading snare. It starts at `amount` and wears off linearly over `duration`. */
+  slow?: { amount: number; duration: number; fading?: boolean };
   burn?: { dps: number; duration: number };
   /** Drags the target toward the source, stopping `stopDistance` away. */
   pull?: { stopDistance: number; duration: number };
@@ -338,6 +339,8 @@ export interface MatchRules {
   countdown: number;
   roundEndDelay: number;
   inputBuffer: number;
+  /** Cancelling your own wind-up or channel (C). The cooldown is on the cancel itself. */
+  cancelCast: { cooldown: number };
   movement: MovementConfig;
   energy: { max: number; perDamage: number; perCompanionDamage: number; passivePerSecond: number };
   /** Knockback into an obstacle or the arena wall. Abilities can add to both numbers. */

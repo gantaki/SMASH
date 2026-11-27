@@ -1,7 +1,7 @@
 // Companion AI: follow the owner, attack by default, execute one command. Behaviour is driven by CompanionDef.
 
 import { arena, getChampion, rules, type CompanionDef } from "@smash/content";
-import { applyOnHit, hurt, moveForced } from "./combat.ts";
+import { applyOnHit, hurt, moveForced, slowFactor } from "./combat.ts";
 import type { Ctx } from "./context.ts";
 import { clearLine, obstaclePenetration, reach } from "./geometry.ts";
 import { angleDiff, type Vec2 } from "./math.ts";
@@ -234,7 +234,7 @@ export function updateCompanion(ctx: Ctx, c: CompanionUnit): void {
     const d = Math.hypot(dx, dz);
     const stop = target ? c.radius + target.radius + 0.1 : 0.05;
     if (d > stop) {
-      stepLen = Math.min(d - stop, speed * state.tuning.moveSpeed * (c.slow > 0 ? 1 - c.slowAmount : 1) * dt);
+      stepLen = Math.min(d - stop, speed * state.tuning.moveSpeed * slowFactor(c) * dt);
       sx = dx / d;
       sz = dz / d;
       c.x += sx * stepLen;

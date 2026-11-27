@@ -2,7 +2,7 @@
 
 import { ABILITY_SLOTS, arena, getChampion, rules } from "@smash/content";
 import { abilityOf, fire } from "./abilities.ts";
-import { applyOnHit, damageObstaclesInArea, hittables, hurt, moveForced, pushCrates, targetPos } from "./combat.ts";
+import { applyOnHit, damageObstaclesInArea, hittables, hurt, moveForced, pushCrates, slowFactor, targetPos } from "./combat.ts";
 import type { Ctx } from "./context.ts";
 import { obstaclePenetration } from "./geometry.ts";
 import { angleDiff } from "./math.ts";
@@ -13,7 +13,7 @@ const dec = (v: number, dt: number): number => (v > dt ? v - dt : 0);
 function speedMultiplier(u: ChampionUnit): number {
   let m = 1;
   if (u.cast) m *= abilityOf(u, u.cast.slot)?.castMoveMultiplier ?? 1;
-  if (u.slow > 0) m *= 1 - u.slowAmount;
+  m *= slowFactor(u);
   if (u.counter > 0 && u.counterSlot) {
     const a = abilityOf(u, u.counterSlot);
     if (a?.kind === "counter") m *= a.moveMultiplier;
@@ -72,6 +72,7 @@ export function updateChampion(ctx: Ctx, u: ChampionUnit): void {
   u.root = dec(u.root, dt);
   u.empowered = dec(u.empowered, dt);
   u.recovery = dec(u.recovery, dt);
+  u.cancelLock = dec(u.cancelLock, dt);
   u.counter = dec(u.counter, dt);
   if (u.counter <= 0) u.counterSlot = null;
   if (u.shieldTime > 0) {

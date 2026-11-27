@@ -1,11 +1,12 @@
 // Scripted scenarios: each gameplay rule gets a small deterministic situation (CLAUDE.md rule 5).
 import { describe, expect, it } from "vitest";
-import { arena, ember, rules, training, type AbilitySlot } from "@smash/content";
+import { arena, ember, fang, rules, training, type AbilitySlot } from "@smash/content";
 import {
   TICK_DT,
   championOfTeam,
   companionOf,
   createMatch,
+  currentSlow,
   emptyInput,
   runBotMatch,
   step,
@@ -171,6 +172,88 @@ describe("casting", () => {
     s.press(0, "mobility", 5, 10);
     s.run(rules.inputBuffer);
     expect(Math.hypot(s.a.x - before.x, s.a.z - before.z)).toBeGreaterThan(3);
+  });
+});
+
+describe("cancelling a cast", () => {
+  it("aborts the wind-up for free, then cannot cancel again for a moment", () => {
+    const s = scene();
+    s.press(0, "secondary", 0, -10);
+    s.run(0.2);
+    expect(s.a.cast?.slot).toBe("secondary");
+    s.inputs[0].cancel = true;
+    const ev = s.run(TICK_DT);
+    s.inputs[0].cancel = false;
+    expect(of(ev, "castCancel")[0]?.reason).toBe("cancelled");
+    expect(s.a.cast).toBeNull();
+    s.run(1);
+    expect(s.state.projectiles).toHaveLength(0);
+    expect(s.a.cooldowns.secondary).toBe(0);
+
+    // The cancel itself is on cooldown: a second wind-up started right away cannot be cancelled.
+    s.a.cancelLock = rules.cancelCast.cooldown;
+    s.press(0, "secondary", 0, -10);
+    s.run(0.1);
+    s.inputs[0].cancel = true;
+    s.run(TICK_DT);
+    s.inputs[0].cancel = false;
+    expect(s.a.cast?.slot).toBe("secondary");
+  });
+
+  it("stops a channel but does not refund it", () => {
+    const s = scene("fang", "ember");
+    s.a.energy = 100;
+    s.press(0, "ultimate", 0, 0);
+    s.run(0.3);
+    expect(s.a.channel).not.toBeNull();
+    s.inputs[0].cancel = true;
+    s.run(TICK_DT);
+    expect(s.a.channel).toBeNull();
+    expect(s.a.energy).toBeLessThan(5);
+  });
+
+  it("reports stuns as interruptions, not cancels", () => {
+    const s = scene("fang", "ember");
+    place(s.a, 5, 10);
+    place(s.b, 5, 8);
+    s.press(1, "secondary", 5, 10);
+    s.run(0.1);
+    s.press(0, "q", 5, 8);
+    const ev = s.run(0.5);
+    expect(of(ev, "castCancel").map((e) => e.reason)).toEqual(["interrupted"]);
+  });
+});
+
+describe("slows", () => {
+  it("a fading snare starts at full strength and wears off linearly", () => {
+    const s = scene("fang", "ember");
+    const cleave = fang.abilities.primary!;
+    if (cleave.kind !== "cone" || !cleave.onHit.slow) throw new Error("expected a cone with a slow");
+    const { amount, duration } = cleave.onHit.slow;
+    place(s.a, 5, 14);
+    place(s.b, 5, 12);
+    s.press(0, "primary", 5, 0);
+    s.run(cleave.castTime! + TICK_DT);
+    expect(s.b.slowFading).toBe(true);
+    expect(currentSlow(s.b)).toBeCloseTo(amount, 1);
+    s.run(duration / 2);
+    expect(currentSlow(s.b)).toBeCloseTo(amount / 2, 1);
+    s.inputs[1].move = { x: 1, z: 0 };
+    s.run(duration / 2 + 0.2);
+    expect(currentSlow(s.b)).toBe(0);
+    expect(s.b.vx).toBeCloseTo(ember.stats.moveSpeed, 3);
+  });
+
+  it("a light snare does not replace a heavier slow", () => {
+    const s = scene("fang", "ember");
+    place(s.a, 5, 14);
+    place(s.b, 5, 12);
+    Object.assign(s.b, { slow: 1.5, slowAmount: 0.5, slowTotal: 1.5, slowFading: false });
+    s.press(0, "primary", 5, 0);
+    s.run(0.4);
+    expect(s.b.hp).toBeLessThan(s.b.maxHp);
+    expect(s.b.slowFading).toBe(false);
+    expect(currentSlow(s.b)).toBe(0.5);
   });
 });
 

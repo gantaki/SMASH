@@ -46,9 +46,11 @@ export interface PlayerInput {
   press: readonly AbilitySlot[];
   /** Basic attack button held: repeats the attack. */
   holdPrimary: boolean;
+  /** Cancel key pressed this tick: aborts the current wind-up or channel. */
+  cancel: boolean;
 }
 
-export const emptyInput = (): PlayerInput => ({ move: { x: 0, z: 0 }, aim: { x: 0, z: 0 }, press: [], holdPrimary: false });
+export const emptyInput = (): PlayerInput => ({ move: { x: 0, z: 0 }, aim: { x: 0, z: 0 }, press: [], holdPrimary: false, cancel: false });
 
 /** Knockback or pull in progress. */
 export interface Forced {
@@ -77,8 +79,11 @@ interface UnitBase {
   radius: number;
   dead: boolean;
   stun: number;
+  /** Seconds of slow left, its strength, and (for a fading snare) its full length: strength scales with slow / slowTotal. */
   slow: number;
   slowAmount: number;
+  slowTotal: number;
+  slowFading: boolean;
   root: number;
   forced: Forced | null;
 }
@@ -108,6 +113,8 @@ export interface ChampionUnit extends UnitBase {
   cast: CastState | null;
   /** Seconds before another ability can start. */
   recovery: number;
+  /** Seconds before the champion can cancel a wind-up again. */
+  cancelLock: number;
   channel: { slot: AbilitySlot; time: number; tick: number } | null;
   leap: { slot: AbilitySlot; x0: number; z0: number; x1: number; z1: number; t: number; duration: number } | null;
   burn: number;
@@ -317,6 +324,8 @@ export function resetChampion(u: ChampionUnit, x: number, z: number, face: numbe
     stun: 0,
     slow: 0,
     slowAmount: 0,
+    slowTotal: 0,
+    slowFading: false,
     root: 0,
     forced: null,
     energy: 0,
@@ -326,6 +335,7 @@ export function resetChampion(u: ChampionUnit, x: number, z: number, face: numbe
     buffer: null,
     cast: null,
     recovery: 0,
+    cancelLock: 0,
     channel: null,
     leap: null,
     burn: 0,
@@ -360,6 +370,8 @@ export function resetCompanion(c: CompanionUnit, owner: ChampionUnit): void {
     stun: 0,
     slow: 0,
     slowAmount: 0,
+    slowTotal: 0,
+    slowFading: false,
     root: 0,
     forced: null,
     respawn: 0,

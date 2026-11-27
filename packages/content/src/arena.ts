@@ -60,6 +60,7 @@ export const rules: MatchRules = {
   countdown: 3,
   roundEndDelay: 2.6,
   inputBuffer: 0.25,
+  cancelCast: { cooldown: 1 },
   movement: {
     accelTime: 0.06,
     decelTime: 0.04,

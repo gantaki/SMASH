@@ -48,7 +48,7 @@ export class Hud {
           <div class="vbar en"><i></i></div>
         </div>
         <div class="slots">${slotHtml}</div>
-        <div class="hint">Esc или P — пауза · M — звук</div>
+        <div class="hint">C — отменить замах · Esc или P — пауза · M — звук</div>
       </div>`;
     this.q = <T extends HTMLElement>(s: string) => root.querySelector<T>(s)!;
     for (const el of root.querySelectorAll<HTMLElement>(".slot")) {

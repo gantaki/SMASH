@@ -1,7 +1,7 @@
 // The tick: phases, input, systems in a fixed order, round and match flow.
 
 import { rules, training, type AbilitySlot, type Tuning } from "@smash/content";
-import { tryCast } from "./abilities.ts";
+import { cancelAction, tryCast } from "./abilities.ts";
 import { botInput } from "./bot.ts";
 import { updateCompanion } from "./companions.ts";
 import type { Ctx } from "./context.ts";
@@ -31,6 +31,7 @@ function applyInput(ctx: Ctx, u: ChampionUnit, input: PlayerInput): void {
     u.buffer = null;
     return;
   }
+  if (input.cancel) cancelAction(ctx, u);
   const pressed: AbilitySlot | undefined = input.press[input.press.length - 1];
   if (pressed) u.buffer = { slot: pressed, time: rules.inputBuffer };
   if (u.buffer) {

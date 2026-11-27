@@ -51,6 +51,8 @@ export class GameView {
   private readonly reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
   private shake = 0;
   private alpha = 1;
+  /** Wind-up cues still playing, by unit id: cut short if the cast is cancelled or interrupted. */
+  private readonly castSounds = new Map<number, () => void>();
   /** Orbiting camera with no HUD: used behind the menu. */
   orbit = false;
 
@@ -244,14 +246,11 @@ export class GameView {
 
   // ---------- events ----------
 
-  private sound(id: string | undefined, x?: number, z?: number, volume = 1): void {
-    if (!id || !this.audio) return;
-    if (x === undefined || z === undefined) {
-      this.audio.play(id, { volume });
-      return;
-    }
+  private sound(id: string | undefined, x?: number, z?: number, volume = 1): (() => void) | null {
+    if (!id || !this.audio) return null;
+    if (x === undefined || z === undefined) return this.audio.play(id, { volume });
     const d = Math.hypot(x - this.camTarget.x, z - this.camTarget.z);
-    this.audio.play(id, { volume: volume * clamp(1.1 - d / 34, 0.35, 1), pan: clamp((x - this.camTarget.x) / 16, -0.8, 0.8) });
+    return this.audio.play(id, { volume: volume * clamp(1.1 - d / 34, 0.35, 1), pan: clamp((x - this.camTarget.x) / 16, -0.8, 0.8) });
   }
 
   private shakeAt(x: number, z: number, amount: number): void {
@@ -293,13 +292,27 @@ export class GameView {
           this.sound(won ? "round_win" : "round_lose");
           break;
         }
-        case "castStart":
-          this.sound(abilityById(e.abilityId)?.sfx?.cast, unit(e.unit)?.x, unit(e.unit)?.z);
+        case "castStart": {
+          // The cue starts with the key press; the release sound follows when the wind-up ends.
+          const stop = this.sound(abilityById(e.abilityId)?.sfx?.cast, unit(e.unit)?.x, unit(e.unit)?.z);
+          if (stop) this.castSounds.set(e.unit, stop);
           break;
+        }
+        case "castCancel": {
+          this.castSounds.get(e.unit)?.();
+          this.castSounds.delete(e.unit);
+          const u = unit(e.unit);
+          if (!u || e.reason !== "cancelled") break;
+          p.emit(u.x, 1.3, u.z, { n: 14, spd: 1.6, vy: 1.2, col: [0.8, 0.8, 0.85], col2: [0.25, 0.25, 0.3], life: 0.35, size: 0.4, jit: 0.5 });
+          this.sound("cast_cancel", u.x, u.z);
+          if (u.id === me.id) overlay.floatText(u.x, 2.9, u.z, "отмена", "#d9d2c5");
+          break;
+        }
         case "abilityFire": {
           const a = abilityById(e.abilityId);
           const u = unit(e.unit);
           if (!a || !u) break;
+          this.castSounds.delete(e.unit);
           const col = this.palette(u, state);
           this.champs.get(e.unit)?.attack(a.kind === "cone" && !!a.onHit.knockback);
           this.sound(a.sfx?.fire, e.x, e.z);
@@ -348,8 +361,8 @@ export class GameView {
           break;
         }
         case "groundSpawn": {
+          // The sound was already played by abilityFire.
           const a = abilityById(e.abilityId);
-          this.sound(a?.sfx?.fire, e.x, e.z);
           fx.wave(e.x, e.z, e.radius, a?.color ?? 0xff7a2b, 0.3);
           break;
         }

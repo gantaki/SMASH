@@ -2,7 +2,7 @@
 // To add a mechanic: add a kind to packages/content/src/types.ts and one entry to `behaviors` below.
 
 import { botDifficulty, getChampion, rules, type Ability, type AbilityKind, type AbilitySlot } from "@smash/content";
-import { applyOnHit, damageObstacle, hittables, pushCrates, targetPos } from "./combat.ts";
+import { applyOnHit, cancelCast, damageObstacle, hittables, pushCrates, targetPos } from "./combat.ts";
 import { commandCompanion } from "./companions.ts";
 import type { Ctx } from "./context.ts";
 import { obstacleDistance, obstaclePenetration, reach } from "./geometry.ts";
@@ -54,6 +54,22 @@ export function tryCast(ctx: Ctx, u: ChampionUnit, slot: AbilitySlot): boolean {
   } else {
     fire(ctx, u, slot);
   }
+  return true;
+}
+
+/**
+ * The player aborts their own wind-up or channel. Nothing was paid for a wind-up (costs are paid on fire), so the
+ * only price is the time spent and the cancel's own cooldown. A cancelled channel keeps what it already cost.
+ */
+export function cancelAction(ctx: Ctx, u: ChampionUnit): boolean {
+  if (u.dead || u.cancelLock > 0 || (!u.cast && !u.channel)) return false;
+  if (u.cast) cancelCast(ctx, u, "cancelled");
+  else {
+    u.channel = null;
+    ctx.events.push({ t: "channelEnd", unit: u.id });
+  }
+  u.cancelLock = rules.cancelCast.cooldown;
+  u.buffer = null;
   return true;
 }
 

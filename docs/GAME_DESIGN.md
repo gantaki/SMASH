@@ -70,6 +70,7 @@ Design intent: the zone pushes players together, rifts cut the remaining space i
 | Q / E | Abilities |
 | R / middle mouse | Command the companion (to the cursor) |
 | F | Ultimate (costs 100 energy) |
+| C | Cancel your own wind-up or channel |
 | Esc / P | Pause (local) / menu |
 | M | Mute |
 | 1–5 | Training range commands |
@@ -94,7 +95,10 @@ Rules that follow from this:
 
 - **Cooldown and energy are paid when the ability fires**, not when the wind-up starts. An interrupted wind-up (stun, knockback, pull) costs nothing but the time.
 - Tick rate is **60 Hz** and rendering interpolates between ticks, so input never waits more than one frame.
-- Not copied (yet): cast cancelling (C), fading snare on hit, mounts, EX abilities. Candidates for later.
+- **Cast cancelling (C)**, as in Battlerite: aborts your own wind-up or channel. A cancelled wind-up costs nothing (see above), a cancelled channel is not refunded. The cancel itself has a 1 s cooldown, so it is a feint, not a stutter-step. Bots cancel a wind-up that can no longer connect.
+- **Fading snare**: a slow that starts at full strength and wears off linearly. Both basic attacks apply a light one (25% over 0.6–0.7 s), so a hit lets melee stay on its target and lets ranged keep its distance. Slows do not stack: the stronger one at the moment of the hit wins.
+- **Sound follows the key press**: every wind-up starts a quiet cue immediately and the release sound plays when it fires. A cancelled or interrupted wind-up cuts its cue short.
+- Not copied (yet): mounts, EX abilities, recovery health. Candidates for later.
 
 ### Resources
 
@@ -114,7 +118,7 @@ Rules that follow from this:
 
 ### Status effects
 
-`stun` · `slow` · `root` ("pinned": cannot move or use mobility, can still cast) · `knockback` · `pull` · `burn` (damage over time) · `shield` (absorb) · `counter` (negates the next hit and punishes the attacker) · `empowered` · `unstoppable` (immune to crowd control).
+`stun` · `slow` (flat or fading) · `root` ("pinned": cannot move or use mobility, can still cast) · `knockback` · `pull` · `burn` (damage over time) · `shield` (absorb) · `counter` (negates the next hit and punishes the attacker) · `empowered` · `unstoppable` (immune to crowd control).
 
 A stun or forced movement **cancels a cast in progress**. Unstoppable ignores stun, slow, knockback and pull.
 
@@ -189,7 +193,7 @@ HP 170 · speed 6.0 m/s. Kites, applies burn, punishes bad positioning.
 
 | Slot | Ability | Behaviour | Starting values |
 |---|---|---|---|
-| LMB | Fire Bolt | Projectile | Wind-up 0.3 s (move ×0.55), 20 m/s, range 13 m, 11 dmg, cd 0.35 s |
+| LMB | Fire Bolt | Projectile | Wind-up 0.3 s (move ×0.55), 20 m/s, range 13 m, 11 dmg + fading snare 25% over 0.7 s, cd 0.35 s |
 | RMB | Fireball | Heavy projectile | Wind-up 0.6 s (move ×0.4), 15 m/s, range 15 m, 20 dmg + burn 4/s for 3 s, cd 5 s. Splits into 3 when passing through the Wisp |
 | Space | Blink | Teleport to cursor | Up to 7 m, cd 8 s |
 | Q | Ring of Fire | Delayed AoE at cursor | Wind-up 0.2 s, max range 11 m, r 2.6 m, delay 0.85 s, 18 dmg + stun 0.8 s, cd 9 s |
@@ -203,7 +207,7 @@ HP 220 · speed 6.4 m/s. Closes distance, hooks, doesn't let go.
 
 | Slot | Ability | Behaviour | Starting values |
 |---|---|---|---|
-| LMB | Cleave | Melee cone | Wind-up 0.28 s (move ×0.8), range 2.9 m, ±60°, 14 dmg, cd 0.42 s. Empowered: 26 dmg + slow 50% 1.5 s. On-hit VFX: **Ink Blade Hit** (Spine) |
+| LMB | Cleave | Melee cone | Wind-up 0.28 s (move ×0.8), range 2.9 m, ±60°, 14 dmg + fading snare 25% over 0.6 s, cd 0.42 s. Empowered: 26 dmg + slow 50% 1.5 s. On-hit VFX: **Ink Blade Hit** (Spine) |
 | RMB | Harpoon | Hook | Wind-up 0.35 s (move ×0.4), 18 m/s, range 11 m, 10 dmg, pulls target to 1.5 m, cd 7 s. Pulls crates; hitting the Hound pulls Fang to it |
 | Space | Leap | Arc jump | Up to 8 m in 0.55 s, landing marker shown. Landing r 2.4 m: 14 dmg + slow 40% 1.5 s, cd 8 s |
 | Q | Shield Bash | Melee cone | Wind-up 0.25 s, range 3.1 m, ±52°, 10 dmg + stun 0.5 s, knockback 3 m; **slam: stun 1.2 s, +10 dmg**; pushes crates, cd 9 s |
@@ -358,6 +362,7 @@ tests/           repo-wide guards (architecture rules)
 - Pacing: are wind-ups and projectile speeds right? Tune on the training range, then update the data. Battlerite's basic projectiles are ≈5× walking speed; ours are 3.3×.
 - Round length: bot mirrors of Fang end in ≈10 s. Is time-to-kill too short once humans dodge?
 - Rifts: 8 damage per 0.3 s and five pairs — pressure or noise?
+- Basic-attack snares (25%): do they make kiting or sticking too easy? Is a 1 s cancel cooldown the right price for a feint?
 - Snapshot rate for M2 (the sim ticks at 60 Hz; snapshots can be 20–30 Hz).
 - Custom room server vs Colyseus (Colyseus state sync may fight a custom prediction model).
 - Is WebSocket good enough at real-world latency, or is WebRTC needed early?

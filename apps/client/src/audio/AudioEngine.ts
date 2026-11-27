@@ -17,6 +17,9 @@ const MAX_VOICES = 24;
 
 const clamp = (v: number, lo: number, hi: number): number => (v < lo ? lo : v > hi ? hi : v);
 
+/** Time constant of the fade when a sound is stopped early, seconds. */
+const STOP_FADE = 0.012;
+
 export class AudioEngine {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
@@ -83,18 +86,19 @@ export class AudioEngine {
     }
   }
 
-  play(id: string, opts: PlayOptions = {}): void {
+  /** Plays a sound now. Returns a function that fades it out early (for wind-up cues that get cancelled), or null. */
+  play(id: string, opts: PlayOptions = {}): (() => void) | null {
     const ctx = this.ctx;
     const master = this.master;
-    if (!ctx || !master || this.mute || this.disposed || ctx.state !== "running") return;
+    if (!ctx || !master || this.mute || this.disposed || ctx.state !== "running") return null;
     const def = SOUNDS[id];
     const buffer = this.buffers.get(id);
-    if (!def || !buffer) return;
-    if (this.voices >= MAX_VOICES) return;
+    if (!def || !buffer) return null;
+    if (this.voices >= MAX_VOICES) return null;
     const now = ctx.currentTime * 1000;
     if (def.throttleMs !== undefined) {
       const last = this.lastPlayed.get(id);
-      if (last !== undefined && now - last < def.throttleMs) return;
+      if (last !== undefined && now - last < def.throttleMs) return null;
     }
     this.lastPlayed.set(id, now);
     try {
@@ -122,8 +126,17 @@ export class AudioEngine {
         if (tail !== gain) tail.disconnect();
       };
       source.start();
+      return () => {
+        try {
+          gain.gain.setTargetAtTime(0, ctx.currentTime, STOP_FADE);
+          source.stop(ctx.currentTime + STOP_FADE * 5);
+        } catch {
+          // Already stopped.
+        }
+      };
     } catch {
       // Never let audio break the frame.
+      return null;
     }
   }
 

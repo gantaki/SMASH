@@ -17,7 +17,8 @@ export type SimEvent =
   | { t: "roundEnd"; winner: 0 | 1 | -1; score: [number, number] }
   | { t: "matchEnd"; winner: 0 | 1; score: [number, number] }
   | { t: "castStart"; unit: number; slot: AbilitySlot; abilityId: string }
-  | { t: "castCancel"; unit: number; slot: AbilitySlot; abilityId: string }
+  /** reason "cancelled": the player aborted it; "interrupted": stun, knockback, pull or death. */
+  | { t: "castCancel"; unit: number; slot: AbilitySlot; abilityId: string; reason: "cancelled" | "interrupted" }
   | { t: "abilityFire"; unit: number; slot: AbilitySlot; abilityId: string; x: number; z: number; aimX: number; aimZ: number; empowered: boolean }
   | { t: "projectileSpawn"; id: number; owner: number; abilityId: string | null; x: number; z: number }
   | { t: "projectileEnd"; id: number; x: number; z: number; reason: ProjectileEndReason; heavy: boolean; abilityId: string | null; team: 0 | 1 }

@@ -21,6 +21,8 @@ const EDGE_MARGIN = 3.5;
 const OBSTACLE_MARGIN = 1.1;
 const RIFT_MARGIN = 1.3;
 const AIM_ERROR_SCALE = 0.22;
+const CANCEL_SLACK = 0.6;
+const CANCEL_RATE = 12;
 /** Slots tried for offence, most valuable first. */
 const OFFENCE_ORDER: readonly AbilitySlot[] = ["ultimate", "q", "e", "secondary", "mobility", "primary"];
 
@@ -277,6 +279,11 @@ export function botInput(ctx: Ctx, b: ChampionUnit): PlayerInput {
     const a = abilityOf(b, b.cast.slot);
     const left = a ? timeToHit(a, td, 0, speedScale) + b.cast.time : 0;
     input.aim = leadAim(b, ai, D, tgt, left);
+    // Cancel a wind-up that can no longer connect: the target walked out of a melee arc or behind stone.
+    const wasted =
+      (a?.kind === "cone" && td > a.range + tgt.radius + CANCEL_SLACK) ||
+      (a?.kind === "projectile" && blocker(state, b, tgt)?.kind === "stone");
+    if (wasted && b.cancelLock <= 0 && rng.next() < D.dodge * dt * CANCEL_RATE) input.cancel = true;
     return input;
   }
   input.aim = { x: tgt.x, z: tgt.z };
