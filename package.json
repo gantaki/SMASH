@@ -1,0 +1,25 @@
+{
+  "name": "smash",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.28.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "pnpm --parallel --filter @smash/client --filter @smash/server dev",
+    "dev:client": "pnpm --filter @smash/client dev",
+    "dev:server": "pnpm --filter @smash/server dev",
+    "build": "pnpm --filter @smash/client build",
+    "typecheck": "tsc -p tsconfig.json --noEmit && pnpm -r typecheck",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prototype": "node scripts/serve-prototype.mjs",
+    "check": "pnpm typecheck && pnpm test && pnpm build"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.11",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.2"
+  }
+}
