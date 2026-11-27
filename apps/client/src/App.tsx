@@ -1,91 +1,145 @@
-import { useEffect, useRef, useState } from "react";
-import { ABILITY_SLOTS, SLOT_KEYS, championList } from "@smash/content";
-import { ArenaView } from "./game/ArenaView.ts";
-import { useLobby } from "./net/useLobby.ts";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { playableChampions, type BotDifficulty } from "@smash/content";
+import { AudioEngine } from "./audio/AudioEngine.ts";
+import { Game, type GameMode, type TrainingStats } from "./game/Game.ts";
+import { Menu, type PlayMode } from "./ui/Menu.tsx";
+import { TrainingPanel } from "./ui/TrainingPanel.tsx";
+
+type Screen = "menu" | "game" | "end";
+
+const EMPTY_STATS: TrainingStats = { dps: 0, lastHit: 0, total: 0, dummyMoves: false, suddenDeath: false };
+const DIFFICULTY_NAMES: Record<BotDifficulty, string> = { easy: "лёгкий", normal: "средний", hard: "сложный" };
 
 export function App() {
+  const audio = useMemo(() => new AudioEngine(), []);
   const canvas = useRef<HTMLCanvasElement>(null);
-  const [name] = useState(() => `Player${Math.floor(Math.random() * 900 + 100)}`);
-  const [code, setCode] = useState("");
-  const net = useLobby(name);
-  const me = net.lobby?.players.find((p) => p.id === net.playerId);
+  const overlay = useRef<HTMLDivElement>(null);
+  const hud = useRef<HTMLDivElement>(null);
+  const game = useRef<Game | null>(null);
+
+  const [screen, setScreen] = useState<Screen>("menu");
+  const [champion, setChampion] = useState(playableChampions[0]!.id);
+  const [mode, setMode] = useState<PlayMode>("duel");
+  const [difficulty, setDifficulty] = useState<BotDifficulty>("normal");
+  const [paused, setPaused] = useState(false);
+  const [result, setResult] = useState<{ won: boolean; score: [number, number] } | null>(null);
+  const [stats, setStats] = useState<TrainingStats>(EMPTY_STATS);
+  // Bumping the run number gives the next match a fresh canvas (and WebGL context).
+  const [run, setRun] = useState(0);
+
+  // Browsers only allow audio after a user gesture: start loading sounds on the first click anywhere.
+  useEffect(() => {
+    const unlock = () => audio.unlock();
+    window.addEventListener("pointerdown", unlock, { once: true });
+    return () => window.removeEventListener("pointerdown", unlock);
+  }, [audio]);
+
+  const opponent = playableChampions.find((c) => c.id !== champion)?.id ?? champion;
+  const gameMode: GameMode = screen === "menu" ? "demo" : mode;
 
   useEffect(() => {
-    const view = new ArenaView(canvas.current!);
-    return () => view.dispose();
+    if (!canvas.current || !overlay.current || !hud.current) return;
+    const g = new Game({
+      mode: gameMode,
+      champion,
+      opponent,
+      difficulty,
+      canvas: canvas.current,
+      overlay: overlay.current,
+      hud: hud.current,
+      audio,
+      onMatchEnd: (won, score) => {
+        if (gameMode === "demo") setRun((n) => n + 1);
+        else {
+          setResult({ won, score });
+          setScreen("end");
+        }
+      },
+      onPause: setPaused,
+      onTrainingStats: setStats,
+    });
+    game.current = g;
+    // Handle for Playwright smoke tests and console debugging.
+    if (import.meta.env.DEV) (window as unknown as { __smash?: Game }).__smash = g;
+    return () => {
+      g.dispose();
+      game.current = null;
+    };
+    // The match is rebuilt only when a new run starts; menu selections apply to the next run.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [run]);
+
+  const start = useCallback(() => {
+    audio.unlock();
+    audio.play("ui_click");
+    setPaused(false);
+    setResult(null);
+    setStats(EMPTY_STATS);
+    setScreen("game");
+    setRun((n) => n + 1);
+  }, [audio]);
+
+  const toMenu = useCallback(() => {
+    setPaused(false);
+    setResult(null);
+    setScreen("menu");
+    setRun((n) => n + 1);
   }, []);
 
+  const pick = (id: string) => {
+    audio.unlock();
+    audio.play("ui_click");
+    setChampion(id);
+    if (screen === "menu") setRun((n) => n + 1);
+  };
+
+  const inGame = screen !== "menu";
   return (
     <>
-      <canvas ref={canvas} className="stage" />
-      <main className="panel">
-        <header>
-          <h1>SMASH</h1>
-          <span className={`status ${net.status}`}>server: {net.status}</span>
-        </header>
+      <canvas key={run} ref={canvas} className="stage" tabIndex={0} aria-label="Арена" />
+      <div ref={overlay} className="ov" />
+      <div ref={hud} className="hud" hidden={!inGame || screen === "end"} />
 
-        {(net.status === "no-server" || net.status === "offline") && (
-          <p className="notice">
-            {net.status === "no-server"
-              ? "The multiplayer server is not deployed yet, so rooms are unavailable here."
-              : "Cannot reach the game server. Start it with pnpm dev."}{" "}
-            Meanwhile, <a href="/prototype/">play the prototype vs a bot</a>.
-          </p>
-        )}
+      {screen === "menu" && <Menu champion={champion} mode={mode} difficulty={difficulty} onChampion={pick} onMode={setMode} onDifficulty={setDifficulty} onStart={start} />}
 
-        {!net.lobby ? (
-          <section className="row">
-            <button onClick={net.create} disabled={net.status !== "online"}>
-              Create room
-            </button>
-            <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="CODE" maxLength={4} />
-            <button onClick={() => net.join(code)} disabled={net.status !== "online" || code.length !== 4}>
-              Join
-            </button>
-          </section>
-        ) : (
-          <section>
-            <p>
-              Room <b>{net.lobby.code}</b> · share <code>{location.origin}/r/{net.lobby.code}</code>
+      {screen === "game" && mode === "training" && !paused && (
+        <TrainingPanel champion={champion} stats={stats} onCommand={(c) => game.current?.command(c)} onTuning={(t) => game.current?.setTuning(t)} />
+      )}
+
+      {screen === "game" && paused && (
+        <div className="screen">
+          <div className="panel small">
+            <h1>Пауза</h1>
+            <div className="row">
+              <button className="go" onClick={() => game.current?.setPaused(false)}>
+                Продолжить
+              </button>
+              <button className="ghost" onClick={toMenu}>
+                Выйти в меню
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {screen === "end" && result && (
+        <div className="screen">
+          <div className="panel small">
+            <h1 style={{ color: result.won ? "var(--ally)" : "var(--foe)" }}>{result.won ? "Победа" : "Поражение"}</h1>
+            <p className="sub">
+              Счёт {result.score[0]} : {result.score[1]} · бот ({DIFFICULTY_NAMES[difficulty]})
             </p>
-            <ul className="players">
-              {net.lobby.players.map((p) => (
-                <li key={p.id} className={p.team === 0 ? "ally" : "enemy"}>
-                  {p.name}
-                  {p.id === net.lobby?.hostId ? " (host)" : ""} — {p.champion ?? "picking…"} {p.ready ? "✓" : ""}
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
-
-        <section className="champs">
-          {championList.map((c) => (
-            <button
-              key={c.id}
-              className={`champ ${me?.champion === c.id ? "picked" : ""}`}
-              style={{ borderColor: c.color }}
-              onClick={() => net.pick(c.id)}
-              disabled={!net.lobby}
-            >
-              <b style={{ color: c.color }}>{c.name}</b> <small>{c.role} · {c.hp} HP</small>
-              <span className="abilities">
-                {ABILITY_SLOTS.map((s) => `${SLOT_KEYS[s]}: ${c.abilities[s].name}`).join(" · ")}
-              </span>
-            </button>
-          ))}
-        </section>
-
-        {me && (
-          <button onClick={() => net.setReady(!me.ready)} disabled={!me.champion}>
-            {me.ready ? "Not ready" : "Ready"}
-          </button>
-        )}
-        {net.error && <p className="error">{net.error}</p>}
-        <p className="hint">
-          M0 skeleton: lobby over WebSocket + static arena. Gameplay comes in M1. · <a href="/prototype/">Prototype</a>
-        </p>
-      </main>
+            <div className="row">
+              <button className="go" onClick={start}>
+                Реванш
+              </button>
+              <button className="ghost" onClick={toMenu}>
+                Сменить чемпиона
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

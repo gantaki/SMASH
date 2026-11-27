@@ -1,30 +1,59 @@
 import { describe, expect, it } from "vitest";
-import { ABILITY_SLOTS, arena, championList, type OnHit } from "./index.ts";
+import { ABILITY_SLOTS, abilityById, arena, championList, playableChampions, rules, type Ability, type OnHit } from "./index.ts";
 
 const validOnHit = (h: OnHit) => {
   expect(h.damage).toBeGreaterThanOrEqual(0);
   if (h.stun !== undefined) expect(h.stun).toBeGreaterThan(0);
-  if (h.slow) expect(h.slow.amount).toBeGreaterThan(0);
-  if (h.slow) expect(h.slow.amount).toBeLessThan(1);
+  if (h.slow) {
+    expect(h.slow.amount).toBeGreaterThan(0);
+    expect(h.slow.amount).toBeLessThan(1);
+  }
+  if (h.knockback) expect(h.knockback.duration).toBeGreaterThan(0);
+};
+
+const onHits = (a: Ability): OnHit[] => {
+  switch (a.kind) {
+    case "projectile":
+    case "groundAoe":
+    case "nova":
+      return [a.onHit];
+    case "cone":
+      return a.empoweredOnHit ? [a.onHit, a.empoweredOnHit] : [a.onHit];
+    case "leap":
+      return [a.landing.onHit];
+    case "counter":
+      return [a.punish];
+    case "channel":
+      return [a.onTick];
+    default:
+      return [];
+  }
 };
 
 describe("champion content", () => {
   it("has unique champion and ability ids", () => {
-    const ids = championList.flatMap((c) => [c.id, ...ABILITY_SLOTS.map((s) => c.abilities[s].id)]);
+    const ids = championList.flatMap((c) => [c.id, ...Object.values(c.abilities).map((a) => a!.id)]);
     expect(new Set(ids).size).toBe(ids.length);
+    for (const id of ids.filter((i) => i.includes("."))) expect(abilityById(id)?.id).toBe(id);
   });
 
-  for (const c of championList) {
+  it("has at least two playable champions", () => {
+    expect(playableChampions.length).toBeGreaterThanOrEqual(2);
+  });
+
+  for (const c of playableChampions) {
     describe(c.name, () => {
-      it("fills every slot with an ability of that slot", () => {
-        for (const slot of ABILITY_SLOTS) expect(c.abilities[slot].slot).toBe(slot);
+      it("fills every slot", () => {
+        for (const slot of ABILITY_SLOTS) expect(c.abilities[slot], slot).toBeDefined();
+        expect(c.abilities.companion!.kind).toBe("companionCommand");
+        expect(c.companion).toBeDefined();
       });
 
       it("uses energy for the ultimate and cooldowns for the rest", () => {
         for (const slot of ABILITY_SLOTS) {
-          const a = c.abilities[slot];
+          const a = c.abilities[slot]!;
           if (slot === "ultimate") {
-            expect(a.energyCost).toBe(100);
+            expect(a.energyCost).toBe(rules.energy.max);
             expect(a.cooldown).toBe(0);
           } else {
             expect(a.energyCost).toBeUndefined();
@@ -34,15 +63,48 @@ describe("champion content", () => {
       });
 
       it("has sane numbers", () => {
-        expect(c.hp).toBeGreaterThan(0);
-        expect(c.moveSpeed).toBeGreaterThan(0);
+        expect(c.stats.hp).toBeGreaterThan(0);
+        // Playtested band: about 6 m/s feels right; nobody slower than 5.5 or faster than 6.5.
+        expect(c.stats.moveSpeed).toBeGreaterThanOrEqual(5.5);
+        expect(c.stats.moveSpeed).toBeLessThanOrEqual(6.5);
+        expect(c.stats.weight).toBeGreaterThan(0);
         for (const slot of ABILITY_SLOTS) {
-          const a = c.abilities[slot];
-          if (a.castTime !== undefined) expect(a.castMoveMultiplier).toBeDefined();
-          if ("onHit" in a) validOnHit(a.onHit);
-          if (a.kind === "projectile") expect(a.range).toBeLessThan(arena.radius * 2);
+          const a = c.abilities[slot]!;
+          if (a.castTime !== undefined) expect(a.castMoveMultiplier, a.id).toBeDefined();
+          onHits(a).forEach(validOnHit);
+          if (a.kind === "projectile") {
+            expect(a.range).toBeLessThan(arena.radius * 2);
+            // A projectile must not skip over a champion between two ticks.
+            expect(a.speed / rules.tickRate).toBeLessThan(a.radius + c.stats.radius);
+          }
+        }
+      });
+
+      it("keeps every dangerous ability dodgeable (pillar: readable and dodgeable)", () => {
+        // From the button press to the hit at mid range there must be time to react and step aside.
+        const REACTION = 0.3;
+        for (const slot of ["secondary", "q", "ultimate"] as const) {
+          const a = c.abilities[slot]!;
+          const cast = a.castTime ?? 0;
+          if (a.kind === "projectile") expect(cast + a.range / 2 / a.speed, a.id).toBeGreaterThan(REACTION);
+          if (a.kind === "groundAoe") expect(cast + a.delay, a.id).toBeGreaterThan(REACTION * 2);
         }
       });
     });
   }
+});
+
+describe("arena", () => {
+  it("is point-symmetric", () => {
+    for (const o of arena.obstacles) {
+      expect(
+        arena.obstacles.some((q) => q.kind === o.kind && Math.abs(q.x + o.x) < 1e-9 && Math.abs(q.z + o.z) < 1e-9),
+        `${o.kind} at ${o.x},${o.z}`,
+      ).toBe(true);
+    }
+  });
+
+  it("keeps the orb inside the final zone", () => {
+    expect(arena.suddenDeath.zone.minRadius).toBeGreaterThan(arena.orb.radius + 2);
+  });
 });

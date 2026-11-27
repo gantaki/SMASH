@@ -4,7 +4,7 @@
   "buildCommand": "pnpm build:web",
   "outputDirectory": "apps/client/dist",
   "rewrites": [
-    { "source": "/app", "destination": "/app/index.html" },
-    { "source": "/r/:code", "destination": "/app/index.html" }
+    { "source": "/app", "destination": "/index.html" },
+    { "source": "/r/:code", "destination": "/index.html" }
   ]
 }

@@ -16,11 +16,14 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "prototype": "node scripts/serve-prototype.mjs",
-    "check": "pnpm typecheck && pnpm test && pnpm build"
+    "check": "pnpm typecheck && pnpm test && pnpm build",
+    "sim:batch": "node scripts/bot-batch.ts"
   },
   "devDependencies": {
     "@types/node": "^26.6.11",
     "typescript": "^7.0.2",
-    "vitest": "^5.1.2"
+    "vitest": "^5.1.2",
+    "@smash/content": "workspace:*",
+    "@smash/sim": "workspace:*"
   }
 }
