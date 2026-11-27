@@ -9,5 +9,5 @@ export * from "./state.ts";
 export { step, trainingCommand, type TrainingCommand } from "./match.ts";
 export { abilityOf, canAct, isReady } from "./abilities.ts";
 export { currentSlow, isUnstoppable } from "./combat.ts";
-export { blocker, clearLine, obstacleDistance, polylineDistance, reach } from "./geometry.ts";
+export { blocker, clearLine, obstacleDistance, obstaclePenetration, polylineDistance, reach } from "./geometry.ts";
 export { runBotMatch, type BotMatchOptions, type MatchResult } from "./headless.ts";

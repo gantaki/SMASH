@@ -6,6 +6,7 @@ import { abilityById, getChampion, type Champion } from "@smash/content";
 import type { ChampionUnit, CompanionUnit } from "@smash/sim";
 import { ALLY, FOE, G, TAU, basic, rand, rgb, std, type RGB } from "./gfx.ts";
 import type { Particles } from "./Particles.ts";
+import { Ragdoll, type Impulse, type RagdollWorld } from "./Ragdoll.ts";
 
 export interface Pose {
   x: number;
@@ -149,6 +150,9 @@ export class ChampionView {
   private bash = 0;
   private spin = 0;
   private readonly tmp = new THREE.Vector3();
+  private ragdoll: Ragdoll | null = null;
+  private readonly ring: THREE.Object3D;
+  private readonly arrow: THREE.Object3D;
   /** Height of the body above the ground this frame (leaps); the overlay uses it for the health bar. */
   height = 0;
 
@@ -165,10 +169,12 @@ export class ChampionView {
     ring.position.y = 0.03;
     ring.scale.setScalar(1.08);
     this.root.add(ring);
+    this.ring = ring;
     const arrow = new THREE.Mesh(G.arrow, basic(team, 0.95));
     arrow.position.y = 0.03;
     arrow.scale.setScalar(0.9);
     this.body.add(arrow);
+    this.arrow = arrow;
 
     this.bubble = new THREE.Mesh(G.sphere, basic(this.champion.color, 0.2, true));
     this.bubble.position.y = 1.2;
@@ -206,8 +212,42 @@ export class ChampionView {
     if (heavy) this.bash = 0.2;
   }
 
+  /** The champion died: hand the model over to the ragdoll, launched by the killing blow. */
+  startRagdoll(scene: THREE.Object3D, impulse: Impulse, world: RagdollWorld): void {
+    if (this.ragdoll) return;
+    this.body.rotation.x = 0;
+    this.root.position.y = Math.max(0, this.root.position.y);
+    const props = [this.rig.arm, ...(this.rig.shield ? [this.rig.shield] : [])];
+    this.ragdoll = new Ragdoll(scene, this.body, props, [this.arrow], impulse, world);
+    this.ring.visible = false;
+  }
+
+  /** Where the ragdoll's body is, or null while the champion is on its feet. */
+  get ragdollCenter(): { x: number; z: number } | null {
+    return this.ragdoll?.center ?? null;
+  }
+
+  private endRagdoll(): void {
+    this.ragdoll?.restore();
+    this.ragdoll = null;
+    this.ring.visible = true;
+  }
+
   update(u: ChampionUnit, pose: Pose, time: number, dt: number): void {
     const { root, body, rig, particles } = this;
+    // Alive again (next round, training respawn, kill cam rewind): put the model back together.
+    if (this.ragdoll && !u.dead) this.endRagdoll();
+    if (this.ragdoll) {
+      this.ragdoll.update(dt);
+      this.bubble.visible = this.stars.visible = this.charge.visible = this.empower.visible = false;
+      if (this.flashT > 0 || this.flashOn) {
+        this.flashT = Math.max(0, this.flashT - dt);
+        const f = (this.flashT / FLASH_TIME) * 0.9;
+        for (const m of this.mats) m.emissive.setRGB(f, f * 0.85, f * 0.7);
+        this.flashOn = this.flashT > 0;
+      }
+      return;
+    }
     this.flashT = Math.max(0, this.flashT - dt);
     this.swing = Math.max(0, this.swing - dt);
     this.bash = Math.max(0, this.bash - dt);

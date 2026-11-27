@@ -1,0 +1,80 @@
+import * as THREE from "three";
+import { describe, expect, it } from "vitest";
+import { RAGDOLL, Ragdoll, collapse, launchFor, type RagdollWorld } from "./Ragdoll.ts";
+
+/** A model like the real ones: parts at different heights, one prop, one marker to hide. */
+function model() {
+  const scene = new THREE.Scene();
+  const body = new THREE.Group();
+  scene.add(body);
+  const part = (y: number) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.3));
+    m.position.y = y;
+    body.add(m);
+    return m;
+  };
+  const parts = [part(0.4), part(1.1), part(1.8)];
+  const weapon = part(1.2);
+  const arrow = part(0.03);
+  return { scene, body, parts, weapon, arrow };
+}
+
+const WALL_X = 6;
+const world = (slams: string[] = []): RagdollWorld => ({
+  collide: (x, _y, _z, r) => (x > WALL_X - r ? { nx: -1, nz: 0, depth: x - (WALL_X - r) } : null),
+  impact: (_x, _y, _z, _speed, kind) => slams.push(kind),
+});
+
+const settle = (r: Ragdoll, seconds = 6) => {
+  for (let i = 0; i < seconds * 60; i++) r.update(1 / 60);
+};
+
+describe("ragdoll", () => {
+  it("is thrown by the blow, lands on the floor and comes to rest", () => {
+    const m = model();
+    const r = new Ragdoll(m.scene, m.body, [m.weapon], [m.arrow], launchFor(14, 1, 0), world());
+    r.update(0.3);
+    settle(r);
+    expect(r.center.x).toBeGreaterThan(1.5);
+    for (const p of m.parts) {
+      const y = p.getWorldPosition(new THREE.Vector3()).y;
+      expect(y).toBeGreaterThan(-0.3);
+      expect(y).toBeLessThan(1);
+    }
+    const before = r.center.x;
+    settle(r, 1);
+    expect(r.center.x).toBe(before);
+  });
+
+  it("slams into a wall instead of flying through it", () => {
+    const m = model();
+    const slams: string[] = [];
+    const r = new Ragdoll(m.scene, m.body, [m.weapon], [m.arrow], launchFor(45, 1, 0), world(slams));
+    settle(r);
+    expect(slams).toContain("wall");
+    expect(r.center.x).toBeLessThan(WALL_X);
+    expect(m.weapon.position.x).toBeLessThan(WALL_X);
+  });
+
+  it("flies further for a harder blow, and only crumples without one", () => {
+    expect(launchFor(45, 1, 0).x).toBeGreaterThan(launchFor(11, 1, 0).x);
+    expect(launchFor(1000, 1, 0).x).toBe(RAGDOLL.launch.max);
+    const c = collapse();
+    expect(Math.hypot(c.x, c.z)).toBeCloseTo(RAGDOLL.collapse.speed);
+  });
+
+  it("puts the model back together exactly", () => {
+    const m = model();
+    const snapshot = () => m.body.children.map((c) => [c.position.toArray(), c.quaternion.toArray(), c.visible]);
+    const before = snapshot();
+    const r = new Ragdoll(m.scene, m.body, [m.weapon], [m.arrow], launchFor(20, 0, 1), world());
+    expect(m.body.children).toHaveLength(1); // only the hidden marker stays
+    expect(m.arrow.visible).toBe(false);
+    settle(r, 1);
+    r.restore();
+    expect(m.body.children).toHaveLength(5);
+    expect(new Set(m.body.children)).toEqual(new Set([...m.parts, m.weapon, m.arrow]));
+    expect(snapshot().sort()).toEqual(before.sort());
+    expect(m.scene.children).toEqual([m.body]);
+  });
+});

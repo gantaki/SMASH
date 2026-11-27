@@ -9,7 +9,7 @@ export const botDifficulty: Record<BotDifficulty, BotDifficultyConfig> = {
 export const BOT_DIFFICULTIES: readonly BotDifficulty[] = ["easy", "normal", "hard"];
 
 export const training: TrainingConfig = {
-  respawn: 1.2,
+  respawn: 2.5,
   dummy: {
     regenDelay: 3,
     strafeInterval: 1.4,

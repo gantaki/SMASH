@@ -2,8 +2,8 @@
 // It never mutates sim state (architecture rule 4).
 
 import * as THREE from "three";
-import { abilityById, getChampion, rules } from "@smash/content";
-import { championOfTeam, type ChampionUnit, type MatchState, type SimEvent, type Unit } from "@smash/sim";
+import { abilityById, arena, getChampion, rules } from "@smash/content";
+import { championOfTeam, obstaclePenetration, type ChampionUnit, type MatchState, type SimEvent, type Unit } from "@smash/sim";
 import type { AudioEngine } from "../../audio/AudioEngine.ts";
 import { Fx } from "./Fx.ts";
 import { KILL_CAM, type KillShot } from "../killcam.ts";
@@ -11,6 +11,7 @@ import { GOLD, ALLY, FOE, G, basic, clamp, rand, rgb, type RGB } from "./gfx.ts"
 import { Hazards } from "./Hazards.ts";
 import { Overlay } from "./Overlay.ts";
 import { Particles } from "./Particles.ts";
+import { RAGDOLL, collapse, launchFor, type RagdollWorld } from "./Ragdoll.ts";
 import { SpineBillboard } from "./SpineBillboard.ts";
 import { ChampionView, CompanionView, type Pose } from "./Units.ts";
 import { World } from "./World.ts";
@@ -20,6 +21,9 @@ const CAMERA = { fov: 45, height: 26, back: 12.5, lookAhead: 0.28, lookAheadMax:
 /** Spine pixels per meter for BoneGyre hit effects (GAME_DESIGN §6). */
 const SPINE_PX_PER_M = 175;
 const TELEPORT_DISTANCE = 3;
+/** How tall obstacles are, for ragdolls flying over or into them (matches the meshes in World.ts). */
+const OBSTACLE_HEIGHT = { stone: 3.3, wood: 1.4, crate: 1.1 } as const;
+const RIM = { height: 1.2, thickness: 1, standsGap: 7.2 } as const;
 
 const DUST: [RGB, RGB] = [rgb("#f2d18c"), rgb("#66482a")];
 const WOOD: [RGB, RGB] = [rgb("#c0803f"), rgb("#593314")];
@@ -54,6 +58,10 @@ export class GameView {
   private alpha = 1;
   /** Wind-up cues still playing, by unit id: cut short if the cast is cancelled or interrupted. */
   private readonly castSounds = new Map<number, () => void>();
+  /** The last direct hit each champion took: where it came from and how hard. Launches the ragdoll on death. */
+  private readonly lastHit = new Map<number, { dx: number; dz: number; amount: number }>();
+  /** Latest state seen, for ragdoll collisions against obstacles. */
+  private latest: MatchState;
   /** Orbiting camera with no HUD: used behind the menu. */
   orbit = false;
   private shot: KillShot | null = null;
@@ -88,6 +96,7 @@ export class GameView {
     sun.shadow.normalBias = 0.02;
     scene.add(sun);
 
+    this.latest = state;
     this.world = new World(state, this.particles);
     this.fx = new Fx(this.particles, viewerTeam);
     this.hazards = new Hazards(this.particles);
@@ -200,6 +209,31 @@ export class GameView {
     this.castSounds.clear();
   }
 
+  /** What a ragdoll can bump into: obstacles (up to their height), the arena rim, the stands. */
+  private readonly ragdollWorld: RagdollWorld = {
+    collide: (x, y, z, radius) => {
+      for (const o of this.latest.obstacles) {
+        if (y > OBSTACLE_HEIGHT[o.kind]) continue;
+        const pen = obstaclePenetration(o, x, z, radius);
+        if (pen) return pen;
+      }
+      // A body thrown high enough clears the low rim and lands between the arena and the stands.
+      const d = Math.hypot(x, z);
+      const inside = d < arena.radius + RIM.thickness / 2;
+      const limit = inside && y < RIM.height ? arena.radius - radius : arena.radius + RIM.standsGap - radius;
+      return d > limit && (inside || d > arena.radius + RIM.standsGap - radius) ? { nx: -x / d, nz: -z / d, depth: d - limit } : null;
+    },
+    impact: (x, y, z, speed, kind) => {
+      const k = Math.min(1, speed / (RAGDOLL.slamSpeed * 3));
+      this.particles.emit(x, Math.max(0.2, y), z, { n: Math.round(8 + 18 * k), spd: 2 + 3 * k, up: 0.8, col: DUST[0], col2: DUST[1], life: 0.5, size: 0.45, drag: 3, grav: 4, jit: 0.4 });
+      if (kind === "wall") {
+        this.fx.wave(x, z, 1.2, 0xffd28a, 0.25);
+        this.sound("slam", x, z, 0.45 + 0.4 * k);
+        this.shakeAt(x, z, 0.25 * k);
+      } else this.sound("heavy_hit", x, z, 0.3 + 0.4 * k);
+    },
+  };
+
   /** Ground point under a screen position, for aiming. */
   aimAt(clientX: number, clientY: number): { x: number; z: number } | null {
     const r = this.canvas.getBoundingClientRect();
@@ -213,6 +247,7 @@ export class GameView {
   /** `dt` is scaled game time (slow motion slows effects too); `realDt` is wall-clock time for the kill cam's drift. */
   render(state: MatchState, alpha: number, dt: number, time: number, aim: { x: number; z: number }, realDt = dt): void {
     this.alpha = alpha;
+    this.latest = state;
     if (this.shot) this.shotTime += realDt;
     const me = championOfTeam(state, this.viewerTeam);
     const mePose = this.pose(me);
@@ -243,7 +278,8 @@ export class GameView {
       let fx = shot.focus.x;
       let fz = shot.focus.z;
       if (v) {
-        const vp = this.pose(v);
+        // Once the victim is a ragdoll, follow the body, not the spot where it died.
+        const vp = this.champs.get(v.id)?.ragdollCenter ?? this.pose(v);
         const kp = k ? this.pose(k) : null;
         fx = kp ? vp.x * 0.6 + kp.x * 0.4 : (vp.x + shot.focus.x) / 2;
         fz = kp ? vp.z * 0.6 + kp.z * 0.4 : (vp.z + shot.focus.z) / 2;
@@ -452,6 +488,13 @@ export class GameView {
             break;
           }
           this.champs.get(e.target)?.flash();
+          if (!e.dot) {
+            const src = unit(e.source);
+            const dx = src ? e.x - src.x : 0;
+            const dz = src ? e.z - src.z : 0;
+            const d = Math.hypot(dx, dz);
+            this.lastHit.set(e.target, { dx: d > 0.05 ? dx / d : 0, dz: d > 0.05 ? dz / d : 0, amount: e.amount + e.absorbed });
+          }
           if (e.absorbed > 0) {
             overlay.floatText(e.x, 2.4, e.z, "щит", "#ffd28a");
             this.sound("shield_block", e.x, e.z);
@@ -549,6 +592,11 @@ export class GameView {
           fx.wave(u.x, u.z, 3, teamHex(u.team), 0.5, true);
           this.sound("death", u.x, u.z);
           this.shakeAt(u.x, u.z, 0.3);
+          // The killing blow throws the body; deaths without a direction (burn, zone, rift) just crumple.
+          const hit = this.lastHit.get(u.id);
+          const impulse = hit && (hit.dx !== 0 || hit.dz !== 0) ? launchFor(hit.amount, hit.dx, hit.dz) : collapse();
+          this.lastHit.delete(u.id);
+          this.champs.get(u.id)?.startRagdoll(this.scene, impulse, this.ragdollWorld);
           break;
         }
         case "respawn": {
