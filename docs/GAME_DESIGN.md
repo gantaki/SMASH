@@ -37,7 +37,9 @@ Send a link → friend joins in seconds → best-of-3 fight in a few minutes. No
 | Round end | ~2.6 s, then next round. |
 | Match | **Best of 3** (first to 2 round wins). |
 
-Modes: **1v1 duel** first, then 2v2 / 3v3. Practice vs bots (easy / normal / hard).
+Modes: **1v1 duel with AI companions** is developed and tested first; 2v2 / 3v3 later. Practice vs bots (easy / normal / hard).
+
+Direction: keep Battlerite's skill-shot core, but add **companions** (each champion has a unique one) and **interactive obstacles** (§2.1, §2.2).
 
 ### Arena
 
@@ -56,6 +58,7 @@ Modes: **1v1 duel** first, then 2v2 / 3v3. Practice vs bots (easy / normal / har
 | RMB | Secondary ability |
 | Space | Mobility |
 | Q / E | Abilities |
+| R / middle mouse | Command the companion (to the cursor) |
 | F | Ultimate (costs 100 energy) |
 | Esc / P | Pause (local) / menu |
 
@@ -80,9 +83,38 @@ Inputs are **buffered for 0.25 s**, so pressing during a cast or stun fires as s
 
 ### Status effects
 
-`stun` · `slow` · `knockback` · `pull` · `burn` (damage over time) · `shield` (absorb) · `counter` (negates the next hit and punishes the attacker) · `empowered` · `unstoppable` (immune to crowd control).
+`stun` · `slow` · `root` ("pinned": cannot move or use mobility, can still cast) · `knockback` · `pull` · `burn` (damage over time) · `shield` (absorb) · `counter` (negates the next hit and punishes the attacker) · `empowered` · `unstoppable` (immune to crowd control).
 
 A stun or forced movement **cancels a cast in progress**. Unstoppable ignores stun, slow, knockback and pull.
+
+### 2.1 Companions (prototype, under playtest)
+
+Each champion has a **unique companion** (more per champion later). Design rule: the companion is an **extension of the player's kit, not a second fighter**, so the duel stays a duel.
+
+- **Default behaviour** without input (follow, guard, auto-attack), plus **one command key** (R / middle mouse): send it to the cursor.
+- **Vulnerable**: has HP, dies, returns after **15 s**; the killer gains **+20 energy**. Enemy companions are valid targets for every ability.
+- **Blocks enemy projectiles**, so it can be used as a shield.
+- **Synergies** with its owner's abilities are where the depth comes from.
+- Budget: companions should deal at most ~20–25% of a champion's total damage.
+
+| Companion | Owner | HP | Default | Command | Synergy |
+|---|---|---|---|---|---|
+| **Wisp** (Огонёк) | Ember | 40 | Floats behind Ember, shoots sparks (4 dmg, every 1.2 s, range 8 m) | Flies to a point (max 11 m) and holds it for 6 s as a sentry (every 0.7 s, range 9 m). cd 5 s | **Fireball through the Wisp splits into 3** (12 dmg + burn 3/s for 2 s each) |
+| **Hound** (Гончая) | Fang | 55 | Follows Fang, engages enemies within 4 m of him, bites 5 dmg/s | Sprints to a point (max 11 m); on contact bites 8 dmg and **pins (root) 0.8 s**, then fights for 3 s. cd 7 s | **Harpoon hitting the Hound pulls Fang to it** (gap closer) |
+
+### 2.2 Obstacles (prototype, under playtest)
+
+Material tells the rule at a glance:
+
+| Material | Behaviour |
+|---|---|
+| **Stone** pillars | Indestructible. Block movement, projectiles and line of sight. |
+| **Wood** walls (60 HP) | Take damage from projectiles, AoEs, melee, slams and flying crates; look damaged as HP drops; break, then **rebuild after 20 s** (only if nothing stands in the spot). |
+| **Crates** | Movable. Pushed by knockback abilities, pulled by Harpoon. A crate moving faster than 3.5 m/s hits an enemy for 12 dmg and knocks them back 2.5 m (which can chain into a slam). |
+
+**Slam rule:** any knockback that drives a target into an obstacle or the arena wall stuns for **0.6 s** and deals **10 dmg** (abilities can raise both). Pulls do not slam.
+
+Prototype layout: 4 stone pillars at `(±7.5, ±7.5)`; wood walls 4 × 0.7 m at `(0, ±5)` and `(±12, 0)` (rotated 90°); crates at `(±3.5, 0)` and `(−12, 7)`, `(12, −7)`. Point-symmetric for fairness.
 
 ### Readability rules
 
@@ -102,10 +134,11 @@ HP 170 · speed 6.0 m/s. Kites, applies burn, punishes bad positioning.
 | Slot | Ability | Behaviour | Starting values |
 |---|---|---|---|
 | LMB | Fire Bolt | Fast projectile | 30 m/s, range 14 m, 11 dmg, cd 0.5 s |
-| RMB | Fireball | Cast-time projectile | Cast 0.45 s (move ×0.3), 20 m/s, range 15 m, 20 dmg + burn 4/s for 3 s, cd 4.5 s |
+| RMB | Fireball | Cast-time projectile | Cast 0.45 s (move ×0.3), 20 m/s, range 15 m, 20 dmg + burn 4/s for 3 s, cd 4.5 s. Splits into 3 when passing through the Wisp |
 | Space | Blink | Teleport to cursor | Up to 7 m, cd 7 s |
 | Q | Ring of Fire | Delayed AoE at cursor | Max range 11 m, r 2.6 m, delay 0.8 s, 18 dmg + stun 0.8 s, cd 9 s |
-| E | Flame Shield | Knockback + shield | Enemies within 3.4 m: 6 dmg, knocked back 5 m; shield 25 for 2.5 s, cd 11 s |
+| E | Flame Shield | Knockback + shield | Enemies within 3.4 m: 6 dmg, knocked back 5 m (slam); pushes crates; shield 25 for 2.5 s, cd 11 s |
+| R | Wisp | Companion command | See §2.1 |
 | F | Meteor | Big delayed AoE | 100 energy, max range 13 m, r 3.6 m, delay 1.1 s, 45 dmg + stun 0.5 s |
 
 ### Fang (Клык) — Warrior, melee
@@ -115,15 +148,16 @@ HP 220 · speed 6.4 m/s. Closes distance, hooks, doesn't let go.
 | Slot | Ability | Behaviour | Starting values |
 |---|---|---|---|
 | LMB | Cleave | Melee cone | Range 2.9 m, ±60°, 14 dmg, cd 0.6 s. Empowered: 26 dmg + slow 50% 1.5 s. On-hit VFX: **Ink Blade Hit** (Spine) |
-| RMB | Harpoon | Cast-time hook | Cast 0.25 s (move ×0.4), 26 m/s, range 11 m, 10 dmg, pulls target to 1.5 m, cd 6 s |
+| RMB | Harpoon | Cast-time hook | Cast 0.25 s (move ×0.4), 26 m/s, range 11 m, 10 dmg, pulls target to 1.5 m, cd 6 s. Pulls crates; hitting the Hound pulls Fang to it |
 | Space | Leap | Arc jump | Up to 8 m in 0.45 s. Landing r 2.4 m: 14 dmg + slow 40% 1.5 s, cd 8 s |
-| Q | Shield Bash | Melee cone | Range 3.1 m, ±52°, 10 dmg + stun 1 s, cd 9 s |
+| Q | Shield Bash | Melee cone | Range 3.1 m, ±52°, 10 dmg + stun 0.5 s, knockback 3 m; **slam: stun 1.2 s, +10 dmg**; pushes crates, cd 9 s |
+| R | Hound | Companion command | See §2.1 |
 | E | Counter | Stance | 1 s, move ×0.5. Negates a hit; attacker within 8 m: stun 1 s + 12 dmg; empowers next LMB for 3 s, cd 11 s |
 | F | Whirlwind | Channel | 100 energy, 2.4 s, move ×1.15, unstoppable, 7 dmg every 0.3 s in r 3.2 m |
 
 ### Bots
 
-Same rules as players, no cheating. Difficulty scales reaction time, aim error, target leading, dodge chance and ability use rate. Behaviours: keep preferred range, strafe, dodge projectiles and AoEs, use mobility/counter defensively, contest the orb, avoid the zone.
+Same rules as players, no cheating. Difficulty scales reaction time, aim error, target leading, dodge chance and ability use rate. Behaviours: keep preferred range, strafe, dodge projectiles and AoEs, use mobility/counter defensively, contest the orb, avoid the zone, command the companion, attack the player's companion when it is close, shoot through breakable wood cover, look for slams (Shield Bash / Flame Shield with a wall behind the target). Fang bot combos *Hound pins → Harpoon to the Hound*.
 
 ---
 
@@ -240,6 +274,9 @@ tests/           repo-wide guards (architecture rules)
 - Custom room server vs Colyseus (Colyseus state sync may fight a custom prediction model).
 - Is WebSocket good enough at real-world latency, or is WebRTC needed early?
 - 3D character pipeline: who makes models and animations (Mixamo, AI-generated, outsourced)?
+- Companion damage share and command cooldowns: does the companion feel useful without stealing the duel?
+- Slam frequency: with this obstacle density, are slams too common?
+- More companions per champion: chosen before the match, or swapped mid-match?
 - Team sizes to prioritise after 1v1.
 - Final game name.
 
