@@ -646,13 +646,47 @@ a,
 
 /* ---------- online lobby (M2 preview) ---------- */
 .lobby {
-  margin-top: 8px;
-  padding: 12px 14px;
+  margin-top: 14px;
+  padding: 14px 16px;
   border: 1px dashed var(--line);
   border-radius: 12px;
 }
 .lobby .row {
   margin-top: 10px;
+}
+.lobby-entry .go {
+  margin-left: 0;
+}
+.lobby-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.lobby-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.copy-btn {
+  border-color: rgba(255, 201, 60, 0.38);
+}
+.net-status {
+  font-size: 13px;
+  color: var(--mut);
+}
+.net-status.connected {
+  color: #7dffa0;
+}
+.net-status.waiting {
+  color: var(--gold);
+}
+.net-status.disconnected {
+  color: var(--fire);
+}
+.net-ping {
+  color: #7dffa0;
 }
 .lobby input {
   width: 90px;
@@ -670,7 +704,7 @@ a,
   padding: 0 16px;
 }
 .players {
-  margin: 8px 0 0;
+  margin: 10px 0 0;
   padding-left: 18px;
 }
 .ally {

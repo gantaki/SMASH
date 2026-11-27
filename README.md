@@ -17,8 +17,8 @@ Every branch gets a stable preview alias that follows its latest push. Short bra
 - Why a web stack: [`docs/adr/0001-web-stack.md`](docs/adr/0001-web-stack.md)
 - Playable single-file prototype (feel and numbers reference): [`prototype/`](prototype/)
 
-**Status:** M1 done: the prototype's rules run in the deterministic simulation (`packages/sim`) from data (`packages/content`), and the client plays it offline: duel vs a bot (three difficulties), a **training range** with a dummy and live feel tuning, sound effects, wind-up telegraphs, sudden death with rifts.
-Next: **M2**, online 1v1 (rooms by link, prediction, reconciliation).
+**Status:** M1 done; **M2 online 1v1 prototype (WebRTC P2P)** is playable in the browser (create/join `/r/CODE`, host-authoritative 60 Hz sim + 20 Hz snapshots + Guest prediction/reconciliation, rematch, ping). See [`docs/adr/0003-webrtc-p2p-prototype.md`](docs/adr/0003-webrtc-p2p-prototype.md).
+Next: full **M2** dedicated server (`apps/server`) / binary protocol if needed.
 
 ## Quick start
 
@@ -29,7 +29,7 @@ pnpm install
 pnpm dev          # client on http://localhost:5173, server on ws://localhost:2567
 ```
 
-Open the client, pick a champion and press **В бой** (duel vs a bot) or **Тренировка** (practice range). The online lobby (create a room, share `/r/CODE`) is under "Онлайн-лобби" in the menu; matches over the network come in M2.
+Open the client, pick a champion and press **В бой** (duel vs a bot), **Онлайн 1 на 1** (create a room or share `/r/CODE` over WebRTC P2P), or **Тренировка** (practice range).
 
 | Command | What it does |
 |---|---|
@@ -45,8 +45,7 @@ Open the client, pick a champion and press **В бой** (duel vs a bot) or **Т
 
 - **Client + prototype → Vercel.** Linked to this repo: every push to `main` deploys production, every branch/PR gets a preview URL. Config in [`vercel.json`](vercel.json). `pnpm build:web` builds the client and lays out the site: `/` = client, `/prototype/` = the old prototype, `/r/CODE` → client.
 - Vercel project settings: **Root Directory must stay empty** (repo root); build settings come from `vercel.json`.
-- **Game server → not on Vercel.** Vercel does not run long-lived WebSocket servers. Until the server is hosted elsewhere (any small VPS / container host), the deployed client is fully playable offline (bots, training), but rooms are unavailable.
-- When the server is hosted, set `VITE_SERVER_URL=wss://…` in the Vercel project's environment variables and redeploy.
+- **Game server → optional for the P2P prototype.** Vercel does not run long-lived WebSocket servers, so the **Онлайн 1 на 1** prototype runs P2P over WebRTC (`trystero` public Nostr signaling) directly from the static Vercel site. Optionally set `VITE_ICE_SERVERS` (JSON array of `RTCIceServer`) if you want a custom TURN relay for strict NATs. When hosting `apps/server` separately later, set `VITE_SERVER_URL=wss://…` in Vercel and redeploy.
 
 ## Layout
 

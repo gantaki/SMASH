@@ -288,6 +288,8 @@ Same rules as players, no cheating: a bot produces the same per-tick input a hum
 
 ### 5.3 Netcode model
 
+> Prototype note: an initial WebRTC P2P implementation (host-authoritative Team 0 + Guest prediction/reconciliation, 20 Hz snapshots) is live for static Vercel hosting — see [`docs/adr/0003-webrtc-p2p-prototype.md`](adr/0003-webrtc-p2p-prototype.md).
+
 1. Client sends **inputs** every tick: move vector, aim point, pressed buttons, sequence number.
 2. Server simulates authoritatively and sends **snapshots** (positions, HP, statuses, cooldowns) plus events.
 3. Client **predicts its own champion** (movement, cast starts) and **reconciles**: on a snapshot, rewind to the server state and replay unacknowledged inputs.
