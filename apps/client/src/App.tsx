@@ -24,6 +24,15 @@ export function App() {
           <span className={`status ${net.status}`}>server: {net.status}</span>
         </header>
 
+        {(net.status === "no-server" || net.status === "offline") && (
+          <p className="notice">
+            {net.status === "no-server"
+              ? "The multiplayer server is not deployed yet, so rooms are unavailable here."
+              : "Cannot reach the game server. Start it with pnpm dev."}{" "}
+            Meanwhile, <a href="/prototype/">play the prototype vs a bot</a>.
+          </p>
+        )}
+
         {!net.lobby ? (
           <section className="row">
             <button onClick={net.create} disabled={net.status !== "online"}>
@@ -73,7 +82,9 @@ export function App() {
           </button>
         )}
         {net.error && <p className="error">{net.error}</p>}
-        <p className="hint">M0 skeleton: lobby over WebSocket + static arena. Gameplay comes in M1.</p>
+        <p className="hint">
+          M0 skeleton: lobby over WebSocket + static arena. Gameplay comes in M1. · <a href="/prototype/">Prototype</a>
+        </p>
       </main>
     </>
   );

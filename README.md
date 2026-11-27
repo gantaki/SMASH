@@ -29,6 +29,12 @@ Open the client, press **Create room**, send the `/r/CODE` link to a second tab 
 | `pnpm check` | typecheck + test + build (what CI runs) |
 | `pnpm prototype` | Serves the old prototype at http://localhost:5180/prototype/ |
 
+## Deployment
+
+- **Client + prototype → Vercel.** Linked to this repo: every push to `main` deploys production, every PR gets a preview URL. Config in [`vercel.json`](vercel.json); `pnpm build:web` builds the client and copies `prototype/` and `assets/vfx/` next to it, so `/prototype/` works on the deployed site.
+- **Game server → not on Vercel.** Vercel does not run long-lived WebSocket servers. Until the server is hosted elsewhere (any small VPS / container host), the deployed client shows the arena, the champion list and a link to the prototype, but rooms are unavailable.
+- When the server is hosted, set `VITE_SERVER_URL=wss://…` in the Vercel project's environment variables and redeploy.
+
 ## Layout
 
 ```

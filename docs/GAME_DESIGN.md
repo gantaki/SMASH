@@ -143,7 +143,7 @@ Same rules as players, no cheating. Difficulty scales reaction time, aim error, 
 | Serialization | Binary (DataView codecs or msgpack) | Shared in `packages/protocol`. |
 | Monorepo | pnpm workspaces | See layout below. |
 | Tests | **Vitest** (simulation), headless bot-vs-bot match runs, Playwright smoke + screenshot tests | |
-| Hosting | Client: static hosting/CDN. Game server: small VPS / Docker close to players | |
+| Hosting | Client: **Vercel** (static, auto-deploy from `main`, previews per PR). Game server: small VPS / container host close to players (Vercel does not run long-lived WebSocket servers) | |
 | Desktop (later) | Tauri or Electron wrapper | Only if Steam becomes a goal. |
 
 ---

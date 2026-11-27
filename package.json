@@ -11,6 +11,7 @@
     "dev:client": "pnpm --filter @smash/client dev",
     "dev:server": "pnpm --filter @smash/server dev",
     "build": "pnpm --filter @smash/client build",
+    "build:web": "pnpm build && node scripts/copy-static.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit && pnpm -r typecheck",
     "test": "vitest run",
     "test:watch": "vitest",
