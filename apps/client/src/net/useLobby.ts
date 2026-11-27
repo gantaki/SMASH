@@ -11,10 +11,18 @@ import {
   type ServerMessage,
 } from "@smash/protocol";
 
-export type ConnectionStatus = "connecting" | "online" | "offline";
+export type ConnectionStatus = "connecting" | "online" | "offline" | "no-server";
 
-const serverUrl = (): string =>
-  import.meta.env.VITE_SERVER_URL ?? `ws://${location.hostname}:${DEFAULT_SERVER_PORT}`;
+/**
+ * VITE_SERVER_URL wins. Without it, local dev talks to ws://<host>:2567.
+ * On an https deployment with no server configured there is nothing to connect to.
+ */
+const serverUrl = (): string | null => {
+  const configured = import.meta.env.VITE_SERVER_URL as string | undefined;
+  if (configured) return configured;
+  if (location.protocol === "https:") return null;
+  return `ws://${location.hostname}:${DEFAULT_SERVER_PORT}`;
+};
 
 /** Room code from a `/r/ABCD` link, if any. */
 const codeFromUrl = (): string | null => {
@@ -35,7 +43,12 @@ export function useLobby(name: string) {
   }, []);
 
   useEffect(() => {
-    const socket = new WebSocket(serverUrl());
+    const url = serverUrl();
+    if (!url) {
+      setStatus("no-server");
+      return;
+    }
+    const socket = new WebSocket(url);
     ws.current = socket;
     socket.onopen = () => {
       setStatus("online");
