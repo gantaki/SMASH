@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { arena } from "@smash/content";
 import { TICK_DT, blocker, championOfTeam, createMatch, step, type MatchState } from "@smash/sim";
-import { KILL_CAM, KillCam, frameKill, type Frame } from "./killcam.ts";
+import { KILL_CAM, KillCam, frameKill, planKillCam, type Frame } from "./killcam.ts";
 
 const duel = (seed = 11): MatchState =>
   createMatch({ seed, mode: "duel", players: [{ champion: "ember", controller: "bot" }, { champion: "fang", controller: "bot" }] });
@@ -13,7 +13,7 @@ describe("kill cam replay", () => {
     const want = Math.round(KILL_CAM.rewind / TICK_DT);
     for (let i = 0; i < 60 * 300; i++) {
       if (live.phase === "fight") {
-        history.push({ state: structuredClone(live), input: null });
+        history.push({ state: structuredClone(live), inputs: [null, null] });
         if (history.length > want) history.shift();
       }
       if (step(live, [null, null]).some((e) => e.t === "roundEnd")) break;
@@ -21,7 +21,8 @@ describe("kill cam replay", () => {
     expect(live.phase).toBe("roundEnd");
     expect(history).toHaveLength(want);
     const victim = live.units.find((u) => u.kind === "champion" && u.dead)!;
-    const cam = new KillCam(history, frameKill(live, victim, undefined));
+    const cam = planKillCam(history)!;
+    expect(cam.shot.victim).toBe(victim.id);
     let deaths = 0;
     while (cam.replaying) deaths += cam.stepReplay().filter((e) => e.t === "death").length;
     expect(deaths).toBe(1);
@@ -29,13 +30,13 @@ describe("kill cam replay", () => {
   });
 
   it("slows down into the blow and returns to normal speed afterwards", () => {
-    const frames: Frame[] = Array.from({ length: Math.round(KILL_CAM.rewind / TICK_DT) }, () => ({ state: duel(), input: null }));
+    const frames: Frame[] = Array.from({ length: Math.round(KILL_CAM.rewind / TICK_DT) }, () => ({ state: duel(), inputs: [null, null] }));
     const s = frames[0]!.state;
     const cam = new KillCam(frames, frameKill(s, championOfTeam(s, 1), championOfTeam(s, 0)));
     expect(cam.timeScale()).toBeCloseTo(KILL_CAM.scaleLead);
     while (cam.replaying) cam.stepReplay();
     expect(cam.timeScale()).toBeCloseTo(KILL_CAM.scaleImpact);
-    for (let i = 0; i < 60; i++) cam.liveTick();
+    cam.advance(1);
     expect(cam.timeScale()).toBe(1);
     expect(cam.settled).toBe(true);
   });
@@ -62,6 +63,16 @@ describe("kill cam framing", () => {
     const cam = camPos(shot);
     expect(Math.hypot(cam.x, cam.z)).toBeLessThan(arena.radius);
     expect(blocker(s, cam, victim, 0.15)).toBeNull();
+  });
+
+  it("mirrors its preferred side for the player who sees the arena from the other end", () => {
+    const { s, killer, victim } = setup((s) => {
+      Object.assign(championOfTeam(s, 0), { x: 0, z: 2 });
+      Object.assign(championOfTeam(s, 1), { x: 2, z: 2 });
+    });
+    // The blow goes along x: both sides are free, so the viewer's own side wins.
+    expect(frameKill(s, victim, killer, 1).side.z).toBeGreaterThan(0);
+    expect(frameKill(s, victim, killer, -1).side.z).toBeLessThan(0);
   });
 
   it("stays on the victim when the killer is far away", () => {

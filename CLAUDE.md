@@ -37,6 +37,7 @@ pnpm sim:batch   # headless bot-vs-bot batch (rule 6); args: [matches] [easy|nor
 - UI text is Russian (`nameRu`, `descriptionRu`); identifiers, comments and docs stay English.
 - Adding champions, ability kinds, companions: recipe in `docs/GAME_DESIGN.md` §3 "Adding content".
 - The dev client exposes the running `Game` as `window.__smash` for Playwright checks; look at a change in the browser before calling it done.
+- Netcode: the server (`apps/server/src/match.ts`) and the client's prediction (`apps/client/src/net/Prediction.ts`) are plain classes without sockets or clocks; `tests/netcode.test.ts` joins them with a simulated link. Change either one together with that test. Bump `PROTOCOL_VERSION` when a message changes.
 
 ## Roadmap pointer
 

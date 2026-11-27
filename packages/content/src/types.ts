@@ -351,6 +351,13 @@ export interface MatchRules {
   countdown: number;
   roundEndDelay: number;
   inputBuffer: number;
+  /**
+   * Kill cam: how much of the fight is replayed when a round is decided (seconds of game time), and for how long
+   * the server holds the match while clients watch it (seconds of real time).
+   */
+  killCam: { rewind: number; serverPause: number };
+  /** Online play: snapshots are sent every this many ticks; the server buffers at most `inputQueue` inputs per player. */
+  net: { snapshotEvery: number; inputQueue: number };
   /** Cancelling your own wind-up or channel (C). The cooldown is on the cancel itself. */
   cancelCast: { cooldown: number };
   movement: MovementConfig;

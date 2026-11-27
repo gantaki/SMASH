@@ -65,6 +65,8 @@ export const rules: MatchRules = {
   countdown: 3,
   roundEndDelay: 2,
   inputBuffer: 0.25,
+  killCam: { rewind: 0.6, serverPause: 4.8 },
+  net: { snapshotEvery: 2, inputQueue: 3 },
   cancelCast: { cooldown: 1 },
   movement: {
     accelTime: 0.15,

@@ -245,8 +245,8 @@ Same rules as players, no cheating: a bot produces the same per-tick input a hum
 | Animation | `THREE.AnimationMixer` + own state machine | Locomotion blend + upper-body action layer (attack while running). |
 | VFX | Own GPU particle system + **Spine effects** via the official `spine-threejs` runtime | Effects authored in BoneGyre, exported to Spine 4.2. |
 | Server | **Node.js** (LTS), authoritative rooms | Starting point: custom room server on `ws` / uWebSockets.js. Colyseus is an option (see open questions). |
-| Transport | WebSocket, binary messages | Upgrade path: WebRTC DataChannels (unreliable) or WebTransport if packet loss hurts. |
-| Serialization | Binary (DataView codecs or msgpack) | Shared in `packages/protocol`. |
+| Transport | WebSocket | Upgrade path: WebRTC DataChannels (unreliable) or WebTransport if packet loss hurts. |
+| Serialization | JSON + permessage-deflate for now (≈56 kB/s per player); binary delta snapshots later | Shared in `packages/protocol`. |
 | Monorepo | pnpm workspaces | See layout below. |
 | Audio | Web Audio API, one-shot samples (`assets/sfx`, generated with ElevenLabs sound effects) | Engine in `apps/client/src/audio`; sound ids are referenced from ability data. |
 | Tests | **Vitest** (simulation scenarios), headless bot-vs-bot batches (`pnpm sim:batch`), Playwright smoke + screenshot tests | |
@@ -286,14 +286,17 @@ Same rules as players, no cheating: a bot produces the same per-tick input a hum
 - Ability **behaviour** is a small set of reusable building blocks (projectile, cone, ground AoE, dash, stance, channel) plus hooks for special cases.
 - Balance changes touch data only, never sim logic.
 
-### 5.3 Netcode model
+### 5.3 Netcode model (as built in M2)
 
-1. Client sends **inputs** every tick: move vector, aim point, pressed buttons, sequence number.
-2. Server simulates authoritatively and sends **snapshots** (positions, HP, statuses, cooldowns) plus events.
-3. Client **predicts its own champion** (movement, cast starts) and **reconciles**: on a snapshot, rewind to the server state and replay unacknowledged inputs.
-4. Other entities are rendered **interpolated** ~100 ms in the past.
-5. Own projectiles may be spawned predictively for responsiveness and matched to server ids.
-6. **Hits and damage are decided only by the server.** Lag compensation (rewinding targets on hit checks) comes later, if needed.
+1. The **server runs the match**: the same `step` as offline, 60 ticks a second, one `NetMatch` per room (`apps/server/src/match.ts`).
+2. The client sends its **input every tick** with a sequence number. The server consumes one per tick and buffers at most 3 (a burst after a hiccup skips the oldest but keeps their key presses); with nothing in the buffer it repeats the last movement and aim, never a key press.
+3. Every 2 ticks (30/s) the server sends a **snapshot**: the full state (≈7 kB of JSON, ≈2 kB compressed by permessage-deflate), the events since the last one, and the last input it consumed (`ack`).
+4. The client **predicts the whole world** (`apps/client/src/net/Prediction.ts`): on a snapshot it rewinds to the authoritative state and re-simulates its unacknowledged inputs. The sim is deterministic, so the player's own champion needs no correction (tested at 0, 100 and 200 ms round trip). The opponent is extrapolated from their last known movement and aim; when a snapshot moves them, the view draws them at the old place and eases the difference away over ≈0.1 s.
+5. **What is shown when**: the player's own actions (wind-up, release, Blink, companion command) are presented from the prediction at once; hits, damage, deaths and everything the opponent does are presented when the server reports them. Nothing the client predicts can decide a hit.
+6. **Kill cam online**: the server records the last 0.6 s (state + both inputs), sends the frames when a round is decided and holds the match for 4.8 s; each client re-simulates the frames locally. In dev builds the replay is compared with the server's state.
+7. Team 1 sees the arena from the other end (camera and screen directions mirrored), so both players start at the bottom of their screen.
+
+Not built yet: reconnecting to a running match, adapting the client's tick rate to the server's clock (today a drifting clock costs an occasional one-tick correction), binary delta snapshots, lag compensation for hits, more than two players.
 
 ### 5.4 Client (`apps/client`)
 
@@ -306,10 +309,11 @@ Same rules as players, no cheating: a bot produces the same per-tick input a hum
 
 ### 5.5 Server (`apps/server`)
 
-- Room manager: create a room → short code → URL `/r/ABCD`.
-- Lobby state: players, champion picks, ready flags, host. Bots fill empty slots.
-- One sim instance per room; the room is destroyed when empty.
-- Reconnect by room code within a grace period.
+- Room manager: create a room → short code → URL `/r/ABCD`. Duel rooms hold two players, one per team.
+- Lobby state: players, champion picks, ready flags, host. The match starts when both players have picked and pressed Ready; after it, everyone is back in the lobby and readies up again for a rematch.
+- One `NetMatch` per room; a player who leaves or disconnects forfeits, the other returns to the lobby. The room is destroyed when empty.
+- Plain HTTP on the same port answers health checks. `Dockerfile` + `render.yaml` deploy it to any container host.
+- Later: bots in empty slots, reconnect by room code within a grace period.
 
 ### 5.6 Repository layout
 
@@ -352,7 +356,7 @@ tests/           repo-wide guards (architecture rules)
 |---|---|---|
 | **M0** Skeleton ✅ | Monorepo, typed content, lobby server, client with static arena, CI, Vitest, architecture guards | `pnpm check` and `pnpm dev` work; two tabs meet in a lobby by link. |
 | **M1** Sim port ✅ | Port prototype rules into `packages/sim` with tests; client renders it; offline vs bots; training range; sounds; wind-ups and sudden death rework | Prototype feel reproduced; bot-vs-bot matches finish without errors. |
-| **M2** Online 1v1 | Rooms by link, prediction, reconciliation, interpolation | Two people in different places play a full match and it feels responsive. **Key risk check.** |
+| **M2** Online 1v1 ✅ (built; needs a hosted server and a playtest over the real internet) | Rooms by link, authoritative server, prediction and reconciliation, kill cam replay | Two people in different places play a full match and it feels responsive. **Key risk check.** |
 | **M3** Real assets | 3D characters on a shared skeleton, animation state machine, Spine VFX through `spine-threejs` | Both champions fully animated with final-style VFX. |
 | **M4** Teams & lobby | 2v2 / 3v3, lobby, menus, reconnect | 3v3 with friends + bots. |
 | **M5** Content & polish | More champions, sound, settings, optional desktop build | — |
@@ -365,7 +369,8 @@ tests/           repo-wide guards (architecture rules)
 - Round length: bot mirrors of Fang end in ≈10 s. Is time-to-kill too short once humans dodge?
 - Rifts: 8 damage per 0.3 s, two pairs open at a time, centre kept clear — pressure or noise?
 - Basic-attack snares (25%): do they make kiting or sticking too easy? Is a 1 s cancel cooldown the right price for a feint?
-- Snapshot rate for M2 (the sim ticks at 60 Hz; snapshots can be 20–30 Hz).
+- Online feel at real latency: is extrapolating the opponent good enough at 80–120 ms, or do they need to be shown slightly in the past (interpolation)? Decide after the first playtest over the internet.
+- Where to host the game server (it must be close to the players; Render's free plan sleeps when idle).
 - Custom room server vs Colyseus (Colyseus state sync may fight a custom prediction model).
 - Is WebSocket good enough at real-world latency, or is WebRTC needed early?
 - 3D character pipeline: who makes models and animations (Mixamo, AI-generated, outsourced)?

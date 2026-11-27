@@ -17,6 +17,12 @@ export class Hud {
   private lastClock = "";
   private lastScore = "";
   private wasFull = false;
+  /** Extra line under the ability bar (online: connection quality). */
+  setInfo(text: string): void {
+    const el = this.q(".netinfo");
+    if (el.textContent !== text) el.textContent = text;
+  }
+
   /** Fired once each time the energy bar fills up. */
   onEnergyFull: (() => void) | null = null;
 
@@ -48,7 +54,7 @@ export class Hud {
           <div class="vbar en"><i></i></div>
         </div>
         <div class="slots">${slotHtml}</div>
-        <div class="hint">C — отменить замах · Esc или P — пауза · M — звук</div>
+        <div class="hint">C — отменить замах · Esc — меню · M — звук<span class="netinfo"></span></div>
       </div>`;
     this.q = <T extends HTMLElement>(s: string) => root.querySelector<T>(s)!;
     for (const el of root.querySelectorAll<HTMLElement>(".slot")) {

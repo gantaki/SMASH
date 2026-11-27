@@ -1,7 +1,8 @@
 import type { ChampionId } from "@smash/content";
 import { ROOM_CODE_ALPHABET, ROOM_CODE_LENGTH, type LobbyPlayer, type LobbyState, type PlayerId } from "@smash/protocol";
 
-export const MAX_PLAYERS = 6;
+/** Duel rooms for now; 2v2 and 3v3 raise this (and the match needs teams of more than one). */
+export const MAX_PLAYERS = 2;
 
 export type JoinError = "room_not_found" | "room_full";
 
@@ -16,6 +17,10 @@ export class RoomRegistry {
     return this.rooms.size;
   }
 
+  byCode(code: string): LobbyState | undefined {
+    return this.rooms.get(code);
+  }
+
   roomOf(playerId: PlayerId): LobbyState | undefined {
     const code = this.playerRoom.get(playerId);
     return code ? this.rooms.get(code) : undefined;
@@ -24,7 +29,7 @@ export class RoomRegistry {
   create(id: PlayerId, name: string): LobbyState {
     this.leave(id);
     const code = this.freshCode();
-    const lobby: LobbyState = { code, hostId: id, players: [] };
+    const lobby: LobbyState = { code, hostId: id, players: [], inMatch: false };
     this.rooms.set(code, lobby);
     this.addPlayer(lobby, id, name);
     return lobby;
@@ -57,6 +62,7 @@ export class RoomRegistry {
   }
 
   pick(id: PlayerId, champion: ChampionId): LobbyState | null {
+    if (this.roomOf(id)?.inMatch) return this.roomOf(id) ?? null;
     return this.updatePlayer(id, (p) => {
       p.champion = champion;
       p.ready = false;
@@ -67,6 +73,18 @@ export class RoomRegistry {
     return this.updatePlayer(id, (p) => {
       p.ready = ready && p.champion !== null;
     });
+  }
+
+  /** Both seats taken, one player per team, everyone picked and ready, and no match running. */
+  canStart(lobby: LobbyState): boolean {
+    const teams = new Set(lobby.players.map((p) => p.team));
+    return !lobby.inMatch && lobby.players.length === MAX_PLAYERS && teams.size === 2 && lobby.players.every((p) => p.ready && p.champion !== null);
+  }
+
+  setInMatch(lobby: LobbyState, inMatch: boolean): void {
+    lobby.inMatch = inMatch;
+    // Back in the lobby everyone has to ready up again for a rematch.
+    if (!inMatch) for (const p of lobby.players) p.ready = false;
   }
 
   private updatePlayer(id: PlayerId, fn: (p: LobbyPlayer) => void): LobbyState | null {
