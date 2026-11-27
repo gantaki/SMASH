@@ -8,11 +8,10 @@ Fast top-down arena brawler for quick PvP with friends. Send a link, fight a bes
 |---|---|
 | **Production: game** (prototype, latest `main`) | https://smash-aleksandr-chernovs-projects-5d557d3c.vercel.app |
 | Production: real client (lobby skeleton) | https://smash-aleksandr-chernovs-projects-5d557d3c.vercel.app/app |
-| **Preview of a branch** | `https://smash-git-<branch>-aleksandr-chernovs-projects-5d557d3c.vercel.app` |
-| Preview of this branch's PR | the Vercel bot posts the link in every PR |
+| **Preview of a PR / branch** | link in the PR (Vercel bot comment) or on the deployments page |
 | All deployments | https://vercel.com/aleksandr-chernovs-projects-5d557d3c/smash/deployments |
 
-Branch previews: `/` in the branch name becomes `-` (e.g. `feat/walls` → `smash-git-feat-walls-…`). Previews require a Vercel login (deployment protection); production is meant to be shared with friends.
+Every branch gets a stable preview alias that follows its latest push. Short branch names give `https://smash-git-<branch>-aleksandr-chernovs-projects-5d557d3c.vercel.app` (`/` becomes `-`, e.g. `feat/walls` → `smash-git-feat-walls-…`); long names are shortened with a hash (`prototype-companions` → `smash-git-prototype-fc037e-…`), so take those from the PR. Previews require a Vercel login (deployment protection); production is meant to be shared with friends.
 
 - Design, rules, champions and architecture: [`docs/GAME_DESIGN.md`](docs/GAME_DESIGN.md)
 - Why a web stack: [`docs/adr/0001-web-stack.md`](docs/adr/0001-web-stack.md)
