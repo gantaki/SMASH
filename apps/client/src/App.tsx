@@ -27,6 +27,13 @@ export function App() {
   // Bumping the run number gives the next match a fresh canvas (and WebGL context).
   const [run, setRun] = useState(0);
 
+  // Browsers only allow audio after a user gesture: start loading sounds on the first click anywhere.
+  useEffect(() => {
+    const unlock = () => audio.unlock();
+    window.addEventListener("pointerdown", unlock, { once: true });
+    return () => window.removeEventListener("pointerdown", unlock);
+  }, [audio]);
+
   const opponent = playableChampions.find((c) => c.id !== champion)?.id ?? champion;
   const gameMode: GameMode = screen === "menu" ? "demo" : mode;
 

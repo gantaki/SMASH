@@ -147,6 +147,7 @@ export class GameView {
 
   /** Remembers where everything is before a tick, for render interpolation. */
   snapshot(state: MatchState): void {
+    this.prev.clear();
     for (const u of state.units) this.prev.set(u.id, { x: u.x, z: u.z, face: u.face });
     for (const p of state.projectiles) this.prev.set(p.id, { x: p.x, z: p.z, face: 0 });
     for (const o of state.obstacles) if (o.kind === "crate") this.prev.set(o.id, { x: o.x, z: o.z, face: 0 });
@@ -288,7 +289,7 @@ export class GameView {
           break;
         case "roundEnd": {
           const won = e.winner === this.viewerTeam;
-          this.cb.message(won ? "Раунд твой" : "Раунд за соперником", 2.2, true);
+          this.cb.message(e.winner === -1 ? "Ничья: раунд переигрывается" : won ? "Раунд твой" : "Раунд за соперником", 2.2, true);
           this.sound(won ? "round_win" : "round_lose");
           break;
         }

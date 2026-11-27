@@ -338,6 +338,21 @@ describe("rounds", () => {
     expect(s.state.winner).toBe(0);
   });
 
+  it("replays the round without scoring when both champions die in the same tick", () => {
+    const s = scene();
+    for (const u of [s.a, s.b]) {
+      u.hp = 1;
+      u.burn = 1;
+      u.burnDps = 10;
+      u.burnTick = 0;
+    }
+    const ev = s.run(0.2);
+    expect(of(ev, "roundEnd")[0]?.winner).toBe(-1);
+    expect(s.state.score).toEqual([0, 0]);
+    s.run(rules.roundEndDelay + 0.1);
+    expect(s.state.phase).toBe("countdown");
+  });
+
   it("spawns the orb and rewards the last hitter", () => {
     const s = scene();
     s.state.roundTime = arena.orb.spawnAt;

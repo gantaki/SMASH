@@ -224,7 +224,7 @@ export interface CompanionDef {
 export interface ChampionStats {
   /** Health pool. Reference: squishy 170, average 195, tank 220. */
   hp: number;
-  /** Top speed in m/s. Reference: 4.8 (slow) to 5.4 (fast). The arena is 40 m across. */
+  /** Top speed in m/s. Reference: 6.0 (ranged) to 6.4 (melee). The arena is 40 m across. */
   moveSpeed: number;
   /** Collision and hit radius in meters. */
   radius: number;

@@ -82,7 +82,7 @@ function endRound(ctx: Ctx, winner: Team | -1): void {
   state.phase = "roundEnd";
   state.phaseTime = rules.roundEndDelay;
   if (winner !== -1) state.score[winner]++;
-  ctx.events.push({ t: "roundEnd", winner: winner === -1 ? 0 : winner, score: [state.score[0], state.score[1]] });
+  ctx.events.push({ t: "roundEnd", winner, score: [state.score[0], state.score[1]] });
   ctx.events.push({ t: "phase", phase: "roundEnd", round: state.round });
 }
 

@@ -4,7 +4,7 @@
 import * as THREE from "three";
 import { abilityById, getChampion, type Ability } from "@smash/content";
 import { reach, type ChampionUnit, type GroundEffect, type MatchState, type Projectile } from "@smash/sim";
-import { ALLY, FOE, G, TAU, basic, discard, keep, rgb, sector, type RGB } from "./gfx.ts";
+import { ALLY, FOE, G, basic, discard, keep, rgb, sector, type RGB } from "./gfx.ts";
 import type { Particles } from "./Particles.ts";
 
 const DEG = Math.PI / 180;
@@ -420,4 +420,3 @@ export class Fx {
   }
 }
 
-export { TAU };

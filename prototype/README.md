@@ -2,9 +2,9 @@
 
 Single-file playable prototype: 3D arena, 1v1 vs a bot, two champions (Ember, Fang) with **companions** (Wisp, Hound), **interactive obstacles** (stone pillars, breakable wood walls, movable crates, wall slams), best-of-3, orb, shrinking zone, three bot difficulties. Fang's Cleave plays the **Ink Blade Hit** Spine effect on hit.
 
-Deployed as the front page of the site: see the links in the root `README.md`.
+Deployed at `/prototype/`: see the links in the root `README.md`.
 
-It is the **reference for feel and numbers** while porting to `packages/sim` (M1). Do not import from it.
+It was the **reference for feel and numbers** for the port to `packages/sim` (M1, done) and is kept frozen for comparison. The real game has since diverged (wind-ups on every attack, slower projectiles, sudden death with rifts). Do not import from it and do not develop it further.
 
 ## Run
 

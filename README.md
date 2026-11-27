@@ -6,8 +6,8 @@ Fast top-down arena brawler for quick PvP with friends. Send a link, fight a bes
 
 | What | Link |
 |---|---|
-| **Production: game** (prototype, latest `main`) | https://smash-aleksandr-chernovs-projects-5d557d3c.vercel.app |
-| Production: real client (lobby skeleton) | https://smash-aleksandr-chernovs-projects-5d557d3c.vercel.app/app |
+| **Production: game** (latest `main`) | https://smash-aleksandr-chernovs-projects-5d557d3c.vercel.app |
+| Old single-file prototype | https://smash-aleksandr-chernovs-projects-5d557d3c.vercel.app/prototype/ |
 | **Preview of a PR / branch** | link in the PR (Vercel bot comment) or on the deployments page |
 | All deployments | https://vercel.com/aleksandr-chernovs-projects-5d557d3c/smash/deployments |
 
@@ -17,9 +17,8 @@ Every branch gets a stable preview alias that follows its latest push. Short bra
 - Why a web stack: [`docs/adr/0001-web-stack.md`](docs/adr/0001-web-stack.md)
 - Playable single-file prototype (feel and numbers reference): [`prototype/`](prototype/)
 
-**Status:** M0 (skeleton) done: monorepo, typed champion data, lobby server, client with a static arena, CI.
-The prototype is ahead of the code: it already has companions and interactive obstacles (design doc §2.1–2.2).
-Next: **M1**, porting the prototype rules into `packages/sim`.
+**Status:** M1 done: the prototype's rules run in the deterministic simulation (`packages/sim`) from data (`packages/content`), and the client plays it offline: duel vs a bot (three difficulties), a **training range** with a dummy and live feel tuning, sound effects, wind-up telegraphs, sudden death with rifts.
+Next: **M2**, online 1v1 (rooms by link, prediction, reconciliation).
 
 ## Quick start
 
@@ -30,7 +29,7 @@ pnpm install
 pnpm dev          # client on http://localhost:5173, server on ws://localhost:2567
 ```
 
-Open the client, press **Create room**, send the `/r/CODE` link to a second tab or a friend on your network.
+Open the client, pick a champion and press **В бой** (duel vs a bot) or **Тренировка** (practice range). The online lobby (create a room, share `/r/CODE`) is under "Онлайн-лобби" in the menu; matches over the network come in M2.
 
 | Command | What it does |
 |---|---|
@@ -39,13 +38,14 @@ Open the client, press **Create room**, send the `/r/CODE` link to a second tab 
 | `pnpm typecheck` | TypeScript across every package |
 | `pnpm build` | Production build of the client |
 | `pnpm check` | typecheck + test + build (what CI runs) |
+| `pnpm sim:batch [matches] [easy\|normal\|hard]` | Headless bot-vs-bot batch: win rates, round lengths, damage |
 | `pnpm prototype` | Serves the prototype at http://localhost:5180/prototype/ |
 
 ## Deployment
 
-- **Client + prototype → Vercel.** Linked to this repo: every push to `main` deploys production, every branch/PR gets a preview URL. Config in [`vercel.json`](vercel.json). `pnpm build:web` builds the client and lays out the site: `/` = prototype (until M1 makes the client playable), `/prototype/` = same, `/app/` = client, `/r/CODE` → client.
+- **Client + prototype → Vercel.** Linked to this repo: every push to `main` deploys production, every branch/PR gets a preview URL. Config in [`vercel.json`](vercel.json). `pnpm build:web` builds the client and lays out the site: `/` = client, `/prototype/` = the old prototype, `/r/CODE` → client.
 - Vercel project settings: **Root Directory must stay empty** (repo root); build settings come from `vercel.json`.
-- **Game server → not on Vercel.** Vercel does not run long-lived WebSocket servers. Until the server is hosted elsewhere (any small VPS / container host), the deployed client shows the arena, the champion list and a link to the prototype, but rooms are unavailable.
+- **Game server → not on Vercel.** Vercel does not run long-lived WebSocket servers. Until the server is hosted elsewhere (any small VPS / container host), the deployed client is fully playable offline (bots, training), but rooms are unavailable.
 - When the server is hosted, set `VITE_SERVER_URL=wss://…` in the Vercel project's environment variables and redeploy.
 
 ## Layout
@@ -60,6 +60,7 @@ packages/
   protocol/    client/server message types
 assets/
   vfx/         Spine exports (Ink Blade Hit)
+  sfx/         sound effects (mp3)
   characters/  glTF characters (M3)
 docs/          design doc, ADRs
 prototype/     single-file Three.js prototype
@@ -68,4 +69,4 @@ tests/         repo-wide guards
 
 ## Stack
 
-TypeScript (strict) · Three.js · React · Vite · Node + ws · Vitest · pnpm workspaces. Details and reasoning in the design doc.
+TypeScript (strict) · Three.js · React · Vite · Web Audio · Node + ws · Vitest · pnpm workspaces. Details and reasoning in the design doc.

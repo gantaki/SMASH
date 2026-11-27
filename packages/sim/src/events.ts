@@ -13,7 +13,8 @@ export type TargetKind = "champion" | "companion" | "orb";
 export type SimEvent =
   | { t: "phase"; phase: Phase; round: number }
   | { t: "countdown"; n: number }
-  | { t: "roundEnd"; winner: 0 | 1; score: [number, number] }
+  /** winner -1: both champions died in the same tick; nobody scores and the round is replayed. */
+  | { t: "roundEnd"; winner: 0 | 1 | -1; score: [number, number] }
   | { t: "matchEnd"; winner: 0 | 1; score: [number, number] }
   | { t: "castStart"; unit: number; slot: AbilitySlot; abilityId: string }
   | { t: "castCancel"; unit: number; slot: AbilitySlot; abilityId: string }
