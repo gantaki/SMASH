@@ -478,7 +478,6 @@ function raiseWall(ctx: Ctx, u: ChampionUnit, source: string, x: number, z: numb
     fallen: false,
     hp,
     maxHp: hp,
-    respawn: 0,
     homeX: x,
     homeZ: z,
     vx: 0,

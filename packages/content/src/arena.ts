@@ -91,8 +91,6 @@ export const rules: MatchRules = {
   },
   companion: { respawn: 15, killEnergy: 20, arriveDistance: 0.5, pounceTouchPad: 0.4, bitePad: 0.35, engageSpeedFactor: 1.1, championPriority: 3 },
   obstacles: {
-    woodRespawn: 20,
-    rebuildRetry: 0.5,
     crateTransfer: 0.7,
     crateKeepAfterCrate: 0.25,
     crateBounce: 1.5,

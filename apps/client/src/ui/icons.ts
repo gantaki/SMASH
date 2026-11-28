@@ -15,7 +15,7 @@ export const ABILITY_ICONS: Record<string, string> = {
   whirl: '<path d="M12 12a2 2 0 1 1 2 2 4 4 0 1 1-4-6 6 6 0 1 1-6 6"/>',
   wisp: '<path d="M12 21c-4 0-6-3-6-6 0-4 4-5 4-10 3 2 4 4 4 7 1-1 2-2 2-4 2 2 2 4 2 7 0 3-2 6-6 6z"/><circle cx="12" cy="16" r="1.6"/>',
   // Rook
-  pebble: '<circle cx="14" cy="10" r="5"/><path d="M4 20l5-5M3 15l3-2M9 21l2-3"/>',
+  maul: '<path d="M4 20 14 10"/><path d="M11 7l6-4 4 4-4 6z"/>',
   wall: '<path d="M3 8h18v10H3z"/><path d="M3 13h18M9 8v5M15 8v5M12 13v5"/>',
   ram: '<path d="M3 12h13"/><path d="M11 6l6 6-6 6"/><path d="M21 5v14"/>',
   stoneskin: '<path d="M12 3l7 4v6c0 4-3 6.5-7 8-4-1.5-7-4-7-8V7z"/><path d="M10 8l3 3-2 3 2 3"/>',

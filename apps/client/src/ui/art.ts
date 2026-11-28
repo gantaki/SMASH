@@ -1,8 +1,13 @@
 // Drawn art served from assets/art/ (style: docs/ART_STYLE.md, recipe: assets/art/README.md). Keyed by the ids used in content.
 // An id without an entry falls back to the line icons in icons.ts, so new content works before its art exists.
 
-const ABILITY_ICON_IDS = ["bolt", "orb", "blink", "ring", "shield", "wisp", "meteor", "cleave", "hook", "leap", "bash", "counter", "paw", "whirl"] as const;
-const PORTRAIT_IDS = ["ember", "fang"] as const;
+const ABILITY_ICON_IDS = [
+  ...["bolt", "orb", "blink", "ring", "shield", "wisp", "meteor"],
+  ...["cleave", "hook", "leap", "bash", "counter", "paw", "whirl"],
+  ...["maul", "wall", "ram", "stoneskin", "shatter", "boulder", "colosseum"],
+  ...["shard", "lift", "swap", "float", "surge", "moon", "maelstrom"],
+] as const;
+const PORTRAIT_IDS = ["ember", "fang", "rook", "tide"] as const;
 
 const index = (dir: string, ids: readonly string[]): Record<string, string> => Object.fromEntries(ids.map((id) => [id, `/art/${dir}/${id}.webp`]));
 

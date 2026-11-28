@@ -878,9 +878,6 @@ export class GameView {
           this.shakeAt(e.x, e.z, 0.4);
           break;
         }
-        case "obstacleRebuild":
-          this.world.obstacleRebuilt(e.id);
-          break;
         case "crateBump":
           p.emit(e.x, 0.4, e.z, { n: 10, spd: 2.5, col: DUST[0], col2: DUST[1], life: 0.4, size: 0.4, jit: 0.6 });
           this.sound("crate_bump", e.x, e.z);

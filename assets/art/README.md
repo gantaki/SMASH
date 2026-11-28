@@ -46,7 +46,11 @@ Style line, used in every prompt:
 and framing exactly", the style line, then:
 
 1. "Character portrait, waist-up, three-quarter view turned slightly to the left, looking at the viewer", and who the
-   character is (take the gear from the model in `apps/client/src/game/render/Units.ts`).
+   character is: a written design of the character (age, build, face and expression, each piece of what they wear and
+   carry), with "an original champion with the bold, instantly readable archetype design of a MOBA or arena-brawler
+   hero". The design comes first and the placeholder model in `apps/client/src/game/render/Units.ts` is made to match
+   it, not the other way round (`docs/ART_STYLE.md` §4). Add "Do not copy its character, outfit or colours" about the
+   style reference.
 2. "Their personal palette, used for everything they wear: …" with the palette from the design guide, and the
    colours that must not appear.
 3. "Transparent background, the character is a clean cutout with nothing behind it. The figure is cropped by the
@@ -79,6 +83,10 @@ then `Subject: <one object, its direction, and "Nothing else.">` and the colour 
   (#3a0d14)."
 - Fang: "Colours: cold light steel, deep navy blue and gold, with black ink. Background: flat dark slate-navy
   (#141d33). No fire, no orange, no red."
+- Rook: "Colours: moss green, weathered sandstone grey-beige and bronze, with black ink. Background: flat dark moss
+  green (#16241a). No fire, no orange, no red, no blue, no purple, no gold-yellow."
+- Tide: "Colours: lilac, moon-white and silver, with black ink. Background: flat dark indigo (#1a1730). No fire, no
+  orange, no red, no gold, no yellow, no green, no brown."
 
 A motion ability names its single trail in the subject and marks it "(asked for)": "ONE clean crescent swing arc
 behind the blade (asked for)". Without that the model either drops the trail or adds three.
@@ -88,6 +96,7 @@ portrait, livelier and more colourful than a normal ability icon. The creature's
 about 85% of the frame, looking at the viewer, full of character, with a thick black ink outline. Full colour: four
 or five saturated colours plus black ink and one highlight. Background: one flat, BRIGHT, saturated colour filling
 the whole square: <colour>. Plain, nothing else in it." Ember: bright violet-purple. Fang: bright gold-yellow.
+Rook: bright spring green. Tide: bright periwinkle blue.
 
 **Ultimate icon** (X): "Square icon of a hero's ULTIMATE ability … It must look much heavier, brighter and more
 powerful than a normal ability icon. One big object, centred, filling about 85% of the frame, with a solid closed
@@ -95,7 +104,8 @@ silhouette and an extra-thick black ink outline. Full, rich colour: four or five
 a white-hot highlight. Background: BRIGHT and saturated, filling the whole square: a bold hand-inked sunburst of wide
 alternating rays behind the object, in <colours>. The background is clearly lighter than the object's outline, never
 dark. No small clutter … The sunburst rays are the only thing besides the object." Ember: hot yellow and bright
-orange rays. Fang: bright gold and pale yellow rays.
+orange rays. Fang: bright gold and pale yellow rays. Rook: bright lime green and pale yellow-green rays. Tide: bright
+lilac and pale silver-white rays.
 
 **Interface icon**: the plain icon rules with "Three or four flat colours plus black ink" and, instead of the
 background line, "Transparent background: the object is a clean cutout with nothing behind it and an empty margin on

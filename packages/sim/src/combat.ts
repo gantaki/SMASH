@@ -349,7 +349,7 @@ export function applyOnHit(ctx: Ctx, target: Target, onHit: OnHit, source: Unit 
 
 // ---------- the arena taking damage ----------
 
-/** Walls, pillars and crates lose health and break. Only wood walls are rebuilt (obstacles.ts); a raised wall is simply gone. */
+/** Walls, pillars and crates lose health and break. Nothing is rebuilt during a round; a raised wall is taken off the field. */
 export function damageObstacle(ctx: Ctx, o: Obstacle, damage: number): void {
   if (!o.alive || !fighting(ctx)) return;
   o.hp -= damage;
@@ -357,7 +357,6 @@ export function damageObstacle(ctx: Ctx, o: Obstacle, damage: number): void {
     o.alive = false;
     o.hp = 0;
     o.vx = o.vz = 0;
-    o.respawn = rules.obstacles.woodRespawn;
     ctx.events.push({ t: "obstacleBreak", id: o.id, kind: o.kind, x: o.x, z: o.z });
     if (o.kind === "wall") removeObstacle(ctx, o);
   } else {

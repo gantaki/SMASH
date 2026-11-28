@@ -384,7 +384,7 @@ export interface Vec2Data {
 export type ObstacleDef =
   /** Pillar. Blocks movement, projectiles and line of sight. Takes a lot of punishment, then breaks for the rest of the round. */
   | { kind: "stone"; x: number; z: number; radius: number; hp: number }
-  /** Breakable wall (oriented box). Rebuilds after rules.obstacles.woodRespawn. rotDeg 0 = long side along x. */
+  /** Breakable wall (oriented box). Once broken it is gone for the round. rotDeg 0 = long side along x. */
   | { kind: "wood"; x: number; z: number; halfWidth: number; halfDepth: number; rotDeg: number; hp: number }
   /** Movable. Pushed by knockbacks, pulled by hooks; hurts enemies when it flies into them. Breaks for good when its health runs out. */
   | { kind: "crate"; x: number; z: number; radius: number; hp: number };
@@ -540,9 +540,6 @@ export interface MatchRules {
     championPriority: number;
   };
   obstacles: {
-    woodRespawn: number;
-    /** Seconds before retrying a rebuild when something stands in the wall's spot. */
-    rebuildRetry: number;
     /** Crate collisions: share of velocity passed to another crate / kept after it; bounce off solids. */
     crateTransfer: number;
     crateKeepAfterCrate: number;

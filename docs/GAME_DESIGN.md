@@ -155,7 +155,7 @@ Material tells the rule at a glance:
 | Material | Behaviour |
 |---|---|
 | **Stone** pillars (120 HP) | Block movement, projectiles and line of sight. Take damage like wood, darken as HP drops, and break **for the rest of the round**. |
-| **Wood** walls (60 HP) | Take damage from projectiles, AoEs, melee, slams and flying crates; look damaged as HP drops; break, then **rebuild after 20 s** (only if nothing stands in the spot and the floor under it is still there). |
+| **Wood** walls (60 HP) | Take damage from projectiles, AoEs, melee, slams and flying crates; look damaged as HP drops; break **for the rest of the round**. |
 | **Crates** (40 HP) | Movable. Pushed by knockback abilities, pulled by Harpoon and by the Moon, picked up and thrown by Tide. A crate moving faster than 3.5 m/s hits an enemy for 12 dmg and knocks them back 2.5 m (which can chain into a slam). Everything that hits a crate also damages it; a broken crate is **gone for the rest of the round**, so crates are ammunition that runs out. |
 | **Raised walls** (40 HP) | Made by abilities (Rook). Stand for a few seconds, block both sides, can be broken and slammed into, then crumble. |
 
@@ -190,14 +190,14 @@ Rules that keep it fair:
 
 ### 2.4 The arena comes apart: floor, wall, abyss
 
-The second half of the signature mechanic: knockback decides *where* a champion ends up, destruction decides *what is left to stand on*. Everything in the arena can be destroyed, and under it is an abyss.
+The second half of the signature mechanic: knockback decides *where* a champion ends up, destruction decides *what is left to stand on*. Everything in the arena can be destroyed, nothing destroyed comes back before the next round, and under it is an abyss.
 
 **What damages what.** One rule, readable from the animation:
 
 | The attack… | Examples | Damages |
 |---|---|---|
 | **strikes the ground** | Ring of Fire, Meteor, Maelstrom, Shatter, the landing of a Leap | the **floor** tiles under it, and walls, pillars, crates and the arena wall in its area |
-| **travels above the ground** | projectiles (Fire Bolt, Fireball, Harpoon, Pebble, Moonshard, companion shots), melee arcs (Cleave, Shield Bash, Surge), bursts around the caster (Flame Shield, Stoneskin), channels (Whirlwind), charges (Ram) | **only** walls, pillars, crates and the arena wall |
+| **travels above the ground** | projectiles (Fire Bolt, Fireball, Harpoon, Moonshard, companion shots), melee arcs (Cleave, Shield Bash, Maul, Surge), bursts around the caster (Flame Shield, Stoneskin), channels (Whirlwind), charges (Ram) | **only** walls, pillars, crates and the arena wall |
 
 Walls take the ability's damage number. The floor takes the ability's own `floorDamage` (data, per ability), because the damage that suits a champion's health does not suit a tile.
 
@@ -287,13 +287,13 @@ HP 220 · speed 6.4 m/s · weight 1.2 (heavy: shoved 17% less). Closes distance,
 | R | Hound | Companion command | See §2.1 |
 | X | Whirlwind | Channel | 100 energy, 2.4 s, move ×1.15, unstoppable, 7 dmg every 0.3 s in r 3.2 m |
 
-### Rook (Ладья) — Mason, mid range
+### Rook (Ладья) — Mason, melee
 
-HP 210 · speed 5.6 m/s · weight 1.25 (the heaviest: shoved 20% less). Rebuilds the arena to suit him and drives the enemy into it. Slow, no stun of his own: his damage is in slams.
+HP 225 · speed 5.9 m/s · weight 1.25 (the heaviest: shoved 20% less). Rebuilds the arena to suit him and drives the enemy into it. The toughest and the slowest; no stun of his own: his damage is in his maul and in slams.
 
 | Slot | Ability | Behaviour | Starting values |
 |---|---|---|---|
-| LMB | Pebble | Projectile | Wind-up 0.3 s (move ×0.6), 16 m/s, range 11 m, 14 dmg + fading snare 25% over 0.6 s, cd 0.36 s. Pushes crates |
+| LMB | Maul | Melee cone | Wind-up 0.32 s (move ×0.8), range 3 m, ±55°, 16 dmg + fading snare 25% over 0.6 s, cd 0.42 s. Bats crates away (9 m/s: enough to hurt who they reach) |
 | RMB | Raise Wall | Raised wall | Wind-up 0.35 s, up to 7 m away, 3 m wide across the aim, 40 HP, stands 5 s, at most two (a third crumbles the oldest), cd 5 s |
 | Space | Ram | Charge | Up to 6 m in 0.3 s. First enemy: 12 dmg, carried to the end of the charge and 1.5 m further; **slam: stun 1 s, +10 dmg**. Shoves crates, cd 7 s |
 | Q | Stoneskin | Brace | 1 s: no damage, no control, no movement; then r 3 m: 6 dmg + knockback 3 m (slam). The answer to a Leap or a Meteor, cd 9.5 s |
@@ -315,7 +315,7 @@ HP 170 · speed 6.5 m/s · weight 0.85 (the lightest: shoved 18% further). Barel
 | R | Moon | Companion command | See §2.1 |
 | X | Maelstrom | Delayed AoE | 100 energy, wind-up 0.3 s, max range 11 m, r 3.5 m; for 0.9 s enemies inside are dragged to the middle at 4.5 m/s, then 26 dmg + root 0.6 s, **floor 100 within 2.2 m**: the middle drops, the rim of it stays |
 
-Changed from the first concept sheets to fit the game as it is now: Q and E trade places on both (Q defends, E strikes); the ultimate is on X; companions have no free default behaviour (§2.1), so the Boulder does not walk beside Rook blocking shots and the Moon does not orbit Tide; Lift takes crates only (not companions, and there are no barrels); Maelstrom's hole is a real one (§2.4), so it stays for the round instead of closing after 4 s.
+Changed from the first concept sheets to fit the game as it is now: Rook is a melee champion (the Pebble shot became a maul swing); Q and E trade places on both (Q defends, E strikes); the ultimate is on X; companions have no free default behaviour (§2.1), so the Boulder does not walk beside Rook blocking shots and the Moon does not orbit Tide; Lift takes crates only (not companions, and there are no barrels); Maelstrom's hole is a real one (§2.4), so it stays for the round instead of closing after 4 s.
 
 ### Dummy (Манекен)
 
@@ -396,7 +396,7 @@ Bots and the abyss (§2.4): a bot predicts its own path a third of a second ahea
 | `units.ts` | Champion timers, movement, casting, channelling, collisions |
 | `projectiles.ts` | Projectiles, delayed ground effects |
 | `companions.ts` | Companions: summoning, their commands (sentry, pounce, roll, gravity well), leaving |
-| `obstacles.ts` | Wood walls rebuilding, raised walls and Colosseums running out, crates |
+| `obstacles.ts` | Raised walls and Colosseums running out, crates |
 | `floor.ts` | Floor layout (tiles) and wall sections from content; "is there floor here" queries |
 | `terrain.ts` | Crumbling tiles dropping; obstacles, wall sections and units falling into the abyss |
 | `hazards.ts` | Orb, sudden death (zone, rifts) |
@@ -502,13 +502,13 @@ tests/           repo-wide guards (architecture rules)
 - 3D character pipeline: who makes models and animations (Mixamo, AI-generated, outsourced)?
 - Companions are summon-only now (§2.1). Does a companion that is on the field for 3–6 s per 25 energy still feel like *your* companion, or like one more ability with a model? Should the cheapest thing it does (the Wisp's sparks) go up to make the summon worth it?
 - Crates are ammunition that runs out (40 HP, no respawn). Four per round is little for Tide, whose Lift needs one: more crates on the arena, or a crate drop during the round?
-- Rook and Tide are first drafts. In bot batches (normal, 40 matches a pairing) Rook wins 77% against Fang but only 27% against Ember and 28% against Tide; Tide wins 47% against Ember and 27% against Fang. Bots do not play walls, swaps or crates the way a person would, so these say more about the bots than about the kits: playtest before tuning.
+- Rook and Tide are first drafts. In bot batches (normal, 40 matches a pairing) Rook, as a melee champion, wins 45% against Fang, 30% against Ember and 43% against Tide; Tide wins 43% against Ember and 27% against Fang. Rook mirrors end in the abyss far more than anything else (22% ring-outs, 9% falls on their own): two crossing Shatters open the floor in the first seconds. Bots do not play walls, swaps or crates the way a person would, so these say more about the bots than about the kits: playtest before tuning.
 - Tide's Shift moves two units at once: a mis-predicted swap will snap on the guest in online play. Not tested online yet.
 - 2v2: with four ground-strikers the floor may go too fast, and a Colosseum or a Maelstrom catches two. Is 100 HP per tile still right for four players? Should allies' walls block allies?
 - Slam frequency: with this obstacle density, are slams too common?
 - **A fall is instant death** (§2.4), by decision, for now. With it a round can end at full health from one shove, and Harpoon across a hole is a kill at 11 m. Alternatives if that proves too swingy: heavy damage plus a respawn at the edge, or a fall only being lethal below some health.
 - Destruction pacing: tile 100 HP, Ring of Fire 50, Leap 34, Meteor 100, crumble 1.5 s. In bot batches Ember loses 13–37 tiles a round, Fang mirrors lose none (they end in 10 s, and Fang needs three landings on one spot). Should every kit have a faster way to open the floor? Should basic attacks chip it?
-- Wood walls still rebuild after 20 s while everything else stays broken for the round. Keep the rebuild, or make all destruction permanent?
+- Nothing is rebuilt during a round any more (wood walls used to come back after 20 s). With crates, walls and pillars all gone for good, does a long round run out of things to slam into and throw? Is that the point (the late round is about the abyss), or does the arena need more cover to start with?
 - Sudden death and destruction overlap: the message already says "the arena is collapsing", but the zone only deals damage and rifts only burn. Should sudden death drop the outer rings instead of shrinking a damage zone, and should a rift's eruption crack the tiles along it?
 - The arena wall: 36 sections of 60 HP, three slams or six Fire Bolts each. Is a gap too cheap to open, or too rare to matter (0.4–0.9 sections a round in bot batches)?
 - Should the first arenas start with holes or open edges already in them (pits as level design), not only the ones the fight makes?

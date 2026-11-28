@@ -1,4 +1,4 @@
-// Wood walls rebuilding, raised walls running out of time, and crates sliding around.
+// Raised walls and Colosseums running out of time, and crates sliding around.
 
 import { rules } from "@smash/content";
 import { applyOnHit, damageObstacle, removeObstacle } from "./combat.ts";
@@ -22,25 +22,6 @@ export function updateObstacles(ctx: Ctx): void {
       if (o.temp <= 0) {
         ctx.events.push({ t: "wallExpire", id: o.id, x: o.x, z: o.z });
         removeObstacle(ctx, o);
-      }
-      continue;
-    }
-    if (o.kind === "wood") {
-      if (o.alive || o.fallen || !fight) continue;
-      o.respawn -= dt;
-      if (o.respawn > 0) continue;
-      // Rebuild only if nothing stands in the spot, and only on floor that is still there.
-      o.alive = true;
-      const occupied =
-        !solidAt(state, o.x, o.z) ||
-        state.units.some((u) => !u.dead && obstaclePenetration(o, u.x, u.z, u.radius)) ||
-        state.obstacles.some((c) => c.kind === "crate" && obstaclePenetration(o, c.x, c.z, c.radius));
-      if (occupied) {
-        o.alive = false;
-        o.respawn = cfg.rebuildRetry;
-      } else {
-        o.hp = o.maxHp;
-        ctx.events.push({ t: "obstacleRebuild", id: o.id });
       }
       continue;
     }

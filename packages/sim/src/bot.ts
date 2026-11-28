@@ -13,7 +13,7 @@ import {
 } from "@smash/content";
 import { abilityOf, canAct, isReady } from "./abilities.ts";
 import type { Ctx } from "./context.ts";
-import { dropTimeAt, floorTiles, nearestSafe, pathSolid, safeAt, voidAlong } from "./floor.ts";
+import { dropTimeAt, floorTiles, nearestSafe, pathSolid, safeAt, tileAt, voidAlong } from "./floor.ts";
 import { blocker, clearLine, obstaclePenetration, polylineDistance, reach, wallBehind } from "./geometry.ts";
 import type { Vec2 } from "./math.ts";
 import { champions, companionOf, emptyInput, type BotState, type ChampionUnit, type MatchState, type PlayerInput } from "./state.ts";
@@ -277,9 +277,10 @@ export function botInput(ctx: Ctx, b: ChampionUnit): PlayerInput {
   }
 
   const acting = canAct(ctx, b);
-  // The guard a bot raises against a hit it sees coming: a counter stance, or bracing (not on a tile that is about to
-  // drop: braced, it could not step off).
-  const counterSlot = findSlot(b, (a) => a.kind === "counter" || (a.kind === "brace" && safeAt(state, b.x, b.z)));
+  // The guard a bot raises against a hit it sees coming: a counter stance, or bracing. Not on a tile that is cracked
+  // or about to drop: braced, it could not step off when the next ground strike takes the tile.
+  const firm = state.floor.hp[tileAt(b.x, b.z)] === arena.floor.hp;
+  const counterSlot = findSlot(b, (a) => a.kind === "counter" || (a.kind === "brace" && firm));
   const mobilitySlot = b.root > 0 ? null : findSlot(b, (a) => a.kind === "blink" || a.kind === "leap" || a.kind === "dash");
   const novaSlot = findSlot(b, (a) => a.kind === "nova");
   const hoverSlot = findSlot(b, (a) => a.kind === "hover");
@@ -554,7 +555,7 @@ export function botInput(ctx: Ctx, b: ChampionUnit): PlayerInput {
       }
       case "brace": {
         // "Get off me": worth it when the shove at the end has somewhere to send them.
-        if (!targetIsEnemy || d > a.radius - 0.4 || !safeAt(state, b.x, b.z)) break;
+        if (!targetIsEnemy || d > a.radius - 0.4 || !firm) break;
         const shove = a.onHit.knockback ? a.onHit.knockback.distance / shoveWeight : 0;
         const chance = ringOut(shove) ? dt * 20 : wallBehind(state, b, p, shove) ? dt * 5 : dt * 0.7 * D.rate;
         if (rng.next() < chance) return press(slot, p);

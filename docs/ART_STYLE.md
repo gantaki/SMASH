@@ -47,7 +47,11 @@ Rules for a new palette:
 - **Proportions are pushed.** Women are drawn as glamorous heroines: adult, with a pronounced feminine figure and a
   deep neckline. Men get the same treatment in their own key: broad, heavy, scarred.
 - **Expression carries the character**: a smirk, a grin, a glare. No neutral faces.
-- The gear in the art is the gear of the 3D model (`apps/client/src/game/render/Units.ts`), in the palette's colours.
+- **The art is the design; the placeholder model follows it.** A champion is designed as a character first (who they
+  are, what they wear, what they carry), with the clarity of a MOBA or arena-brawler hero: one archetype readable at
+  a glance, one or two oversized signature pieces (Rook's crenellated helmet and pauldrons, Tide's crescent and
+  floating hair). The primitive model in `apps/client/src/game/render/Units.ts` is then given the same gear and the
+  palette's colours; it is never the reference for the art.
 
 ## 5. Portraits
 
@@ -68,7 +72,7 @@ the tier must be readable before the picture is.
 | Tier | Slots | Background | Colour | Shape in the UI |
 |---|---|---|---|---|
 | **Plain** | LMB, RMB, Space, Q, E | The palette's dark flat background, empty | Three colours plus ink | Square |
-| **Companion** | R | One flat **bright** colour, empty (Ember: violet; Fang: gold-yellow) | Full colour, four or five | **Round** |
+| **Companion** | R | One flat **bright** colour, empty (Ember: violet; Fang: gold-yellow; Rook: spring green; Tide: periwinkle blue) | Full colour, four or five | **Round** |
 | **Ultimate** | X | **Bright sunburst** of wide inked rays in the palette's hot colours | Full colour plus a white-hot highlight | **Bigger square in a gold frame** |
 
 Rules for every tier:

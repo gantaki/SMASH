@@ -245,7 +245,6 @@ export interface Obstacle {
   fallen: boolean;
   hp: number;
   maxHp: number;
-  respawn: number;
   homeX: number;
   homeZ: number;
   vx: number;
@@ -485,7 +484,6 @@ function buildObstacles(nextId: () => number): Obstacle[] {
       fallen: false,
       hp: 0,
       maxHp: 0,
-      respawn: 0,
       homeX: o.x,
       homeZ: o.z,
       vx: 0,
@@ -597,7 +595,6 @@ export function startRound(state: MatchState): void {
     o.alive = true;
     o.fallen = false;
     o.hp = o.maxHp;
-    o.respawn = 0;
     o.x = o.homeX;
     o.z = o.homeZ;
     o.vx = o.vz = 0;

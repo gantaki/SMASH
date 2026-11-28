@@ -88,7 +88,6 @@ export type SimEvent =
   | { t: "lift"; unit: number; obstacle: number; x: number; z: number }
   /** A held crate was thrown, or put down (`thrown` false). */
   | { t: "release"; unit: number; obstacle: number; x: number; z: number; thrown: boolean }
-  | { t: "obstacleRebuild"; id: number }
   /** The floor under the obstacle is gone and it went down with it. */
   | { t: "obstacleFall"; id: number; x: number; z: number }
   /** Floor tiles (ids = indices into floorTiles) took damage and still hold. */

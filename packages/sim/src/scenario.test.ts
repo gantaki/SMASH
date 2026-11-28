@@ -295,7 +295,7 @@ describe("projectiles", () => {
     expect(s.b.hp).toBe(s.b.maxHp);
   });
 
-  it("break wood walls", () => {
+  it("break wood walls, which stay broken until the next round", () => {
     const s = scene();
     place(s.a, 0, 9);
     place(s.b, 12, -12);
@@ -304,6 +304,17 @@ describe("projectiles", () => {
     s.inputs[0].aim = { x: 0, z: 5 };
     s.run(5);
     expect(wall.alive).toBe(false);
+    // Nothing is rebuilt during a round (wood used to come back after 20 s).
+    s.inputs[0].holdPrimary = false;
+    s.run(25);
+    expect(wall.alive).toBe(false);
+    s.b.hp = 1;
+    place(s.b, 0, 3);
+    s.press(0, "primary", 0, 3);
+    s.run(1 + rules.roundEndDelay + 0.2);
+    expect(s.state.round).toBe(2);
+    expect(wall.alive).toBe(true);
+    expect(wall.hp).toBe(wall.maxHp);
   });
 
   it("split into three when Ember's Fireball passes through her Wisp", () => {
@@ -865,8 +876,6 @@ describe("destructible arena", () => {
     const fell = of(s.run(0.1), "obstacleFall").map((e) => e.id);
     expect(fell.sort()).toEqual([other.id, wood.id, crate.id].sort());
     expect([other, wood, crate].every((o) => o.fallen && !o.alive)).toBe(true);
-    // Nothing is rebuilt over a hole.
-    s.run(rules.obstacles.woodRespawn + 1);
     expect(wood.alive).toBe(false);
   });
 
@@ -990,7 +999,7 @@ describe("crates", () => {
     expect(crate.z).toBeLessThan(0);
     s.press(0, "primary", crate.x, crate.z);
     expect(of(s.run(0.8), "obstacleBreak")[0]).toMatchObject({ id: crate.id, kind: "crate" });
-    s.run(rules.obstacles.woodRespawn + 1);
+    s.run(25);
     expect(crate.alive).toBe(false);
   });
 });
@@ -1094,6 +1103,31 @@ describe("2v2", () => {
 });
 
 describe("Rook", () => {
+  it("is a melee champion: the maul hits what is in front of him and bats a crate away", () => {
+    const maul = rook.abilities.primary!;
+    if (maul.kind !== "cone") throw new Error("expected a melee cone");
+    const s = scene("rook", "ember");
+    place(s.a, -4.5, 12);
+    place(s.b, -4.5, 12 - maul.range + 0.5);
+    const crate = s.state.obstacles.find((o) => o.kind === "crate")!;
+    // Off to the side, so that it flies clear of the enemy.
+    crate.x = -6.6;
+    crate.z = 11.2;
+    s.press(0, "primary", -4.5, 9);
+    const ev = s.run(maul.castTime! + 0.1);
+    expect(of(ev, "meleeHit")).toHaveLength(1);
+    expect(s.b.hp).toBe(s.b.maxHp - maul.onHit.damage);
+    expect(Math.hypot(crate.vx, crate.vz)).toBeGreaterThan(rules.obstacles.crateHitSpeed);
+    expect(crate.hp).toBe(crate.maxHp - maul.onHit.damage);
+    // Out of reach: nothing.
+    place(s.b, -4.5, 12 - maul.range - 2);
+    const hp = s.b.hp;
+    s.a.cooldowns.primary = 0;
+    s.press(0, "primary", -4.5, 9);
+    s.run(maul.castTime! + 0.1);
+    expect(s.b.hp).toBe(hp);
+  });
+
   const wallA = rook.abilities.secondary!;
   const ram = rook.abilities.mobility!;
   const skin = rook.abilities.q!;

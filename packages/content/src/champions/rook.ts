@@ -3,38 +3,37 @@ import type { Champion } from "../types.ts";
 
 const MOSS = "#8fc46b";
 
-/** Mason. Rebuilds the arena to suit him (walls, a ring of walls, a rolling boulder) and drives the enemy into it. */
+/** Mason, melee. Rebuilds the arena to suit him (walls, a ring of walls, a rolling boulder) and drives the enemy into it. */
 export const rook: Champion = {
   id: "rook",
   name: "Rook",
   nameRu: "Ладья",
-  roleRu: "Каменщик · средняя дистанция",
+  roleRu: "Каменщик · ближний бой",
   blurbRu: "Перестраивает арену под себя и вбивает в неё соперника. Тяжёлый и медленный.",
   playable: true,
-  stats: { hp: 210, moveSpeed: 5.6, radius: 0.7, weight: 1.25 },
+  stats: { hp: 225, moveSpeed: 5.9, radius: 0.7, weight: 1.25 },
   color: MOSS,
   particles: ["#cfe8a8", "#4f6b3a"],
   companion: boulder,
-  bot: { style: "ranged", keepRange: { min: 3, max: 6.5 } },
+  bot: { style: "melee", keepRange: { min: 0, max: 2.3 } },
   abilities: {
     primary: {
-      kind: "projectile",
-      id: "rook.pebble",
-      name: "Pebble",
-      nameRu: "Галька",
-      descriptionRu: "замах 0,3 с, затем камень: 14 урона и короткое затухающее замедление; двигает ящики",
-      icon: "pebble",
-      cooldown: 0.36,
-      castTime: 0.3,
-      castMoveMultiplier: 0.6,
-      speed: 16,
-      range: 11,
-      radius: 0.34,
-      onHit: { damage: 14, slow: { amount: 0.25, duration: 0.6, fading: true } },
-      visual: { core: "#e9e2cf", glow: "#8fc46b", size: 0.22 },
-      cratePush: 3.5,
+      kind: "cone",
+      id: "rook.maul",
+      name: "Maul",
+      nameRu: "Кувалда",
+      descriptionRu: "замах 0,32 с, удар кувалдой по дуге: 16 урона и затухающее замедление; ящики отлетают",
+      icon: "maul",
+      cooldown: 0.42,
+      castTime: 0.32,
+      castMoveMultiplier: 0.8,
+      range: 3,
+      halfAngleDeg: 55,
+      onHit: { damage: 16, slow: { amount: 0.25, duration: 0.6, fading: true } },
+      // A crate in the arc is batted away: enough to hurt whoever it reaches.
+      cratePush: 9,
       color: MOSS,
-      sfx: { cast: "windup_swing", fire: "hook_throw", hit: "stone_hit" },
+      sfx: { cast: "windup_swing", fire: "cleave", hit: "heavy_hit" },
     },
     secondary: {
       kind: "wall",

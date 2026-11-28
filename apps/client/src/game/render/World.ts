@@ -293,11 +293,6 @@ export class World {
     if (v) v.hit = 0.15;
   }
 
-  obstacleRebuilt(id: number): void {
-    const v = this.obstacles.get(id);
-    if (v) v.rise = 0.45;
-  }
-
   flashOrb(): void {
     this.orbFlash = 0.12;
   }
@@ -358,8 +353,8 @@ export class World {
       else v.mat?.color.copy(wood ? WOOD_FRESH : STONE_FRESH).lerp(wood ? WOOD_WORN : STONE_WORN, 1 - k);
       v.rise = Math.max(0, v.rise - dt);
       const shake = v.hit > 0 && dt > 0 ? (wood ? 0.06 : 0.035) : 0;
-      // Rebuilt wood walls and raised stone walls come up out of the floor.
-      const sunk = o.kind === "wall" ? WALL_HEIGHT * (v.rise / WALL_RISE) : 1.4 * (v.rise / 0.45);
+      // A raised wall comes up out of the floor.
+      const sunk = o.kind === "wall" ? WALL_HEIGHT * (v.rise / WALL_RISE) : 0;
       v.group.position.set(o.x + rand(-shake, shake), -sunk, o.z + rand(-shake, shake));
     }
     // Walls that are gone (time up, broken, burst) take their models with them.
