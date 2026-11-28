@@ -10,7 +10,6 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@smash/content": "workspace:*",
-    "@smash/sim": "workspace:*"
+    "@smash/content": "workspace:*"
   }
 }

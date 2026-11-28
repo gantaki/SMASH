@@ -11,9 +11,6 @@ importers:
       '@smash/content':
         specifier: workspace:*
         version: link:packages/content
-      '@smash/protocol':
-        specifier: workspace:*
-        version: link:packages/protocol
       '@smash/sim':
         specifier: workspace:*
         version: link:packages/sim
@@ -93,9 +90,6 @@ importers:
       '@smash/content':
         specifier: workspace:*
         version: link:../content
-      '@smash/sim':
-        specifier: workspace:*
-        version: link:../sim
 
   packages/sim:
     dependencies:

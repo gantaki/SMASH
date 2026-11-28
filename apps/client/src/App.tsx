@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { playableChampions, type BotDifficulty } from "@smash/content";
 import { AudioEngine } from "./audio/AudioEngine.ts";
-import { Game, type EndReason, type GameMode, type TrainingStats } from "./game/Game.ts";
-import { NetClient, type StartMessage } from "./net/NetClient.ts";
+import { Game, type GameMode, type TrainingStats } from "./game/Game.ts";
 import { Menu, type PlayMode } from "./ui/Menu.tsx";
 import { TrainingPanel } from "./ui/TrainingPanel.tsx";
 
@@ -13,20 +12,17 @@ const DIFFICULTY_NAMES: Record<BotDifficulty, string> = { easy: "лёгкий", 
 
 export function App() {
   const audio = useMemo(() => new AudioEngine(), []);
-  const net = useMemo(() => new NetClient(`Игрок${Math.floor(Math.random() * 900 + 100)}`), []);
   const canvas = useRef<HTMLCanvasElement>(null);
   const overlay = useRef<HTMLDivElement>(null);
   const hud = useRef<HTMLDivElement>(null);
   const game = useRef<Game | null>(null);
-  /** Set when the server starts an online match; consumed by the next run. */
-  const online = useRef<StartMessage | null>(null);
 
   const [screen, setScreen] = useState<Screen>("menu");
   const [champion, setChampion] = useState(playableChampions[0]!.id);
   const [mode, setMode] = useState<PlayMode>("duel");
   const [difficulty, setDifficulty] = useState<BotDifficulty>("normal");
   const [paused, setPaused] = useState(false);
-  const [result, setResult] = useState<{ won: boolean; score: [number, number]; reason: EndReason; online: boolean } | null>(null);
+  const [result, setResult] = useState<{ won: boolean; score: [number, number] } | null>(null);
   const [stats, setStats] = useState<TrainingStats>(EMPTY_STATS);
   // Bumping the run number gives the next match a fresh canvas (and WebGL context).
   const [run, setRun] = useState(0);
@@ -38,28 +34,11 @@ export function App() {
     return () => window.removeEventListener("pointerdown", unlock);
   }, [audio]);
 
-  // The server decides when an online match begins (both players ready).
-  useEffect(() => {
-    net.onStart = (msg) => {
-      online.current = msg;
-      audio.play("ui_click");
-      setPaused(false);
-      setResult(null);
-      setScreen("game");
-      setRun((n) => n + 1);
-    };
-    return () => {
-      net.onStart = null;
-      net.close();
-    };
-  }, [net, audio]);
-
   const opponent = playableChampions.find((c) => c.id !== champion)?.id ?? champion;
+  const gameMode: GameMode = screen === "menu" ? "demo" : mode;
 
   useEffect(() => {
     if (!canvas.current || !overlay.current || !hud.current) return;
-    const start = screen === "menu" ? null : online.current;
-    const gameMode: GameMode = screen === "menu" ? "demo" : start ? "online" : mode;
     const g = new Game({
       mode: gameMode,
       champion,
@@ -69,12 +48,12 @@ export function App() {
       overlay: overlay.current,
       hud: hud.current,
       audio,
-      online: start ? { net, start } : undefined,
-      onMatchEnd: (won, score, reason) => {
-        if (gameMode === "demo") return setRun((n) => n + 1);
-        setResult({ won, score, reason, online: gameMode === "online" });
-        setPaused(false);
-        setScreen("end");
+      onMatchEnd: (won, score) => {
+        if (gameMode === "demo") setRun((n) => n + 1);
+        else {
+          setResult({ won, score });
+          setScreen("end");
+        }
       },
       onPause: setPaused,
       onTrainingStats: setStats,
@@ -91,7 +70,6 @@ export function App() {
   }, [run]);
 
   const start = useCallback(() => {
-    online.current = null;
     audio.unlock();
     audio.play("ui_click");
     setPaused(false);
@@ -102,14 +80,11 @@ export function App() {
   }, [audio]);
 
   const toMenu = useCallback(() => {
-    // Walking out of an online match forfeits it.
-    if (online.current && net.lobby?.inMatch) net.leave();
-    online.current = null;
     setPaused(false);
     setResult(null);
     setScreen("menu");
     setRun((n) => n + 1);
-  }, [net]);
+  }, []);
 
   const pick = (id: string) => {
     audio.unlock();
@@ -118,32 +93,29 @@ export function App() {
     if (screen === "menu") setRun((n) => n + 1);
   };
 
-  const isOnline = screen !== "menu" && online.current !== null;
+  const inGame = screen !== "menu";
   return (
     <>
       <canvas key={run} ref={canvas} className="stage" tabIndex={0} aria-label="Арена" />
       <div ref={overlay} className="ov" />
-      <div ref={hud} className="hud" hidden={screen !== "game"} />
+      <div ref={hud} className="hud" hidden={!inGame || screen === "end"} />
 
-      {screen === "menu" && (
-        <Menu champion={champion} mode={mode} difficulty={difficulty} net={net} onChampion={pick} onMode={setMode} onDifficulty={setDifficulty} onStart={start} />
-      )}
+      {screen === "menu" && <Menu champion={champion} mode={mode} difficulty={difficulty} onChampion={pick} onMode={setMode} onDifficulty={setDifficulty} onStart={start} />}
 
-      {screen === "game" && mode === "training" && !isOnline && !paused && (
+      {screen === "game" && mode === "training" && !paused && (
         <TrainingPanel champion={champion} stats={stats} onCommand={(c) => game.current?.command(c)} onTuning={(t) => game.current?.setTuning(t)} />
       )}
 
       {screen === "game" && paused && (
         <div className="screen">
           <div className="panel small">
-            <h1>{isOnline ? "Меню" : "Пауза"}</h1>
-            {isOnline && <p className="sub">Бой по сети не останавливается.</p>}
+            <h1>Пауза</h1>
             <div className="row">
               <button className="go" onClick={() => game.current?.setPaused(false)}>
                 Продолжить
               </button>
               <button className="ghost" onClick={toMenu}>
-                {isOnline ? "Сдаться и выйти" : "Выйти в меню"}
+                Выйти в меню
               </button>
             </div>
           </div>
@@ -153,28 +125,17 @@ export function App() {
       {screen === "end" && result && (
         <div className="screen">
           <div className="panel small">
-            <h1 style={{ color: result.won ? "var(--ally)" : "var(--foe)" }}>
-              {result.reason === "opponent_left" ? (result.won ? "Соперник вышел" : "Связь потеряна") : result.won ? "Победа" : "Поражение"}
-            </h1>
+            <h1 style={{ color: result.won ? "var(--ally)" : "var(--foe)" }}>{result.won ? "Победа" : "Поражение"}</h1>
             <p className="sub">
-              Счёт {result.score[0]} : {result.score[1]}
-              {result.online ? " · бой по сети" : ` · бот (${DIFFICULTY_NAMES[difficulty]})`}
+              Счёт {result.score[0]} : {result.score[1]} · бот ({DIFFICULTY_NAMES[difficulty]})
             </p>
             <div className="row">
-              {result.online ? (
-                <button className="go" onClick={toMenu}>
-                  В лобби: реванш
-                </button>
-              ) : (
-                <>
-                  <button className="go" onClick={start}>
-                    Реванш
-                  </button>
-                  <button className="ghost" onClick={toMenu}>
-                    Сменить чемпиона
-                  </button>
-                </>
-              )}
+              <button className="go" onClick={start}>
+                Реванш
+              </button>
+              <button className="ghost" onClick={toMenu}>
+                Сменить чемпиона
+              </button>
             </div>
           </div>
         </div>

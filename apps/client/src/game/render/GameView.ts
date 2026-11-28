@@ -21,8 +21,6 @@ const CAMERA = { fov: 45, height: 26, back: 12.5, lookAhead: 0.28, lookAheadMax:
 /** Spine pixels per meter for BoneGyre hit effects (GAME_DESIGN §6). */
 const SPINE_PX_PER_M = 175;
 const TELEPORT_DISTANCE = 3;
-/** Smoothing of network corrections: time constant in seconds, and the sizes (m) below / above which none is applied. */
-const CORRECTION = { halfLife: 0.09, ignore: 0.01, snap: 3 } as const;
 /** How tall obstacles are, for ragdolls flying over or into them (matches the meshes in World.ts). */
 const OBSTACLE_HEIGHT = { stone: 3.3, wood: 1.4, crate: 1.1 } as const;
 const RIM = { height: 1.2, thickness: 1, standsGap: 7.2 } as const;
@@ -58,10 +56,6 @@ export class GameView {
   private readonly reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
   private shake = 0;
   private alpha = 1;
-  /** Team 1 sees the arena from the other end, so everyone starts at the bottom of their own screen. */
-  private readonly side: 1 | -1;
-  /** Online: when a snapshot moves a unit, it is drawn at its old place and eased over to the new one. */
-  private readonly offsets = new Map<number, { x: number; z: number }>();
   /** Wind-up cues still playing, by unit id: cut short if the cast is cancelled or interrupted. */
   private readonly castSounds = new Map<number, () => void>();
   /** The last direct hit each champion took: where it came from and how hard. Launches the ragdoll on death. */
@@ -103,8 +97,6 @@ export class GameView {
     scene.add(sun);
 
     this.latest = state;
-    this.side = viewerTeam === 1 ? -1 : 1;
-    this.camTarget.z *= this.side;
     this.world = new World(state, this.particles);
     this.fx = new Fx(this.particles, viewerTeam);
     this.hazards = new Hazards(this.particles);
@@ -180,27 +172,13 @@ export class GameView {
   private pose = (e: { id: number; x: number; z: number; face?: number }): Pose => {
     const p = this.prev.get(e.id);
     const face = e.face ?? 0;
-    const off = this.offsets.get(e.id);
-    const ox = off?.x ?? 0;
-    const oz = off?.z ?? 0;
-    if (!p || Math.hypot(e.x - p.x, e.z - p.z) > TELEPORT_DISTANCE) return { x: e.x + ox, z: e.z + oz, face };
+    if (!p || Math.hypot(e.x - p.x, e.z - p.z) > TELEPORT_DISTANCE) return { x: e.x, z: e.z, face };
     const a = this.alpha;
     let d = (face - p.face) % (Math.PI * 2);
     if (d > Math.PI) d -= Math.PI * 2;
     if (d < -Math.PI) d += Math.PI * 2;
-    return { x: p.x + (e.x - p.x) * a + ox, z: p.z + (e.z - p.z) * a + oz, face: p.face + d * a };
+    return { x: p.x + (e.x - p.x) * a, z: p.z + (e.z - p.z) * a, face: p.face + d * a };
   };
-
-  /** A snapshot moved this unit by (-dx, -dz): keep drawing it where it was and ease the difference away. */
-  correct(id: number, dx: number, dz: number): void {
-    const o = this.offsets.get(id) ?? { x: 0, z: 0 };
-    o.x += dx;
-    o.z += dz;
-    const size = Math.hypot(o.x, o.z);
-    // Tiny errors are invisible; huge ones are teleports and respawns, which should snap.
-    if (size < CORRECTION.ignore || size > CORRECTION.snap) this.offsets.delete(id);
-    else this.offsets.set(id, o);
-  }
 
   private setFov(fov: number): void {
     this.camera.fov = fov;
@@ -270,12 +248,6 @@ export class GameView {
   render(state: MatchState, alpha: number, dt: number, time: number, aim: { x: number; z: number }, realDt = dt): void {
     this.alpha = alpha;
     this.latest = state;
-    const fade = Math.exp(-realDt / CORRECTION.halfLife);
-    for (const [id, o] of this.offsets) {
-      o.x *= fade;
-      o.z *= fade;
-      if (Math.hypot(o.x, o.z) < CORRECTION.ignore) this.offsets.delete(id);
-    }
     if (this.shot) this.shotTime += realDt;
     const me = championOfTeam(state, this.viewerTeam);
     const mePose = this.pose(me);
@@ -333,7 +305,7 @@ export class GameView {
       const sh = this.reducedMotion ? 0 : this.shake;
       const sx = (Math.random() - 0.5) * sh;
       const sz = (Math.random() - 0.5) * sh;
-      this.camera.position.set(this.camTarget.x + sx, CAMERA.height * s, this.camTarget.z + CAMERA.back * s * this.side + sz);
+      this.camera.position.set(this.camTarget.x + sx, CAMERA.height * s, this.camTarget.z + CAMERA.back * s + sz);
       this.camera.lookAt(this.camTarget.x + sx * 0.5, 0, this.camTarget.z + sz * 0.5);
     }
     this.reticle.visible = !this.orbit && !this.shot && (state.phase === "fight" || state.phase === "countdown");
@@ -365,8 +337,7 @@ export class GameView {
     this.snapshot(state);
     const me = championOfTeam(state, this.viewerTeam);
     this.camTarget.x = me.x;
-    this.camTarget.z = me.z - 3 * this.side;
-    this.offsets.clear();
+    this.camTarget.z = me.z - 3;
     this.shake = 0;
   }
 
@@ -376,7 +347,7 @@ export class GameView {
     if (!id || !this.audio) return null;
     if (x === undefined || z === undefined) return this.audio.play(id, { volume });
     const d = Math.hypot(x - this.camTarget.x, z - this.camTarget.z);
-    return this.audio.play(id, { volume: volume * clamp(1.1 - d / 34, 0.35, 1), pan: clamp(((x - this.camTarget.x) * this.side) / 16, -0.8, 0.8), rate: this.soundRate });
+    return this.audio.play(id, { volume: volume * clamp(1.1 - d / 34, 0.35, 1), pan: clamp((x - this.camTarget.x) / 16, -0.8, 0.8), rate: this.soundRate });
   }
 
   private shakeAt(x: number, z: number, amount: number): void {

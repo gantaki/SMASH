@@ -2,13 +2,13 @@
 // It is a real replay, not a recording: the sim is deterministic and its state is plain data, so we keep a short
 // history of (state before the tick, input) and re-simulate it. Presentation only: nothing here feeds back into the match.
 
-import { arena, rules } from "@smash/content";
+import { arena } from "@smash/content";
 import { TICK_DT, blocker, step, type MatchState, type PlayerInput, type SimEvent, type Unit } from "@smash/sim";
 
 /** Presentation tuning. Times marked "sim" are simulated seconds; the rest is real time. */
 export const KILL_CAM = {
-  /** Sim seconds replayed before the kill (a rule, because the server records the same window for online play). */
-  rewind: rules.killCam.rewind,
+  /** Sim seconds replayed before the kill. */
+  rewind: 0.6,
   /** Time scale when the replay starts, and around the blow. */
   scaleLead: 0.5,
   scaleImpact: 0.1,
@@ -41,8 +41,7 @@ export const KILL_CAM = {
 export interface Frame {
   /** State before the tick. */
   state: MatchState;
-  /** What each team's player held during the tick (null for bots, which decide for themselves). */
-  inputs: [PlayerInput | null, PlayerInput | null];
+  input: PlayerInput | null;
 }
 
 /** Where the camera stands for the replay. */
@@ -61,7 +60,7 @@ export interface KillShot {
 const clamp = (v: number, lo: number, hi: number): number => (v < lo ? lo : v > hi ? hi : v);
 
 /** Picks a side-on camera position with a clear view of the victim. */
-export function frameKill(state: MatchState, victim: Unit, killer: Unit | undefined, viewerSide: 1 | -1 = 1): KillShot {
+export function frameKill(state: MatchState, victim: Unit, killer: Unit | undefined): KillShot {
   let dx = Math.sin(victim.face);
   let dz = Math.cos(victim.face);
   let span = 2.5;
@@ -79,11 +78,11 @@ export function frameKill(state: MatchState, victim: Unit, killer: Unit | undefi
   }
   const focus = paired && killer ? { x: victim.x * 0.6 + killer.x * 0.4, z: victim.z * 0.6 + killer.z * 0.4 } : { x: victim.x - dx * 1.2, z: victim.z - dz * 1.2 };
   const distance = clamp(KILL_CAM.distance.base + span * KILL_CAM.distance.perMeterApart, KILL_CAM.distance.min, KILL_CAM.distance.max);
-  // Perpendicular to the line of the blow. Prefer the side the gameplay camera is on, so left stays left.
+  // Perpendicular to the line of the blow. Prefer the side the gameplay camera is on (+z), so left stays left.
   const sides = [
     { x: -dz, z: dx },
     { x: dz, z: -dx },
-  ].sort((a, b) => (b.z - a.z) * viewerSide);
+  ].sort((a, b) => b.z - a.z);
   const limit = arena.radius - 1.2;
   for (const side of sides) {
     let cx = focus.x + side.x * distance;
@@ -146,7 +145,7 @@ export class KillCam {
   /** Re-simulates one recorded tick. */
   stepReplay(): SimEvent[] {
     const frame = this.frames[this.index++]!;
-    const events = step(this.state, frame.inputs);
+    const events = step(this.state, [frame.input, null]);
     this.simTime += TICK_DT;
     if (this.index >= this.frames.length) this.replaying = false;
     return events;
@@ -159,29 +158,8 @@ export class KillCam {
     return last;
   }
 
-  /** Game time passed after the replay caught up (the aftermath: the body flying). */
-  advance(seconds: number): void {
-    this.simTime += seconds;
+  /** A live tick passed after the replay caught up. */
+  liveTick(): void {
+    this.simTime += TICK_DT;
   }
-}
-
-/**
- * Builds the kill cam from recorded frames alone: runs them once to learn who dies and who dealt the blow,
- * then frames the shot on that final moment. Returns null if nobody dies in the frames.
- */
-export function planKillCam(frames: readonly Frame[], viewerSide: 1 | -1 = 1): KillCam | null {
-  if (frames.length < 2) return null;
-  const end = structuredClone(frames[0]!.state);
-  const lastHitBy = new Map<number, number>();
-  let victimId = -1;
-  for (const f of frames) {
-    for (const e of step(end, f.inputs)) {
-      if (e.t === "damage" && e.targetKind === "champion") lastHitBy.set(e.target, e.source);
-      if (e.t === "death" && victimId < 0) victimId = e.unit;
-    }
-  }
-  const victim = end.units.find((u) => u.id === victimId);
-  if (!victim) return null;
-  const killer = end.units.find((u) => u.id === lastHitBy.get(victimId));
-  return new KillCam(frames, frameKill(end, victim, killer, viewerSide));
 }

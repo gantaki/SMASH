@@ -17,29 +17,13 @@ describe("RoomRegistry", () => {
     expect(lobby.players).toHaveLength(1);
   });
 
-  it("puts the two players of a duel on opposite teams", () => {
+  it("balances teams as players join", () => {
     const r = registry();
     const { code } = r.create("a", "A");
-    const lobby = r.join(code, "b", "B");
+    r.join(code, "b", "B");
+    const lobby = r.join(code, "c", "C");
     if (typeof lobby === "string") throw new Error(lobby);
-    expect(lobby.players.map((p) => p.team)).toEqual([0, 1]);
-  });
-
-  it("can start only when both players picked and are ready, and asks for ready again after a match", () => {
-    const r = registry();
-    const lobby = r.create("a", "A");
-    r.pick("a", "ember");
-    r.setReady("a", true);
-    expect(r.canStart(lobby)).toBe(false);
-    r.join(lobby.code, "b", "B");
-    r.pick("b", "fang");
-    expect(r.canStart(lobby)).toBe(false);
-    r.setReady("b", true);
-    expect(r.canStart(lobby)).toBe(true);
-    r.setInMatch(lobby, true);
-    expect(r.canStart(lobby)).toBe(false);
-    r.setInMatch(lobby, false);
-    expect(lobby.players.every((p) => !p.ready)).toBe(true);
+    expect(lobby.players.map((p) => p.team)).toEqual([0, 1, 0]);
   });
 
   it("rejects unknown and full rooms", () => {

@@ -673,21 +673,6 @@ a,
   margin: 8px 0 0;
   padding-left: 18px;
 }
-.players .waiting {
-  color: var(--mut);
-  list-style: none;
-  margin-left: -18px;
-}
-.lobby code {
-  -webkit-user-select: all;
-  user-select: all;
-  color: var(--ink);
-}
-.lobby .go {
-  margin-left: 0;
-  min-height: 44px;
-  font-size: 16px;
-}
 .ally {
   color: var(--ally);
 }

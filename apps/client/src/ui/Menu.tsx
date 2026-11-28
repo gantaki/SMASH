@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { ABILITY_SLOTS, BOT_DIFFICULTIES, arena, playableChampions, type BotDifficulty } from "@smash/content";
-import { codeFromUrl, type NetClient } from "../net/NetClient.ts";
 import { CHAMPION_EMBLEMS, KEY_LABELS } from "./icons.ts";
 import { Lobby } from "./Lobby.tsx";
 
@@ -12,7 +11,6 @@ interface Props {
   champion: string;
   mode: PlayMode;
   difficulty: BotDifficulty;
-  net: NetClient;
   onChampion(id: string): void;
   onMode(mode: PlayMode): void;
   onDifficulty(d: BotDifficulty): void;
@@ -20,7 +18,7 @@ interface Props {
 }
 
 export function Menu(p: Props) {
-  const [online, setOnline] = useState(() => codeFromUrl() !== null || p.net.lobby !== null);
+  const [online, setOnline] = useState(() => location.pathname.startsWith("/r/"));
   const sd = arena.suddenDeath;
   return (
     <div className="screen">
@@ -93,11 +91,11 @@ export function Menu(p: Props) {
         </p>
         <p className="keys">
           <button className="link" onClick={() => setOnline(!online)}>
-            {online ? "Скрыть игру по сети" : "Играть с другом по сети"}
+            {online ? "Скрыть онлайн-лобби" : "Онлайн-лобби (в разработке)"}
           </button>{" "}
           · <a href="/prototype/">старый прототип</a>
         </p>
-        {online && <Lobby net={p.net} champion={p.champion} />}
+        {online && <Lobby />}
       </div>
     </div>
   );
