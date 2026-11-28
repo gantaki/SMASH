@@ -68,8 +68,8 @@ Design intent: the zone pushes players together, rifts cut the remaining space i
 | RMB | Secondary ability |
 | Space | Mobility |
 | Q / E | Abilities |
-| R / middle mouse | Command the companion (to the cursor) |
-| F | Ultimate (costs 100 energy) |
+| R / middle mouse | Command the companion (to the cursor); costs 25 energy |
+| X | Ultimate (costs 100 energy) |
 | C | Cancel your own wind-up or channel |
 | Esc / P | Pause (local) / menu |
 | M | Mute |
@@ -103,7 +103,7 @@ Rules that follow from this:
 ### Resources
 
 - **HP**: per champion (170–220 in the prototype).
-- **Energy (0–100)**: +0.55 per point of damage dealt, +1.2/s passive. Resets every round. Ultimate costs 100.
+- **Energy (0–100)**: +0.55 per point of damage dealt, +1.2/s passive. Resets every round. The bar is cut into **four quarters**: a **companion command costs one quarter (25)**, the **ultimate costs the whole bar (100)**. So the bar is a choice: four commands, or one ultimate, or something in between. A command also keeps its own cooldown. The HUD shows the quarters on the bar, dims a slot that cannot be paid for, and draws the companion's slot round and the ultimate's bigger and framed.
 
 ### Ability archetypes
 
@@ -126,7 +126,7 @@ A stun or forced movement **cancels a cast in progress**. Unstoppable ignores st
 
 Each champion has a **unique companion** (more per champion later). Design rule: the companion is an **extension of the player's kit, not a second fighter**, so the duel stays a duel.
 
-- **Default behaviour** without input (follow, guard, auto-attack), plus **one command key** (R / middle mouse): send it to the cursor.
+- **Default behaviour** without input (follow, guard, auto-attack), plus **one command key** (R / middle mouse): send it to the cursor. A command costs **25 energy** (a quarter of the bar) and has a cooldown; the default behaviour is free.
 - **Vulnerable**: has HP, dies, returns after **15 s**; the killer gains **+20 energy**. Enemy companions are valid targets for every ability.
 - **Blocks enemy projectiles**, so it can be used as a shield.
 - **Synergies** with its owner's abilities are where the depth comes from.
@@ -169,7 +169,7 @@ Rules that keep it fair:
 
 - **Every kit can move an enemy** at least once (a knockback or a pull), and every kit has an answer: a mobility skill on Space and a defensive skill on Q (§3). `content.test.ts` checks the first half.
 - Knockbacks are telegraphed like every other attack: a wind-up, a cone or circle on the ground, a sound.
-- `weight` divides the distance: a heavy champion is shoved less. `unstoppable` ignores knockback and pull entirely.
+- `weight` divides the distance: Fang (1.2) flies 17% less than the number on the ability, Ember (0.9) 11% further. `unstoppable` ignores knockback and pull entirely.
 - Forced movement cancels a cast in progress, so a shove is also an interrupt.
 - Typical distance is 3–5 m: enough to cross one hazard line, not enough to cross the arena.
 - Arenas are built for it: something to be pushed into should be within about 6 m of any spot where fights happen (pillars, walls, later edges and pits).
@@ -196,7 +196,7 @@ A champion is **four core stats plus a kit**. Data lives in `packages/content/sr
 | `hp` | Health pool | 170 squishy · 195 average · 220 tank |
 | `moveSpeed` | Top speed, m/s (the arena is 36 m across) | about 6; 5.5 slowest · 6.5 fastest (tested) |
 | `radius` | Collision and hit radius | 0.7 m |
-| `weight` | Divides knockback distance | 1 = normal, above 1 = heavy |
+| `weight` | Divides knockback distance (§2.3) | 0.9 light · 1 normal · 1.2 heavy; allowed 0.8–1.3 |
 
 Every kit fills the same seven slots, and a slot means the same thing on every champion, so a player who knows one champion knows where the escape and the answer are on all of them, and an opponent knows what to expect. These are strong defaults ("almost always"), not laws: break one only when the kit still has an escape, a defensive answer and a way to move an enemy.
 
@@ -207,14 +207,14 @@ Every kit fills the same seven slots, and a slot means the same thing on every c
 | mobility | Space | Escape or repositioning | blink, leap, dash; sometimes a self-buff (haste, brief immunity) | 7 s |
 | q | Q | **Defence**: the answer to the enemy's move | counter, parry, reflecting shield, absorb shield, heal | 9.5 s |
 | e | E | **Strike or area skill**; usually the kit's knockback or control | bash, ground AoE, nova, stun | 8 s |
-| companion | R | One command for the companion | sentry, pounce | 4.5–6 s |
-| ultimate | F | Costs 100 energy | big AoE, channel | none |
+| companion | R | One command for the companion; costs a quarter of the energy bar (25) | sentry, pounce | 4.5–6 s |
+| ultimate | X | Costs the whole energy bar (100) | big AoE, channel | none |
 
 Where the knockback sits is a choice: usually on E (Fang's Shield Bash), sometimes on the defensive Q as a "get off me" (Ember's Flame Shield pushes while it shields, so her E is free to be a stun). What matters is that the kit has one (§2.3).
 
 ### Ember (Искра) — Fire Mage, ranged
 
-HP 170 · speed 6.0 m/s. Kites, applies burn, punishes bad positioning.
+HP 170 · speed 6.0 m/s · weight 0.9 (light: shoved 11% further). Kites, applies burn, punishes bad positioning.
 
 | Slot | Ability | Behaviour | Starting values |
 |---|---|---|---|
@@ -224,11 +224,11 @@ HP 170 · speed 6.0 m/s. Kites, applies burn, punishes bad positioning.
 | Q | Flame Shield | Knockback + shield | Enemies within 3.4 m: 6 dmg, knocked back 5 m (slam); pushes crates; shield 25 for 2.5 s, cd 9.5 s |
 | E | Ring of Fire | Delayed AoE at cursor | Wind-up 0.2 s, max range 11 m, r 2.6 m, delay 0.85 s, 18 dmg + stun 0.8 s, cd 8 s |
 | R | Wisp | Companion command | See §2.1 |
-| F | Meteor | Big delayed AoE | 100 energy, wind-up 0.3 s, max range 13 m, r 3.6 m, delay 1.2 s, 45 dmg + stun 0.5 s |
+| X | Meteor | Big delayed AoE | 100 energy, wind-up 0.3 s, max range 13 m, r 3.6 m, delay 1.2 s, 45 dmg + stun 0.5 s |
 
 ### Fang (Клык) — Warrior, melee
 
-HP 220 · speed 6.4 m/s. Closes distance, hooks, doesn't let go.
+HP 220 · speed 6.4 m/s · weight 1.2 (heavy: shoved 17% less). Closes distance, hooks, doesn't let go.
 
 | Slot | Ability | Behaviour | Starting values |
 |---|---|---|---|
@@ -238,7 +238,7 @@ HP 220 · speed 6.4 m/s. Closes distance, hooks, doesn't let go.
 | Q | Counter | Stance | 1 s, move ×0.5. Negates a hit; attacker within 8 m: stun 1 s + 12 dmg; empowers next LMB for 3 s, cd 9.5 s |
 | E | Shield Bash | Melee cone | Wind-up 0.25 s, range 3.1 m, ±52°, 10 dmg + stun 0.5 s, knockback 3 m; **slam: stun 1.2 s, +10 dmg**; pushes crates, cd 8 s |
 | R | Hound | Companion command | See §2.1 |
-| F | Whirlwind | Channel | 100 energy, 2.4 s, move ×1.15, unstoppable, 7 dmg every 0.3 s in r 3.2 m |
+| X | Whirlwind | Channel | 100 energy, 2.4 s, move ×1.15, unstoppable, 7 dmg every 0.3 s in r 3.2 m |
 
 ### Dummy (Манекен)
 
@@ -255,7 +255,7 @@ Rules for inventing a champion. How one is drawn (line, palettes, portraits, ico
 - **One hard defensive tool, not two.** A kit with a counter and a shield and an escape has no weakness to play around.
 - **The companion extends the kit** (§2.1); it never covers the kit's weakness for free.
 - **Pick a palette nobody else owns** before any art is made; it also sets the signature `color` in content (telegraphs, VFX, UI).
-- **Stats**: `hp` and `moveSpeed` within the reference ranges above; a champion that is tougher is slower or shorter-ranged.
+- **Stats**: three numbers the player sees: `hp`, `moveSpeed` and `weight`, within the reference ranges above. A champion that is tougher or heavier is slower or shorter-ranged. No hidden stats (armour, crit, attack speed): the same hit always takes the same number off.
 
 ### Adding content
 
@@ -339,7 +339,7 @@ Same rules as players, no cheating: a bot produces the same per-tick input a hum
 
 - Reads sim state, interpolates and drives meshes, animations, VFX, audio and HUD. **Never mutates sim state.**
 - `game/Game.ts` runs the loop (fixed ticks + render interpolation) and input; `game/render/GameView.ts` owns the scene and maps events to effects and sounds; `render/Fx.ts` draws telegraphs, `render/Hazards.ts` the zone and rifts, `render/Overlay.ts` health and cast bars; `game/Hud.ts` the HUD; `ui/` the React menu and training panel.
-- The main menu (`ui/Menu.tsx`) has no panel over the scene: the bot-vs-bot demo fight is the backdrop, the champion picker (a row of portrait tiles that wraps as the roster grows) and the picked champion (portrait, name, role, stats, kit as an icon row that mirrors the HUD slots) sit on the left and one play card (mode, bot difficulty or the online lobby, the start button) on the right. Reference text never goes on the front page: ability descriptions show one at a time under the icon row, controls and arena rules live in the "Как играть" dialog (`ui/HowToPlay.tsx`).
+- The main menu (`ui/Menu.tsx`) has no panel over the scene: the bot-vs-bot demo fight is the backdrop and stays visible in the middle. Left: the champion picker (a row of portrait tiles that wraps as the roster grows) and the picked champion (name, role, the three stats, the kit as an icon row that mirrors the HUD slots). Right: the champion's portrait. Bottom centre: the play bar (mode, bot difficulty or the online lobby, the start button), drawn in the ink style. Switching champions is never a cut: the portrait and the text cross-fade, and the demo fight fades out, restarts with the new champion and fades in. Reference text never goes on the front page: ability descriptions show one at a time under the icon row, controls and arena rules live in the "Как играть" dialog (`ui/HowToPlay.tsx`).
 - Maps gameplay events to presentation through data, e.g. `fang.cleave.onHit → vfx: "ink_blade_hit"`.
 - Camera: perspective, FOV 45°, height ~26 m, ~12.5 m back, follows the player with look-ahead toward the cursor (28%, clamped to 6 m).
 - **Kill cam** (`game/killcam.ts`): when a round is decided the client rewinds 0.6 s and **re-simulates** the final blow (the sim is deterministic and its state is plain data, so a short history of state + input is enough; in dev builds the replay is compared with the live state and a mismatch is logged). It is shown from a low side camera (1.9 m high, 8.5–13 m away, perpendicular to the line of the blow, on the side with a clear view), time eases from 0.5× down to 0.1× at the hit and back to normal, sounds are pitched down, the HUD gives way to letterbox bars. Space skips it; it is disabled with `prefers-reduced-motion`. Online (P2P): the host records the replay, sends it to the guest when the round is decided and holds the match for the kill cam's real-time length (about 6 s) while both players watch; the guest stops predicting until the host moves on.
@@ -414,7 +414,8 @@ tests/           repo-wide guards (architecture rules)
 - Companion damage share and command cooldowns: does the companion feel useful without stealing the duel?
 - Slam frequency: with this obstacle density, are slams too common?
 - Ring-outs (§2.3): open arena edges and pits. Is a ring-out an instant round loss, heavy damage plus a respawn at the edge, or only possible below some health? How much of the edge is open?
-- Per-champion `weight` and `radius`: both exist in the data and are the same for everyone (1 and 0.7 m). Differentiate them once ring-outs make knockback distance decisive?
+- `weight` is now per champion (0.9 / 1.2). Is the spread felt before ring-outs exist, and should `radius` follow it (bigger and heavier, smaller and lighter)?
+- Companion commands cost 25 energy, and a round starts at 0: the first command comes only after the first exchanges. Start rounds with one quarter filled? In bot batches the cost hurt Fang (his Hound opener) more than Ember.
 - More companions per champion: chosen before the match, or swapped mid-match?
 - Team sizes to prioritise after 1v1.
 - Final game name.

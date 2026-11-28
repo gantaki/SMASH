@@ -60,26 +60,52 @@ Two per champion, the same character in the same outfit:
 
 ## 6. Ability icons
 
-An icon is an **emblem of one object**, not a small illustration of the ability going off.
+An icon is an **emblem of one object**, not a small illustration of the ability going off. There are three tiers, and
+the tier must be readable before the picture is.
 
-- **Exactly one object**, centred, about 80% of the frame, with a solid closed silhouette and a thick ink outline.
-- **Three colours plus black ink at most**, all from the champion's palette.
+| Tier | Slots | Background | Colour | Shape in the UI |
+|---|---|---|---|---|
+| **Plain** | LMB, RMB, Space, Q, E | The palette's dark flat background, empty | Three colours plus ink | Square |
+| **Companion** | R | One flat **bright** colour, empty (Ember: violet; Fang: gold-yellow) | Full colour, four or five | **Round** |
+| **Ultimate** | X | **Bright sunburst** of wide inked rays in the palette's hot colours | Full colour plus a white-hot highlight | **Bigger square in a gold frame** |
+
+Rules for every tier:
+
+- **Exactly one object**, centred, about 80% of the frame (85% for the two heavy tiers), with a solid closed
+  silhouette and a thick ink outline.
 - Inside the silhouette: three or four large flat shapes, one highlight, a few hatch strokes. No small details.
-- **Nothing around the object.** No burst or starburst behind it, no glow, no halo, no speed lines, no sparks, no
-  dust, no debris.
+- **Nothing around the object.** No glow, no halo, no speed lines, no sparks, no dust, no debris. The ultimate's
+  sunburst is its background, not an effect, and it is the only one.
 - **One trail is allowed when motion is the meaning** of the ability (a swing arc, a leap arc, a spin). One, and it
   is part of the silhouette.
-- **Background: the palette's flat background colour, plain and empty.** The background is what tells two
-  champions' kits apart at a glance.
-- The seven icons of one kit share a palette, so they differ in **silhouette**: a dart, a ball, chevrons, a ring, a
-  shield, a creature, a rock. Two icons of one kit never share an outline.
+- The **companion** icon is a portrait: the creature's head and shoulders, looking at the viewer, with an expression.
+- The **ultimate** must be the loudest thing in the row. If it does not win a squint test against the other six,
+  redraw it.
+- The five plain icons of one kit share a palette and a background, so they differ in **silhouette**: a dart, a ball,
+  chevrons, a ring, a shield. Two icons of one kit never share an outline.
 - An icon that shows the champion's gear shows the same gear as the portrait.
 - Judge every icon at 52 px next to the rest of its kit, not at full size.
 
-## 7. Checklist for a new champion
+## 7. Interface
+
+Controls are drawn the same way as the art: flat, outlined, a little heavy.
+
+- **Outline**: a solid ink border (`--outline`, 2.5 px) on every button, tile and plate.
+- **Depth is an offset, not a blur**: a solid ink shadow straight below the element (3–7 px). No soft drop shadows,
+  no glow, no glass blur. A pressed button moves down into its shadow; a selected one rises out of it.
+- **Fill**: flat. The main button has one hard-edged highlight band across its upper half; nothing has a gradient.
+- **Colours**: dark umber plate (`--plate`) for idle controls, bone (`--ink`) for the selected mode, gold for a
+  selected option, fire orange for the one main action on a screen. Champion colours appear only on things that
+  belong to a champion (their tile ring, their kit).
+- **Icons** on controls are drawn emblems on a transparent background, one object each, following §6 (plain tier).
+  An idle control shows its icon desaturated; hover and selection bring the colour back.
+- **Motion**: nothing cuts. A champion swap cross-fades the portrait and the text and fades the arena through black;
+  durations stay under half a second, and `prefers-reduced-motion` turns them off.
+
+## 8. Checklist for a new champion
 
 1. Palette chosen, checked against the table in §3, added to it.
 2. Cutout portrait, then the select tile from it.
-3. Seven icons on the palette's background; laid out in a row at 52 px, every silhouette is different.
+3. Seven icons: five plain ones on the palette's background, the companion's portrait, the ultimate on its sunburst. Laid out in a row at 52 px, every silhouette is different and the ultimate is the loudest.
 4. Model colours in `Units.ts` and the signature `color` in content match the palette.
 5. Files registered in `apps/client/src/ui/art.ts`; looked at in the menu and in the HUD.

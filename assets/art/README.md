@@ -8,7 +8,8 @@ for anything not listed there.
 |---|---|---|
 | Portrait | `portraits/<championId>.webp` | 1024×1536, transparent background, waist-up cutout cropped by the bottom edge only |
 | Select tile | `tiles/<championId>.webp` | 512×512, opaque, head-and-shoulders close-up on the palette's background |
-| Ability icon | `abilities/<iconId>.webp` | 192×192, opaque, shown at 52–58 px |
+| Ability icon | `abilities/<iconId>.webp` | 192×192, opaque, shown at 52–72 px |
+| Interface icon | `ui/<name>.webp` | 160×160, transparent, trimmed to the object (the three `mode-*` icons of the play bar) |
 
 `<iconId>` is the ability's `icon` field in `packages/content`, so two abilities that share an icon id share the art.
 
@@ -82,8 +83,27 @@ then `Subject: <one object, its direction, and "Nothing else.">` and the colour 
 A motion ability names its single trail in the subject and marks it "(asked for)": "ONE clean crescent swing arc
 behind the blade (asked for)". Without that the model either drops the trail or adds three.
 
+**Companion icon** (R) replaces the icon rules with: "Square icon of a hero's COMPANION creature … It is a character
+portrait, livelier and more colourful than a normal ability icon. The creature's head and shoulders, centred, filling
+about 85% of the frame, looking at the viewer, full of character, with a thick black ink outline. Full colour: four
+or five saturated colours plus black ink and one highlight. Background: one flat, BRIGHT, saturated colour filling
+the whole square: <colour>. Plain, nothing else in it." Ember: bright violet-purple. Fang: bright gold-yellow.
+
+**Ultimate icon** (X): "Square icon of a hero's ULTIMATE ability … It must look much heavier, brighter and more
+powerful than a normal ability icon. One big object, centred, filling about 85% of the frame, with a solid closed
+silhouette and an extra-thick black ink outline. Full, rich colour: four or five saturated colours plus black ink and
+a white-hot highlight. Background: BRIGHT and saturated, filling the whole square: a bold hand-inked sunburst of wide
+alternating rays behind the object, in <colours>. The background is clearly lighter than the object's outline, never
+dark. No small clutter … The sunburst rays are the only thing besides the object." Ember: hot yellow and bright
+orange rays. Fang: bright gold and pale yellow rays.
+
+**Interface icon**: the plain icon rules with "Three or four flat colours plus black ink" and, instead of the
+background line, "Transparent background: the object is a clean cutout with nothing behind it and an empty margin on
+all four sides."
+
 ## Post-processing
 
-- Portraits: saved as WebP quality 90 with alpha, nothing else.
+- Portraits: alpha below 16/255 set to zero (the model leaves a faint haze around a cutout), saved as WebP quality 90 with alpha. No drop shadow is added in the client either: a soft dark halo around an inked cutout reads as a bad key.
 - Select tiles: downscaled 1024 → 512 px (Lanczos), WebP quality 88.
 - Icons: downscaled 1024 → 192 px (Lanczos), WebP quality 90.
+- Interface icons: alpha cleaned as for portraits, cropped to the object, padded to a square, 160 px.

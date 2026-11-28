@@ -58,7 +58,7 @@ export interface GameOptions {
   onTrainingStats?: (s: TrainingStats) => void;
 }
 
-const KEY_SLOTS: Record<string, AbilitySlot> = { Space: "mobility", KeyQ: "q", KeyE: "e", KeyR: "companion", KeyF: "ultimate" };
+const KEY_SLOTS: Record<string, AbilitySlot> = { Space: "mobility", KeyQ: "q", KeyE: "e", KeyR: "companion", KeyX: "ultimate" };
 const MOVE_KEYS = new Set(["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]);
 const TRAINING_KEYS: Record<string, TrainingCommand> = {
   Digit1: { t: "resetCooldowns" },

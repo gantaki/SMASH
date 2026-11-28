@@ -14,7 +14,7 @@ export const SLOT_KEYS: Record<AbilitySlot, string> = {
   q: "Q",
   e: "E",
   companion: "R",
-  ultimate: "F",
+  ultimate: "X",
 };
 
 /**
@@ -82,6 +82,7 @@ interface AbilityCommon {
   icon: string;
   /** Seconds. 0 for ultimates, which cost energy instead. */
   cooldown: number;
+  /** Energy paid when the ability fires: the whole bar for an ultimate, a quarter for a companion command (which also has a cooldown). */
   energyCost?: number;
   /** Wind-up before the effect fires; shows a telegraph. Interrupted by stun and forced movement. */
   castTime?: number;
@@ -229,7 +230,7 @@ export interface ChampionStats {
   moveSpeed: number;
   /** Collision and hit radius in meters. */
   radius: number;
-  /** Knockback and pull distances are divided by this. 1 = normal, above 1 = heavy. */
+  /** Knockback distances are divided by this. 1 = normal, above 1 = heavy. Reference: light 0.9, heavy 1.2. */
   weight: number;
 }
 
@@ -354,7 +355,8 @@ export interface MatchRules {
   /** Cancelling your own wind-up or channel (C). The cooldown is on the cancel itself. */
   cancelCast: { cooldown: number };
   movement: MovementConfig;
-  energy: { max: number; perDamage: number; perCompanionDamage: number; passivePerSecond: number };
+  /** `commandCost` is what a companion command costs: one part of the bar (max / commandCost parts are drawn on it). */
+  energy: { max: number; commandCost: number; perDamage: number; perCompanionDamage: number; passivePerSecond: number };
   /** Knockback into an obstacle or the arena wall. Abilities can add to both numbers. */
   slam: { stun: number; damage: number; woodDamage: number; crateImpulse: number };
   burn: { tickInterval: number };

@@ -8,6 +8,8 @@ import { TrainingPanel } from "./ui/TrainingPanel.tsx";
 
 type Screen = "menu" | "game" | "end";
 
+/** Fade-out of the demo fight before a champion swap; matches `.stage.out` in styles.css. */
+const STAGE_FADE_MS = 220;
 const EMPTY_STATS: TrainingStats = { dps: 0, lastHit: 0, total: 0, dummyMoves: false, suddenDeath: false };
 const DIFFICULTY_NAMES: Record<BotDifficulty, string> = { easy: "лёгкий", normal: "средний", hard: "сложный" };
 
@@ -34,6 +36,9 @@ export function App() {
   const [stats, setStats] = useState<TrainingStats>(EMPTY_STATS);
   // Bumping the run number gives the next match a fresh canvas (and WebGL context).
   const [run, setRun] = useState(0);
+  // True while the demo fight is fading out before it restarts with another champion.
+  const [stageOut, setStageOut] = useState(false);
+  const swap = useRef(0);
 
   const online = useOnlineRoom(champion);
 
@@ -107,6 +112,8 @@ export function App() {
   }, [run]);
 
   const start = useCallback(() => {
+    window.clearTimeout(swap.current);
+    setStageOut(false);
     audio.unlock();
     audio.play("ui_click");
     setPaused(false);
@@ -130,13 +137,20 @@ export function App() {
     setRun((n) => n + 1);
   }, [lastOnlineRole, online]);
 
+  // The menu shows the new pick at once; the demo fight behind it fades out, restarts with the new champion and fades in.
   const pick = (id: string) => {
-    if (!isChampionId(id)) return;
+    if (!isChampionId(id) || id === champion) return;
     audio.unlock();
     audio.play("ui_click");
     setChampion(id);
     online.setChampion(id);
-    if (screen === "menu") setRun((n) => n + 1);
+    if (screen !== "menu") return;
+    setStageOut(true);
+    window.clearTimeout(swap.current);
+    swap.current = window.setTimeout(() => {
+      setRun((n) => n + 1);
+      setStageOut(false);
+    }, STAGE_FADE_MS);
   };
 
   const inGame = screen !== "menu";
@@ -148,8 +162,8 @@ export function App() {
 
   return (
     <>
-      <canvas key={run} ref={canvas} className="stage" tabIndex={0} aria-label="Арена" />
-      <div ref={overlay} className="ov" />
+      <canvas key={run} ref={canvas} className={`stage${screen === "menu" ? " demo" : ""}${stageOut ? " out" : ""}`} tabIndex={0} aria-label="Арена" />
+      <div ref={overlay} className={stageOut ? "ov out" : "ov"} />
       <div ref={hud} className="hud" hidden={!inGame || screen === "end"} />
 
       {screen === "menu" && (

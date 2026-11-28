@@ -28,7 +28,7 @@ export function canAct(ctx: Ctx, u: ChampionUnit): boolean {
 export function isReady(u: ChampionUnit, slot: AbilitySlot): boolean {
   const a = abilityOf(u, slot);
   if (!a) return false;
-  return a.energyCost ? u.energy >= a.energyCost : u.cooldowns[slot] <= 0;
+  return u.cooldowns[slot] <= 0 && (!a.energyCost || u.energy >= a.energyCost);
 }
 
 const isMovement = (a: Ability): boolean => a.kind === "blink" || a.kind === "leap";
@@ -78,7 +78,7 @@ export function fire(ctx: Ctx, u: ChampionUnit, slot: AbilitySlot): void {
   const a = abilityOf(u, slot);
   if (!a) return;
   if (a.energyCost) u.energy = Math.max(0, u.energy - a.energyCost);
-  else {
+  if (a.cooldown > 0) {
     const setup = ctx.state.config.players[u.team];
     const botDelay = u.controller === "bot" && slot === "primary" ? botDifficulty[setup.difficulty ?? "normal"].primaryDelay : 0;
     u.cooldowns[slot] = a.cooldown * ctx.state.tuning.cooldown + botDelay;

@@ -5,6 +5,9 @@
   --ink: #f7ebd9;
   --mut: #c4ad91;
   --soft: #e3d2ba;
+  /* Ink outline of drawn UI elements (docs/ART_STYLE.md §7). */
+  --outline: #0b0705;
+  --plate: #2b1a11;
   --panel: rgba(24, 15, 10, 0.86);
   --line: rgba(255, 222, 176, 0.16);
   --fire: #ff7a2b;
@@ -37,6 +40,23 @@ body,
   outline: none;
   cursor: crosshair;
   touch-action: none;
+}
+/* The demo fight behind the menu fades in when it (re)starts and out before a champion swap. */
+.stage.demo {
+  animation: stage-in 0.5s ease-out;
+}
+.stage.out,
+.ov.out {
+  opacity: 0;
+  transition: opacity 0.22s ease-in;
+}
+.ov {
+  transition: opacity 0.4s ease-out;
+}
+@keyframes stage-in {
+  from {
+    opacity: 0;
+  }
 }
 [hidden] {
   display: none !important;
@@ -267,7 +287,15 @@ body,
   height: 18px;
 }
 .vbar.en {
-  height: 7px;
+  height: 10px;
+}
+/* The bar is cut into parts: one part pays for a companion command, the whole bar for the ultimate. */
+.vbar.en::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  --part: calc(100% / var(--parts, 4));
+  background: repeating-linear-gradient(90deg, transparent 0, transparent calc(var(--part) - 2px), rgba(8, 4, 2, 0.92) calc(var(--part) - 2px), rgba(8, 4, 2, 0.92) var(--part));
 }
 .vbar i {
   position: absolute;
@@ -297,6 +325,7 @@ body,
 }
 .slots {
   display: flex;
+  align-items: flex-end;
   gap: 8px;
   padding-bottom: 6px;
 }
@@ -331,8 +360,23 @@ body,
 .slot .cdv {
   position: absolute;
   inset: 0;
-  border-radius: 12px;
+  border-radius: inherit;
   background: conic-gradient(rgba(8, 4, 2, 0.82) calc(var(--p, 0) * 1turn), transparent 0);
+}
+/* The companion's slot is round, the ultimate's is bigger and framed: both read apart from the five plain ones. */
+.slot.pet {
+  border-radius: 50%;
+}
+.slot.ult {
+  width: 72px;
+  height: 72px;
+  border-radius: 16px;
+  box-shadow:
+    0 0 0 2.5px var(--gold),
+    0 0 0 5px var(--outline);
+}
+.slot.broke img {
+  filter: saturate(0.4) brightness(0.65);
 }
 .slot .cdt {
   position: absolute;
@@ -360,14 +404,14 @@ body,
 }
 .slot.ult.ready {
   box-shadow:
-    0 0 0 2px var(--c),
+    0 0 0 2.5px var(--gold),
     0 0 18px var(--c);
   animation: pulse 0.9s infinite alternate;
 }
 @keyframes pulse {
   to {
     box-shadow:
-      0 0 0 2px var(--c),
+      0 0 0 2.5px #fff3c4,
       0 0 30px var(--c);
   }
 }
@@ -494,23 +538,46 @@ kbd {
 .ghost {
   min-height: 48px;
   padding: 0 26px;
-  border-radius: 12px;
+  border-radius: 14px;
+  border: 2.5px solid var(--outline);
   font: 400 18px "Russo One", sans-serif;
   cursor: pointer;
+  transition:
+    transform 0.08s,
+    box-shadow 0.08s,
+    filter 0.12s;
 }
+/* Flat fill with a hard-edged highlight band and a solid offset shadow: an inked button, not a glossy one. */
 .go {
-  border: 0;
-  background: linear-gradient(#ff9a4a, #f0641c);
-  color: #1e0d04;
-  box-shadow: 0 6px 20px rgba(255, 110, 40, 0.35);
+  background: linear-gradient(#ffb066 0, #ffb066 46%, #ff8a3a 46%);
+  color: #1c0f08;
+  box-shadow: 0 5px 0 var(--outline);
 }
 .go:hover {
-  filter: brightness(1.08);
+  filter: brightness(1.07);
+}
+.go:active {
+  transform: translateY(3px);
+  box-shadow: 0 2px 0 var(--outline);
+}
+.go:disabled {
+  filter: saturate(0.5) brightness(0.8);
+  cursor: default;
+}
+.go[aria-pressed="true"] {
+  background: linear-gradient(#b8f5c8 0, #b8f5c8 46%, #7dffa0 46%);
 }
 .ghost {
-  background: transparent;
-  border: 1px solid var(--line);
+  background: var(--plate);
   color: var(--ink);
+  box-shadow: 0 4px 0 var(--outline);
+}
+.ghost:hover {
+  filter: brightness(1.2);
+}
+.ghost:active {
+  transform: translateY(2px);
+  box-shadow: 0 2px 0 var(--outline);
 }
 .ghost:disabled {
   opacity: 0.45;
@@ -551,7 +618,7 @@ a,
   text-decoration: underline;
 }
 
-/* ---------- main menu: the demo fight is the backdrop, no panel over it ---------- */
+/* ---------- main menu: the demo fight is the backdrop; champion left, portrait right, play controls bottom centre ---------- */
 .menu {
   position: fixed;
   inset: 0;
@@ -561,10 +628,12 @@ a,
   gap: 24px;
   padding: clamp(16px, 2.6vw, 40px) clamp(16px, 3.4vw, 48px);
   background:
-    linear-gradient(90deg, rgba(14, 8, 5, 0.93) 0%, rgba(14, 8, 5, 0.74) 30%, rgba(14, 8, 5, 0.18) 56%, transparent 68%),
-    linear-gradient(0deg, rgba(14, 8, 5, 0.72), transparent 260px);
+    linear-gradient(90deg, rgba(14, 8, 5, 0.93) 0%, rgba(14, 8, 5, 0.72) 24%, rgba(14, 8, 5, 0.14) 44%, transparent 54%),
+    linear-gradient(0deg, rgba(14, 8, 5, 0.86), rgba(14, 8, 5, 0.5) 150px, transparent 320px);
 }
 .menu-top {
+  position: relative;
+  z-index: 2;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -581,14 +650,15 @@ a,
   min-height: 44px;
   padding: 0 18px;
   border-radius: 22px;
-  border: 1px solid var(--line);
-  background: rgba(20, 12, 8, 0.78);
+  border: 2.5px solid var(--outline);
+  background: var(--plate);
   color: var(--ink);
   font: 500 14px Rubik, sans-serif;
+  box-shadow: 0 3px 0 var(--outline);
   cursor: pointer;
 }
 .pill:hover {
-  background: rgba(46, 29, 19, 0.9);
+  filter: brightness(1.25);
 }
 .pill svg {
   width: 18px;
@@ -599,38 +669,71 @@ a,
   stroke-linecap: round;
   stroke-linejoin: round;
 }
+/* Three columns: the champion, the dock, and room for the portrait. The dock is centred on wide screens and slides
+   right instead of covering the champion column on narrow ones. */
 .menu-main {
   position: relative;
   z-index: 1;
   margin-top: auto;
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(452px, 1fr) auto minmax(0, 1fr);
+  align-items: end;
   gap: 32px;
 }
 .portrait {
   position: absolute;
-  /* Starts where the champion column ends and never reaches under the play card. */
-  left: calc(clamp(16px, 3.4vw, 48px) + 470px);
+  right: clamp(0px, 2vw, 40px);
   bottom: 0;
-  width: min(60vh, 620px, 100vw - 920px);
+  width: min(64vh, 680px, 100vw - 960px);
   pointer-events: none;
-  filter: drop-shadow(0 20px 40px rgba(0, 0, 0, 0.55));
-  -webkit-mask-image: linear-gradient(0deg, transparent, #000 16%);
-  mask-image: linear-gradient(0deg, transparent, #000 16%);
-  animation: portrait-in 0.35s ease-out;
+  -webkit-mask-image: linear-gradient(0deg, transparent, #000 14%);
+  mask-image: linear-gradient(0deg, transparent, #000 14%);
+  animation: portrait-in 0.45s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.portrait.out {
+  animation: portrait-out 0.32s ease-in both;
 }
 @keyframes portrait-in {
   from {
     opacity: 0;
-    transform: translateX(24px);
+    transform: translateX(40px);
+  }
+}
+@keyframes portrait-out {
+  to {
+    opacity: 0;
+    transform: translateX(-28px);
   }
 }
 .hero {
-  width: min(480px, 100%);
+  grid-column: 1;
+  width: min(452px, 100%);
   display: flex;
   flex-direction: column;
   gap: 20px;
+}
+.hero-info {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.hero-info > * {
+  animation: rise 0.35s ease-out both;
+}
+.hero-info > :nth-child(2) {
+  animation-delay: 0.04s;
+}
+.hero-info > :nth-child(3) {
+  animation-delay: 0.08s;
+}
+.hero-info > :nth-child(4) {
+  animation-delay: 0.12s;
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
 }
 .champs {
   display: flex;
@@ -641,7 +744,7 @@ a,
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   width: 84px;
   padding: 0;
   border: 0;
@@ -656,11 +759,11 @@ a,
   width: 84px;
   height: 84px;
   border-radius: 16px;
-  border: 2px solid var(--line);
-  background: rgba(20, 12, 8, 0.8);
+  border: 2.5px solid var(--outline);
+  background: var(--plate);
+  box-shadow: 0 4px 0 var(--outline);
   overflow: hidden;
   transition:
-    border-color 0.15s,
     box-shadow 0.15s,
     transform 0.15s;
 }
@@ -692,9 +795,10 @@ a,
   color: var(--ink);
 }
 .champ[aria-pressed="true"] .champ-face {
-  border-color: var(--c);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 28%, transparent);
-  transform: translateY(-2px);
+  box-shadow:
+    0 0 0 3px var(--c),
+    0 7px 0 var(--outline);
+  transform: translateY(-3px);
 }
 .eyebrow {
   font-size: 13px;
@@ -740,13 +844,14 @@ a,
 .kit-row {
   display: flex;
   flex-wrap: wrap;
+  align-items: flex-end;
   gap: 10px;
 }
 .kit-slot {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
 }
 .kit-slot kbd {
   padding: 0;
@@ -759,15 +864,16 @@ a,
   height: 52px;
   padding: 0;
   border-radius: 12px;
-  border: 1.5px solid var(--line);
-  background: rgba(20, 12, 8, 0.88);
+  border: 2.5px solid var(--outline);
+  background: var(--plate);
   color: var(--c);
+  box-shadow: 0 3px 0 var(--outline);
   display: grid;
   place-items: center;
   overflow: hidden;
   cursor: pointer;
   transition:
-    border-color 0.12s,
+    box-shadow 0.12s,
     transform 0.12s;
 }
 .tile svg {
@@ -785,12 +891,32 @@ a,
   object-fit: cover;
 }
 .tile[aria-pressed="true"] {
-  border-color: var(--c);
-  background: color-mix(in srgb, var(--c) 20%, rgba(20, 12, 8, 0.88));
+  box-shadow:
+    0 0 0 2.5px var(--c),
+    0 5px 0 var(--outline);
   transform: translateY(-2px);
 }
 .tile[aria-pressed="true"] + kbd {
   color: var(--ink);
+}
+/* Same tiers as the HUD: the companion's tile is round, the ultimate's is bigger and framed in gold. */
+.kit-slot.companion .tile {
+  border-radius: 50%;
+}
+.kit-slot.ultimate .tile {
+  width: 64px;
+  height: 64px;
+  border-radius: 14px;
+  box-shadow:
+    0 0 0 2.5px var(--gold),
+    0 0 0 5px var(--outline),
+    0 7px 0 var(--outline);
+}
+.kit-slot.ultimate .tile[aria-pressed="true"] {
+  box-shadow:
+    0 0 0 2.5px #fff3c4,
+    0 0 0 5px var(--outline),
+    0 9px 0 var(--outline);
 }
 .kit-info {
   margin: 0;
@@ -804,65 +930,104 @@ a,
   font-weight: 600;
   color: var(--ink);
 }
-.play {
-  flex: none;
-  width: 372px;
-  padding: 18px;
-  border-radius: 22px;
-  border: 1px solid var(--line);
-  background: rgba(20, 12, 8, 0.86);
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
+.kit-info .cost {
+  color: var(--gold);
+  white-space: nowrap;
+}
+
+/* ---------- play bar: drawn controls at the bottom centre ---------- */
+.playbar {
+  grid-column: 2;
+  width: 440px;
   display: flex;
   flex-direction: column;
   gap: 14px;
+  padding-bottom: 5px;
 }
-.tabs {
+.modes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.mode {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 6px 10px;
+  border-radius: 16px;
+  border: 2.5px solid var(--outline);
+  background: var(--plate);
+  color: var(--mut);
+  font: 600 14px Rubik, sans-serif;
+  box-shadow: 0 4px 0 var(--outline);
+  cursor: pointer;
+  transition:
+    transform 0.12s,
+    box-shadow 0.12s,
+    background 0.12s,
+    color 0.12s;
+}
+.mode img {
+  width: 56px;
+  height: 56px;
+  filter: saturate(0.5) brightness(0.78);
+  transition: filter 0.12s;
+}
+.mode:hover {
+  color: var(--ink);
+}
+.mode:hover img,
+.mode[aria-pressed="true"] img {
+  filter: none;
+}
+.mode[aria-pressed="true"] {
+  background: var(--ink);
+  color: #1c0f08;
+  transform: translateY(-3px);
+  box-shadow: 0 7px 0 var(--outline);
+}
+.playbar-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+  align-items: stretch;
+}
+.levels {
   display: grid;
   grid-auto-flow: column;
   grid-auto-columns: minmax(0, 1fr);
-  gap: 4px;
-  padding: 4px;
-  border-radius: 14px;
-  background: rgba(255, 240, 220, 0.06);
+  border-radius: 16px;
+  border: 2.5px solid var(--outline);
+  background: var(--plate);
+  box-shadow: 0 4px 0 var(--outline);
+  overflow: hidden;
 }
-.tabs button {
-  min-height: 44px;
-  padding: 0 6px;
+.levels button {
+  min-height: 58px;
+  padding: 0 2px;
   border: 0;
-  border-radius: 10px;
   background: transparent;
   color: var(--mut);
-  font: 500 14px Rubik, sans-serif;
+  font: 600 13px Rubik, sans-serif;
   cursor: pointer;
 }
-.tabs button:hover {
+.levels button + button {
+  border-left: 2px solid var(--outline);
+}
+.levels button:hover {
   color: var(--ink);
 }
-.tabs button[aria-pressed="true"] {
-  background: rgba(255, 201, 60, 0.2);
-  color: var(--ink);
-  font-weight: 600;
+.levels button[aria-pressed="true"] {
+  background: var(--gold);
+  color: #1c0f08;
 }
-.tabs.small {
-  grid-auto-columns: auto;
-  padding: 0;
-  background: none;
-}
-.tabs.small button {
-  padding: 0 12px;
+.playbar-note {
+  margin: 0;
+  align-self: center;
   font-size: 13px;
-}
-.tabs.small button[aria-pressed="true"] {
-  background: rgba(255, 240, 220, 0.1);
-}
-.play-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  font-size: 13px;
-  color: var(--mut);
+  line-height: 1.4;
+  color: var(--soft);
 }
 .play-note {
   margin: 0;
@@ -872,7 +1037,7 @@ a,
 }
 .go.big {
   width: 100%;
-  min-height: 68px;
+  min-height: 62px;
   border-radius: 16px;
   font-size: 26px;
   letter-spacing: 0.02em;
@@ -934,6 +1099,11 @@ a,
 .lobby {
   display: grid;
   gap: 12px;
+  padding: 14px;
+  border-radius: 18px;
+  border: 2.5px solid var(--outline);
+  background: rgba(27, 17, 11, 0.95);
+  box-shadow: 0 4px 0 var(--outline);
 }
 .lobby-join {
   display: grid;
@@ -1135,34 +1305,47 @@ a,
   line-height: 1.4;
 }
 
-@media (max-width: 1180px) {
+@media (max-width: 1200px) {
   .portrait {
     display: none;
   }
 }
-@media (max-width: 900px) {
+@media (max-width: 980px) {
   .menu {
     background: linear-gradient(0deg, rgba(14, 8, 5, 0.93) 0%, rgba(14, 8, 5, 0.8) 60%, rgba(14, 8, 5, 0.45) 100%);
   }
   .menu-main {
-    flex-direction: column;
-    align-items: stretch;
+    grid-template-columns: minmax(0, 1fr);
   }
-  .play {
-    width: 100%;
+  .playbar {
+    grid-column: 1;
+    width: min(520px, 100%);
   }
 }
-@media (max-height: 760px) {
+@media (max-height: 800px) {
   .menu {
     gap: 12px;
     padding-top: 16px;
     padding-bottom: 16px;
   }
-  .hero {
-    gap: 14px;
+  .hero,
+  .hero-info {
+    gap: 12px;
   }
   .hero-name {
-    font-size: clamp(48px, 11vh, 84px);
+    font-size: clamp(44px, 10vh, 80px);
+  }
+  .champ,
+  .champ-face {
+    width: 64px;
+  }
+  .champ-face {
+    height: 64px;
+    border-radius: 14px;
+  }
+  .mode img {
+    width: 40px;
+    height: 40px;
   }
 }
 @media (max-width: 720px) {
@@ -1187,6 +1370,10 @@ a,
     width: 24px;
     height: 24px;
   }
+  .slot.ult {
+    width: 56px;
+    height: 56px;
+  }
   .slots {
     gap: 6px;
   }
@@ -1196,12 +1383,19 @@ a,
 }
 @media (prefers-reduced-motion: reduce) {
   .slot.ult.ready,
-  .portrait {
+  .portrait,
+  .hero-info > *,
+  .stage.demo {
     animation: none;
   }
   .tile,
   .champ-face,
-  .champ-face img {
+  .champ-face img,
+  .mode,
+  .mode img,
+  .stage.out,
+  .ov,
+  .ov.out {
     transition: none;
   }
   .msg {

@@ -24,6 +24,8 @@ const AIM_ERROR_SCALE = 0.22;
 const CANCEL_SLACK = 0.6;
 const CANCEL_RATE = 12;
 /** Slots tried for offence, most valuable first. */
+/** Energy above which a bot stops paying for companion commands and saves for the ultimate. */
+const COMMAND_ENERGY_CAP = 60;
 const OFFENCE_ORDER: readonly AbilitySlot[] = ["ultimate", "e", "q", "secondary", "mobility", "primary"];
 
 interface Target {
@@ -293,7 +295,8 @@ export function botInput(ctx: Ctx, b: ChampionUnit): PlayerInput {
   const cmdSlot = findSlot(b, (a) => a.kind === "companionCommand");
   const petDef = getChampion(b.champion).companion;
   if (pet && !pet.dead && petDef) {
-    if (cmdSlot && rng.next() < dt * 0.9 * D.rate) {
+    // Commands are paid from the first part of the bar; above the cap the bot saves for the ultimate.
+    if (cmdSlot && isReady(b, cmdSlot) && b.energy < COMMAND_ENERGY_CAP && rng.next() < dt * 0.9 * D.rate) {
       if (petDef.command.kind === "sentry" && d < 12) return press(cmdSlot, { x: p.x - nz * 3 * ai.strafe, z: p.z + nx * 3 * ai.strafe });
       if (petDef.command.kind === "pounce" && d > 3 && d < petDef.command.maxRange) return press(cmdSlot, leadAim(b, ai, D, p, d / petDef.commandSpeed));
     }

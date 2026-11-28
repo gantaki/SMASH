@@ -326,6 +326,55 @@ describe("projectiles", () => {
   });
 });
 
+describe("energy and weight", () => {
+  it("a companion command needs a quarter of the energy bar, spends it and starts its cooldown", () => {
+    const s = scene("ember", "fang", { companions: true });
+    place(s.a, 0, 10);
+    place(s.b, 0, -10);
+    const fired = (ev: SimEvent[]) => of(ev, "abilityFire").filter((e) => e.unit === s.a.id && e.slot === "companion");
+
+    s.a.energy = rules.energy.commandCost - 5;
+    s.press(0, "companion", 0, 4);
+    expect(fired(s.run(0.1))).toHaveLength(0);
+    expect(s.a.cooldowns.companion).toBe(0);
+
+    s.a.energy = rules.energy.commandCost + 5;
+    s.press(0, "companion", 0, 4);
+    expect(fired(s.run(0.1))).toHaveLength(1);
+    expect(s.a.energy).toBeGreaterThanOrEqual(5);
+    expect(s.a.energy).toBeLessThan(6);
+    expect(s.a.cooldowns.companion).toBeGreaterThan(0);
+
+    // Enough energy again, but the cooldown still holds the command back.
+    s.a.energy = rules.energy.max;
+    s.press(0, "companion", 0, 4);
+    expect(fired(s.run(0.1))).toHaveLength(0);
+    expect(s.a.energy).toBe(rules.energy.max);
+  });
+
+  it("the same shove moves a heavy champion less than a light one", () => {
+    const bash = fang.abilities.e!;
+    if (bash.kind !== "cone" || !bash.onHit.knockback) throw new Error("expected a knockback cone");
+    const distance = bash.onHit.knockback.distance;
+    // Out in the open: nothing to slam into.
+    const shove = (target: "ember" | "fang") => {
+      const s = scene("fang", target);
+      place(s.a, 2, 10);
+      place(s.b, 2, 12);
+      s.press(0, "e", 2, 12);
+      const ev = s.run(1);
+      expect(of(ev, "slam")).toHaveLength(0);
+      return s.b.z - 12;
+    };
+    const light = shove("ember");
+    const heavy = shove("fang");
+    expect(ember.stats.weight).toBeLessThan(fang.stats.weight);
+    expect(Math.abs(light - distance / ember.stats.weight)).toBeLessThan(0.15);
+    expect(Math.abs(heavy - distance / fang.stats.weight)).toBeLessThan(0.15);
+    expect(heavy).toBeLessThan(light);
+  });
+});
+
 describe("damage events", () => {
   it("say where a projectile hit came from: a point behind it on its path", () => {
     const s = scene();

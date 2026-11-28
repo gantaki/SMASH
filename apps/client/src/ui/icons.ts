@@ -30,5 +30,5 @@ export const KEY_LABELS: Record<string, string> = {
   q: "Q",
   e: "E",
   companion: "R",
-  ultimate: "F",
+  ultimate: "X",
 };

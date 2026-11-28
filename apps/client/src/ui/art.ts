@@ -14,3 +14,10 @@ export const PORTRAITS: Record<string, string> = index("portraits", PORTRAIT_IDS
 
 /** Champion id → square close-up for the champion-select tile. */
 export const TILES: Record<string, string> = index("tiles", PORTRAIT_IDS);
+
+/** Play mode → drawn icon for the menu's mode buttons. */
+export const MODE_ART: Record<"duel" | "online" | "training", string> = {
+  duel: "/art/ui/mode-duel.webp",
+  online: "/art/ui/mode-online.webp",
+  training: "/art/ui/mode-training.webp",
+};
