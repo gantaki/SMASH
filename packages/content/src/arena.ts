@@ -10,6 +10,7 @@ export const arena: ArenaConfig = {
     { x: 0, z: 10 },
     { x: 0, z: -10 },
   ],
+  spawnSpread: 5,
   // Point-symmetric for fairness.
   obstacles: [
     { kind: "stone", x: 7.5, z: 7.5, radius: 1.3, hp: 120 },
@@ -20,10 +21,10 @@ export const arena: ArenaConfig = {
     { kind: "wood", x: 0, z: -5, halfWidth: 2, halfDepth: 0.35, rotDeg: 0, hp: 60 },
     { kind: "wood", x: 12, z: 0, halfWidth: 2, halfDepth: 0.35, rotDeg: 90, hp: 60 },
     { kind: "wood", x: -12, z: 0, halfWidth: 2, halfDepth: 0.35, rotDeg: 90, hp: 60 },
-    { kind: "crate", x: -3.5, z: 0, radius: 0.75 },
-    { kind: "crate", x: 3.5, z: 0, radius: 0.75 },
-    { kind: "crate", x: -12, z: 7, radius: 0.75 },
-    { kind: "crate", x: 12, z: -7, radius: 0.75 },
+    { kind: "crate", x: -3.5, z: 0, radius: 0.75, hp: 40 },
+    { kind: "crate", x: 3.5, z: 0, radius: 0.75, hp: 40 },
+    { kind: "crate", x: -12, z: 7, radius: 0.75, hp: 40 },
+    { kind: "crate", x: 12, z: -7, radius: 0.75, hp: 40 },
   ],
   orb: {
     spawnAt: 15,

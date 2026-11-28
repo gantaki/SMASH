@@ -9,14 +9,14 @@ export const ABILITY_SLOTS: readonly AbilitySlot[] = ["primary", "secondary", "m
 /**
  * Kit template every champion follows (keeps champions comparable and readable for opponents):
  * primary = spammable basic attack · secondary = heavier skill-shot on a cooldown · mobility = escape / gap closer
- * q = control · e = defence · companion = one command for the companion · ultimate = costs full energy.
+ * q = defence · e = strike or control · companion = summons the companion for one command · ultimate = costs full energy.
  */
 export const SLOT_ROLES: Record<AbilitySlot, string> = {
   primary: "basic attack",
   secondary: "skill-shot",
   mobility: "mobility",
-  q: "control",
-  e: "defence",
+  q: "defence",
+  e: "strike",
   companion: "companion command",
   ultimate: "ultimate",
 };
@@ -110,6 +110,10 @@ export interface GroundAoeAbility extends AbilityCommon {
   onHit: OnHit;
   /** It strikes the ground: damage to every floor tile inside the blast (a tile has arena.floor.hp). */
   floorDamage: number;
+  /** Only tiles within this radius take the floor damage (default: the whole blast). */
+  floorRadius?: number;
+  /** While the marker is on the ground, enemies inside it are dragged toward its centre at this speed (m/s). */
+  drag?: number;
   /** Speed given to crates inside the blast. */
   cratePush?: number;
   /** Purely visual: draw something falling from the sky during the delay. */
@@ -167,7 +171,103 @@ export interface ChannelAbility extends AbilityCommon {
   onTick: OnHit;
 }
 
-/** Sends the champion's companion to the aim point. What it does there is in CompanionDef.command. */
+/** Raises a wall across the line of aim. It blocks both sides, can be broken and slammed into, and crumbles when its time is up. */
+export interface WallAbility extends AbilityCommon {
+  kind: "wall";
+  maxRange: number;
+  halfWidth: number;
+  halfDepth: number;
+  hp: number;
+  /** Seconds the wall stands. */
+  duration: number;
+  /** One more than this many makes the caster's oldest wall crumble. */
+  maxActive: number;
+}
+
+/**
+ * A charge along the ground toward the aim point. The first enemy touched takes onHit and is carried in front of the
+ * caster to the end of the charge and `carry.beyond` meters further: into an obstacle it is a slam, over a hole a fall.
+ */
+export interface DashAbility extends AbilityCommon {
+  kind: "dash";
+  maxRange: number;
+  /** Seconds the full distance takes. */
+  duration: number;
+  onHit: OnHit;
+  carry: { beyond: number; slamStun?: number; slamDamage?: number };
+  cratePush?: number;
+}
+
+/** Stands still and takes no damage and no crowd control for `duration`; then everything around is hit with onHit. */
+export interface BraceAbility extends AbilityCommon {
+  kind: "brace";
+  duration: number;
+  radius: number;
+  onHit: OnHit;
+  cratePush?: number;
+}
+
+/**
+ * A shock along the ground in a straight line from the caster. It strikes the ground: every floor tile it crosses
+ * takes `floorDamage`. One of the caster's own walls on the line bursts: everything within `shatter.radius` of it
+ * takes `shatter.onHit` (knockback is away from the wall).
+ */
+export interface LineAbility extends AbilityCommon {
+  kind: "line";
+  range: number;
+  halfWidth: number;
+  onHit: OnHit;
+  floorDamage: number;
+  shatter?: { radius: number; onHit: OnHit };
+  cratePush?: number;
+}
+
+/** A ring of walls around the aim point. Inside it, slam damage is multiplied (for everyone, the caster included). */
+export interface RingAbility extends AbilityCommon {
+  kind: "ring";
+  maxRange: number;
+  radius: number;
+  /** Number of wall pieces the ring is made of. */
+  segments: number;
+  halfDepth: number;
+  hp: number;
+  duration: number;
+  slamMultiplier: number;
+}
+
+/**
+ * Picks up the movable object nearest the cursor (a crate), then throws it at the aim point with a second press.
+ * Does not fire when there is nothing to pick up. A crate that is not thrown is put down after `holdTime`.
+ */
+export interface LiftAbility extends AbilityCommon {
+  kind: "lift";
+  /** How far from the caster an object can be. */
+  range: number;
+  /** How far from the cursor the object can be. */
+  pickRadius: number;
+  holdTime: number;
+  /** Speed the object leaves at; what it does to who it hits is rules.obstacles.crateHit. */
+  throwSpeed: number;
+}
+
+/** Trades places with the unit or movable object nearest the cursor. Does not fire without a target in sight. */
+export interface SwapAbility extends AbilityCommon {
+  kind: "swap";
+  maxRange: number;
+  pickRadius: number;
+}
+
+/**
+ * Floats above the ground for `duration`: knockbacks and pulls do nothing, holes and crates are passed over.
+ * Nothing can be cast meanwhile, and where it ends is where the champion comes down.
+ */
+export interface HoverAbility extends AbilityCommon {
+  kind: "hover";
+  duration: number;
+  moveMultiplier: number;
+}
+
+/** Summons the champion's companion and sends it to the aim point. What it does there is in CompanionDef.command. */
 export interface CompanionCommandAbility extends AbilityCommon {
   kind: "companionCommand";
 }
@@ -181,20 +281,42 @@ export type Ability =
   | NovaAbility
   | CounterAbility
   | ChannelAbility
+  | WallAbility
+  | DashAbility
+  | BraceAbility
+  | LineAbility
+  | RingAbility
+  | LiftAbility
+  | SwapAbility
+  | HoverAbility
   | CompanionCommandAbility;
 
 export type AbilityKind = Ability["kind"];
 
+/** How a companion fights while it is out, if it does. */
 export type CompanionAttack =
-  | { kind: "ranged"; interval: number; range: number; projectile: ProjectileSpec }
-  /** Guards the owner: engages enemy champions that come within guardRange of the owner, for guardTime seconds. */
-  | { kind: "melee"; interval: number; damage: number; guardRange: number; guardTime: number; leash: number };
+  | { kind: "none" }
+  | { kind: "ranged"; projectile: ProjectileSpec }
+  /** Bites the target it is engaged with. It gives up further than `leash` from its owner. */
+  | { kind: "melee"; interval: number; damage: number; leash: number };
 
+/** A companion is not on the field until it is commanded: it appears beside its owner, does this, and leaves. */
 export type CompanionCommand =
-  /** Flies to the point and holds it, attacking faster/further. */
+  /** Flies to the point and holds it for `duration`, shooting at enemies in range. */
   | { kind: "sentry"; maxRange: number; duration: number; interval: number; range: number }
   /** Sprints to the point; the first enemy champion touched takes onHit, then the companion fights for engageTime. */
-  | { kind: "pounce"; maxRange: number; onHit: OnHit; engageTime: number; searchRange: number; searchEngageTime: number };
+  | { kind: "pounce"; maxRange: number; onHit: OnHit; engageTime: number; searchRange: number; searchEngageTime: number }
+  /**
+   * Rolls in a straight line toward the point, bouncing off obstacles and the arena wall up to `bounces` times
+   * (each bounce adds `bounceExtra` meters to the roll). Enemies it runs into take onHit, knocked the way it rolls.
+   * Where it stops it lies as cover for `coverTime`.
+   */
+  | { kind: "roll"; maxRange: number; bounces: number; bounceExtra: number; onHit: OnHit; coverTime: number }
+  /**
+   * Flies to the point and becomes a gravity well for `duration`: enemies within `radius` drift toward it at
+   * `unitPull` m/s, crates are flung toward it at `cratePull` m/s (and hit enemies on the way, like any flying crate).
+   */
+  | { kind: "well"; maxRange: number; duration: number; radius: number; unitPull: number; cratePull: number };
 
 export interface CompanionDef {
   id: string;
@@ -207,7 +329,7 @@ export interface CompanionDef {
   commandSpeed: number;
   /** Flying companions ignore obstacles. */
   flying: boolean;
-  /** Where it idles relative to the owner: angle from the owner's facing, and distance. */
+  /** Where it appears relative to the owner when summoned: angle from the owner's facing, and distance. */
   follow: { angleDeg: number; distance: number };
   attack: CompanionAttack;
   command: CompanionCommand;
@@ -264,8 +386,8 @@ export type ObstacleDef =
   | { kind: "stone"; x: number; z: number; radius: number; hp: number }
   /** Breakable wall (oriented box). Rebuilds after rules.obstacles.woodRespawn. rotDeg 0 = long side along x. */
   | { kind: "wood"; x: number; z: number; halfWidth: number; halfDepth: number; rotDeg: number; hp: number }
-  /** Movable. Pushed by knockbacks, pulled by hooks; hurts enemies when it flies into them. */
-  | { kind: "crate"; x: number; z: number; radius: number };
+  /** Movable. Pushed by knockbacks, pulled by hooks; hurts enemies when it flies into them. Breaks for good when its health runs out. */
+  | { kind: "crate"; x: number; z: number; radius: number; hp: number };
 
 /**
  * The floor is a round slab in the middle with rings of tiles around it, out to the arena radius. Every tile has
@@ -297,7 +419,10 @@ export interface ArenaConfig {
   wallMargin: number;
   floor: FloorConfig;
   rim: RimConfig;
+  /** Where each team stands at the start of a round (index = team). */
   spawns: readonly [Vec2Data, Vec2Data];
+  /** Distance between team-mates at the spawn, side by side (2v2). */
+  spawnSpread: number;
   obstacles: readonly ObstacleDef[];
   orb: {
     spawnAt: number;
@@ -401,6 +526,7 @@ export interface MatchRules {
     hookCrateStop: number;
   };
   companion: {
+    /** Seconds a companion that was killed cannot be summoned. */
     respawn: number;
     killEnergy: number;
     /** Distance at which a commanded companion has arrived. */

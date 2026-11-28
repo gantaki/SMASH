@@ -1,10 +1,11 @@
 // One running match on the client: fixed-tick sim loop, input, and the view. Used for duels vs a bot,
 // the training range and the bot-vs-bot demo behind the menu.
 
-import { type AbilitySlot, type BotDifficulty, type ChampionId, type Tuning } from "@smash/content";
+import { getChampion, type AbilitySlot, type BotDifficulty, type ChampionId, type Tuning } from "@smash/content";
 import {
   TICK_DT,
   championOfTeam,
+  champions,
   createMatch,
   createTickClock,
   emptyInput,
@@ -23,7 +24,8 @@ import { Hud } from "./Hud.ts";
 import { killCamDuration, planKillCam, type KillCam } from "./killcam.ts";
 import { GameView } from "./render/GameView.ts";
 
-export type GameMode = "duel" | "training" | "demo" | "online";
+/** "duel2": 2v2, the player with a bot ally against two bots. */
+export type GameMode = "duel" | "duel2" | "training" | "demo" | "online";
 
 export interface OnlineGameOptions {
   role: "host" | "guest";
@@ -47,6 +49,9 @@ export interface GameOptions {
   mode: GameMode;
   champion: string;
   opponent: string;
+  /** 2v2 only: the bot on the player's side, and the second opponent. */
+  ally?: string;
+  opponent2?: string;
   difficulty: BotDifficulty;
   canvas: HTMLCanvasElement;
   overlay: HTMLElement;
@@ -121,19 +126,29 @@ export class Game {
         this.state = this.guestSession.state;
       }
     } else {
+      const bot = (champion: string) => ({ champion, controller: "bot" as const, difficulty: opts.difficulty });
       this.state = createMatch({
         seed: (Math.random() * 0xffffffff) >>> 0,
         mode: mode === "training" ? "training" : "duel",
+        // Slots alternate teams: the player, an opponent, then (2v2) the player's ally and the second opponent.
         players: [
           { champion: opts.champion, controller: mode === "demo" ? "bot" : "human", difficulty: opts.difficulty },
-          mode === "training" ? { champion: "dummy", controller: "dummy" } : { champion: opts.opponent, controller: "bot", difficulty: opts.difficulty },
+          mode === "training" ? { champion: "dummy", controller: "dummy" } : bot(opts.opponent),
+          ...(mode === "duel2" ? [bot(opts.ally ?? opts.champion), bot(opts.opponent2 ?? opts.opponent)] : []),
         ],
       });
     }
-    this.killcamEnabled = (mode === "duel" || mode === "online") && !matchMedia("(prefers-reduced-motion: reduce)").matches;
+    this.killcamEnabled = (mode === "duel" || mode === "duel2" || mode === "online") && !matchMedia("(prefers-reduced-motion: reduce)").matches;
     const me = championOfTeam(this.state, this.viewerTeam);
     const enemy = championOfTeam(this.state, this.viewerTeam === 0 ? 1 : 0);
-    this.hud = mode === "demo" ? null : new Hud(opts.hud, me, enemy, mode === "training", mode === "online");
+    // 2v2: the scoreboard names both sides' champions.
+    const names = (team: 0 | 1) =>
+      champions(this.state)
+        .filter((u) => u.team === team)
+        .map((u) => getChampion(u.champion).nameRu)
+        .join(" + ");
+    const sides: [string, string] | undefined = mode === "duel2" ? [names(this.viewerTeam), names(this.viewerTeam === 0 ? 1 : 0)] : undefined;
+    this.hud = mode === "demo" ? null : new Hud(opts.hud, me, enemy, mode === "training", mode === "online", sides);
     if (this.hud) this.hud.onEnergyFull = () => opts.audio.play("energy_full");
     this.view = new GameView(opts.canvas, opts.overlay, this.state, this.viewerTeam, mode === "demo" ? null : opts.audio, {
       message: (text, seconds, big) => this.hud?.message(text, seconds, big),
@@ -142,7 +157,7 @@ export class Game {
     this.aim = { x: me.x, z: me.z + (this.viewerTeam === 0 ? -6 : 6) };
     if (mode !== "demo") this.bindInput();
     if (mode === "online" && opts.online) this.bindOnline(opts.online);
-    if (mode === "duel" || mode === "online") this.hud?.message("Раунд 1", 1.1, true);
+    if (mode === "duel" || mode === "duel2" || mode === "online") this.hud?.message("Раунд 1", 1.1, true);
     if (mode === "training") this.hud?.message("Тренировка: 1–5 — команды полигона", 2.5);
     this.raf = requestAnimationFrame(this.frame);
   }

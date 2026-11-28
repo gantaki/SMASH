@@ -27,6 +27,8 @@ export class Hud {
     enemy: ChampionUnit,
     private readonly training: boolean,
     private readonly online = false,
+    /** Names for the two sides of the scoreboard (2v2); by default the two champions. */
+    sides?: [string, string],
   ) {
     const champ = getChampion(me.champion);
     const foe = getChampion(enemy.champion);
@@ -45,9 +47,9 @@ export class Hud {
       : "C — отменить замах · Esc или P — пауза · M — звук";
     root.innerHTML = `
       <div class="top">
-        <div class="side me"><b>${champ.nameRu}</b><span class="pips" data-team="${me.team}"></span></div>
+        <div class="side me"><b>${sides ? sides[0] : champ.nameRu}</b><span class="pips" data-team="${me.team}"></span></div>
         <div class="mid"><div class="rnd"></div><div class="clock">0:00</div></div>
-        <div class="side foe"><span class="pips" data-team="${enemy.team}"></span><b>${foe.nameRu}${enemy.controller === "bot" ? " · бот" : ""}</b></div>
+        <div class="side foe"><span class="pips" data-team="${enemy.team}"></span><b>${sides ? sides[1] : foe.nameRu + (enemy.controller === "bot" ? " · бот" : "")}</b></div>
       </div>
       <div class="msg"></div>
       <div class="dock">
@@ -95,7 +97,8 @@ export class Hud {
       let text = "";
       const cd = me.cooldowns[slot];
       const paid = !a.energyCost || me.energy >= a.energyCost;
-      if (a.kind === "companionCommand" && pet?.kind === "companion" && pet.dead) {
+      if (a.kind === "companionCommand" && pet?.kind === "companion" && pet.respawn > 0) {
+        // The companion was killed: the slot counts down until it can be summoned again.
         p = pet.respawn / rules.companion.respawn;
         text = String(Math.ceil(pet.respawn));
       } else if (cd > 0) {

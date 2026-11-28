@@ -1,7 +1,7 @@
 // Projectiles and delayed ground effects.
 
 import { arena, rules, type CompanionInteraction, type ProjectileSpec } from "@smash/content";
-import { applyOnHit, damageFloor, damageObstacle, damageRim, damageStructuresInArea, hittables, pull, pushCrates, targetPos } from "./combat.ts";
+import { applyOnHit, damageFloor, damageObstacle, damageRim, damageStructuresInArea, hittables, movable, pull, pushCrates, targetPos } from "./combat.ts";
 import type { Ctx } from "./context.ts";
 import { rimPenetration } from "./floor.ts";
 import { obstaclePenetration } from "./geometry.ts";
@@ -9,6 +9,8 @@ import { companionOf, creditOf, unitById, type Projectile, type Unit } from "./s
 import type { ProjectileEndReason } from "./events.ts";
 
 const DEG = Math.PI / 180;
+/** Things dragged toward a point stop this close to it (numerical: they do not pile onto one spot). */
+const DRAG_STOP = 0.3;
 
 export interface ProjectileOptions {
   /** Distance from the shooter's centre at which the projectile appears. */
@@ -112,8 +114,8 @@ export function updateProjectiles(ctx: Ctx): void {
     let blocked = false;
     for (const o of state.obstacles) {
       if (!o.alive || !obstaclePenetration(o, p.x, p.z, p.radius)) continue;
-      if (o.kind !== "crate") damageObstacle(ctx, o, p.onHit.damage);
-      else {
+      damageObstacle(ctx, o, p.onHit.damage);
+      if (o.kind === "crate" && o.alive) {
         if (p.hook && owner) {
           // Yank the crate so that friction stops it just in front of the caster.
           const dx = owner.x - o.x;
@@ -156,14 +158,29 @@ export function updateGrounds(ctx: Ctx): void {
   for (let i = state.grounds.length - 1; i >= 0; i--) {
     const g = state.grounds[i]!;
     g.t += dt;
-    if (g.t < g.delay) continue;
+    if (g.t < g.delay) {
+      // A whirl: enemies inside are dragged toward the middle until it goes off.
+      if (g.drag > 0) {
+        for (const t of state.units) {
+          if (t.team === g.team || t.dead || !movable(t) || (t.kind === "champion" && t.leap)) continue;
+          const dx = g.x - t.x;
+          const dz = g.z - t.z;
+          const d = Math.hypot(dx, dz);
+          if (d >= g.radius + t.radius * rules.areaBodyFactor || d < DRAG_STOP) continue;
+          const move = Math.min(d - DRAG_STOP, g.drag * dt);
+          t.x += (dx / d) * move;
+          t.z += (dz / d) * move;
+        }
+      }
+      continue;
+    }
     const owner = unitById(state, g.owner) ?? null;
     for (const t of hittables(ctx, g.team)) {
       const pos = targetPos(ctx, t);
       if (Math.hypot(pos.x - g.x, pos.z - g.z) < g.radius + pos.radius * rules.areaBodyFactor) applyOnHit(ctx, t, g.onHit, owner, g.x, g.z);
     }
     damageStructuresInArea(ctx, g.x, g.z, g.radius, g.onHit.damage);
-    damageFloor(ctx, g.x, g.z, g.radius, g.floorDamage);
+    damageFloor(ctx, g.x, g.z, g.floorRadius, g.floorDamage);
     if (g.cratePush && owner) pushCrates(ctx, g.x, g.z, g.radius, g.cratePush, owner);
     ctx.events.push({ t: "groundBurst", id: g.id, x: g.x, z: g.z, radius: g.radius, abilityId: g.abilityId, falling: g.falling });
     state.grounds.splice(i, 1);

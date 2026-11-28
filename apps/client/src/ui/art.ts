@@ -16,8 +16,10 @@ export const PORTRAITS: Record<string, string> = index("portraits", PORTRAIT_IDS
 export const TILES: Record<string, string> = index("tiles", PORTRAIT_IDS);
 
 /** Play mode → drawn icon for the menu's mode buttons. */
-export const MODE_ART: Record<"duel" | "online" | "training", string> = {
+export const MODE_ART: Record<"duel" | "duel2" | "online" | "training", string> = {
   duel: "/art/ui/mode-duel.webp",
+  // 2v2 shares the crossed swords until it has an icon of its own.
+  duel2: "/art/ui/mode-duel.webp",
   online: "/art/ui/mode-online.webp",
   training: "/art/ui/mode-training.webp",
 };

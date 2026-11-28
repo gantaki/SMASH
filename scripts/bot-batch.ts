@@ -44,8 +44,8 @@ for (let i = 0; i < ids.length; i++) {
     }
     const sorted = [...times].sort((x, y) => x - y);
     rows.push({
-      pairing: `${a} vs ${b}`,
-      [`win ${a}`]: pct(winsA, matches - unfinished),
+      pairing: `${a} (A) vs ${b}`,
+      "win A": pct(winsA, matches - unfinished),
       "round avg s": avg(times).toFixed(1),
       "round p10–p90 s": `${sorted[Math.floor(sorted.length * 0.1)]?.toFixed(0)}–${sorted[Math.floor(sorted.length * 0.9)]?.toFixed(0)}`,
       "sudden death": pct(sdRounds, rounds),
@@ -62,3 +62,30 @@ for (let i = 0; i < ids.length; i++) {
   }
 }
 console.table(rows);
+
+// 2v2: every way to split the roster into two pairs (when there are four champions to split).
+if (ids.length === 4) {
+  const [a, b, c, d] = ids as [string, string, string, string];
+  const splits: [[string, string], [string, string]][] = [
+    [[a, b], [c, d]],
+    [[a, c], [b, d]],
+    [[a, d], [b, c]],
+  ];
+  const teams: Record<string, string | number>[] = [];
+  for (const [left, right] of splits) {
+    let wins = 0;
+    let unfinished = 0;
+    const times: number[] = [];
+    for (let m = 0; m < matches; m++) {
+      // Slots alternate teams; alternate which pair gets team 0 so that the spawn side does not bias the result.
+      const flip = m % 2 === 1;
+      const [t0, t1] = flip ? [right, left] : [left, right];
+      const r = runBotMatch({ seed: 5000 + m * 7919, champions: [t0[0], t1[0], t0[1], t1[1]], difficulty });
+      if (r.winner === -1) unfinished++;
+      else if ((r.winner === 0) !== flip) wins++;
+      times.push(...r.roundTimes);
+    }
+    teams.push({ "2v2": `${left.join(" + ")} (A) vs ${right.join(" + ")}`, "win A": pct(wins, matches - unfinished), "round avg s": avg(times).toFixed(1), unfinished });
+  }
+  console.table(teams);
+}

@@ -29,7 +29,9 @@ export interface MatchResult {
 
 export interface BotMatchOptions {
   seed: number;
-  champions: readonly [string, string];
+  /** Champion of each player slot: two for a duel, four for 2v2 (even slots are team 0, odd ones team 1). */
+  champions: readonly string[];
+  /** One difficulty for everyone, or one per team. */
   difficulty?: BotDifficulty | readonly [BotDifficulty, BotDifficulty];
   /** Safety cap in simulated seconds. */
   maxSeconds?: number;
@@ -42,10 +44,7 @@ export function runBotMatch(opts: BotMatchOptions): MatchResult {
   const state = createMatch({
     seed: opts.seed,
     mode: "duel",
-    players: [
-      { champion: opts.champions[0], controller: "bot", difficulty: d0 },
-      { champion: opts.champions[1], controller: "bot", difficulty: d1 },
-    ],
+    players: opts.champions.map((champion, slot) => ({ champion, controller: "bot", difficulty: slot % 2 ? d1 : d0 })),
   });
   const result: MatchResult = { winner: -1, score: [0, 0], roundTimes: [], damage: [0, 0, 0], suddenDeathRounds: 0, falls: { pushed: 0, unforced: 0 }, tilesDropped: 0, rimBroken: 0, ticks: 0, events: {} };
   const champion = new Set(state.units.filter((u) => u.kind === "champion").map((u) => u.id));
@@ -53,7 +52,7 @@ export function runBotMatch(opts: BotMatchOptions): MatchResult {
   const maxTicks = Math.round((opts.maxSeconds ?? 900) / TICK_DT);
   while (state.phase !== "matchEnd" && result.ticks < maxTicks) {
     const roundTime = state.roundTime;
-    for (const e of step(state, [null, null])) {
+    for (const e of step(state, [])) {
       result.events[e.t] = (result.events[e.t] ?? 0) + 1;
       if (e.t === "damage" && e.targetKind === "champion") result.damage[e.source < 0 ? 2 : (teamOf.get(e.source) ?? 2)] += e.amount;
       if (e.t === "roundEnd") result.roundTimes.push(Math.max(roundTime, state.roundTime));

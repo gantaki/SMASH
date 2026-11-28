@@ -8,6 +8,9 @@ import { championById, creditOf, unitById, type ChampionUnit, type CompanionUnit
 
 export type Target = Unit | "orb";
 
+/** Gap left between a champion and the crate it puts down or throws (numerical, so they do not start overlapped). */
+const HELD_GAP = 0.15;
+
 export interface HurtOptions {
   /** Damage over time, zone, slams, counter punish: cannot be countered and does not shake the screen. */
   dot?: boolean;
@@ -20,7 +23,11 @@ const fighting = (ctx: Ctx): boolean => ctx.state.phase === "fight";
 /** Units that crowd control can affect right now. */
 export const controllable = (u: Unit): boolean => !u.dead && !(u.kind === "champion" && isUnstoppable(u));
 
+/** Units that can be shoved, dragged or carried right now: controllable, and not floating. */
+export const movable = (u: Unit): boolean => controllable(u) && !(u.kind === "champion" && u.hover > 0);
+
 export function isUnstoppable(u: ChampionUnit): boolean {
+  if (u.brace) return true;
   if (!u.channel) return false;
   const a = getChampion(u.champion).abilities[u.channel.slot];
   return a?.kind === "channel" && a.unstoppable;
@@ -68,6 +75,9 @@ export function hurt(ctx: Ctx, target: Target, damage: number, source: Unit | nu
     if (target.hp <= 0) companionDie(ctx, target, credit);
     return true;
   }
+
+  // Braced: nothing gets through.
+  if (target.brace) return false;
 
   if (target.counter > 0 && !dot && source && source !== target) {
     counterHit(ctx, target, source);
@@ -127,13 +137,35 @@ export function kill(ctx: Ctx, u: Unit, creditId: number): void {
   else die(ctx, u);
 }
 
+/** Puts the crate a champion holds back on the field in front of it; `speed` > 0 throws it along (dx, dz). */
+export function releaseHeld(ctx: Ctx, u: ChampionUnit, dx = Math.sin(u.face), dz = Math.cos(u.face), speed = 0): void {
+  const held = u.held;
+  u.held = null;
+  const o = held ? ctx.state.obstacles.find((q) => q.id === held.id) : undefined;
+  if (!o || o.heldBy !== u.id) return;
+  o.heldBy = -1;
+  o.alive = true;
+  const reach = u.radius + o.radius + HELD_GAP;
+  o.x = u.x + dx * reach;
+  o.z = u.z + dz * reach;
+  o.vx = dx * speed;
+  o.vz = dz * speed;
+  o.pusher = speed > 0 ? u.id : -1;
+  o.pusherTeam = speed > 0 ? u.team : -1;
+  ctx.events.push({ t: "release", unit: u.id, obstacle: o.id, x: o.x, z: o.z, thrown: speed > 0 });
+}
+
 function die(ctx: Ctx, u: ChampionUnit): void {
   u.dead = true;
   u.deadTime = 0;
   cancelCast(ctx, u);
+  releaseHeld(ctx, u);
   u.channel = null;
   u.forced = null;
   u.leap = null;
+  u.dash = null;
+  u.brace = null;
+  u.hover = 0;
   u.buffer = null;
   ctx.events.push({ t: "death", unit: u.id });
 }
@@ -155,6 +187,7 @@ function breakOrb(ctx: Ctx): void {
 
 export function stun(ctx: Ctx, t: Unit, duration: number): void {
   if (!controllable(t)) return;
+  if (t.kind === "champion") t.dash = null;
   t.stun = Math.max(t.stun, duration);
   cancelCast(ctx, t);
   ctx.events.push({ t: "status", unit: t.id, status: "stun", duration });
@@ -209,9 +242,12 @@ export function knock(
   source: Unit | null,
   slamStun = 0,
   slamDamage = 0,
+  /** Carried rather than shoved (a charge): the distance is not divided by the target's weight. */
+  carried = false,
 ): void {
-  if (!controllable(t)) return;
-  const weight = t.kind === "champion" ? getChampion(t.champion).stats.weight : 1;
+  if (!movable(t)) return;
+  if (t.kind === "champion") t.dash = null;
+  const weight = t.kind === "champion" && !carried ? getChampion(t.champion).stats.weight : 1;
   const d = distance / weight;
   t.forced = {
     vx: (nx * d) / duration,
@@ -230,7 +266,8 @@ export function knock(
  * `source`: champion credited if it is (-1 when a champion pulls itself).
  */
 export function pull(ctx: Ctx, t: Unit, toX: number, toZ: number, stopDistance: number, duration: number, source = -1): void {
-  if (!controllable(t)) return;
+  if (!movable(t)) return;
+  if (t.kind === "champion") t.dash = null;
   const dx = toX - t.x;
   const dz = toZ - t.z;
   const d = Math.hypot(dx, dz) || 1;
@@ -282,7 +319,10 @@ function slam(ctx: Ctx, t: Unit, nx: number, nz: number, obstacle: Obstacle | nu
   }
   ctx.events.push({ t: "slam", unit: t.id, x: t.x - nx * t.radius, z: t.z - nz * t.radius });
   stun(ctx, t, f.slamStun);
-  hurt(ctx, t, rules.slam.damage + f.slamDamage, source, { dot: true });
+  // Inside a Colosseum the wall hits back harder.
+  let factor = 1;
+  for (const a of ctx.state.arenas) if (Math.hypot(t.x - a.x, t.z - a.z) < a.radius) factor = Math.max(factor, a.slamMultiplier);
+  hurt(ctx, t, (rules.slam.damage + f.slamDamage) * factor, source, { dot: true });
 }
 
 /**
@@ -309,19 +349,26 @@ export function applyOnHit(ctx: Ctx, target: Target, onHit: OnHit, source: Unit 
 
 // ---------- the arena taking damage ----------
 
-/** Walls and pillars lose health and break. Crates do not: they get pushed around instead. */
+/** Walls, pillars and crates lose health and break. Only wood walls are rebuilt (obstacles.ts); a raised wall is simply gone. */
 export function damageObstacle(ctx: Ctx, o: Obstacle, damage: number): void {
-  if (o.kind === "crate" || !o.alive || !fighting(ctx)) return;
+  if (!o.alive || !fighting(ctx)) return;
   o.hp -= damage;
   if (o.hp <= 0) {
     o.alive = false;
     o.hp = 0;
-    // Only wood walls are rebuilt (obstacles.ts).
+    o.vx = o.vz = 0;
     o.respawn = rules.obstacles.woodRespawn;
-    ctx.events.push({ t: "obstacleBreak", id: o.id, x: o.x, z: o.z });
+    ctx.events.push({ t: "obstacleBreak", id: o.id, kind: o.kind, x: o.x, z: o.z });
+    if (o.kind === "wall") removeObstacle(ctx, o);
   } else {
-    ctx.events.push({ t: "obstacleHit", id: o.id, x: o.x, z: o.z });
+    ctx.events.push({ t: "obstacleHit", id: o.id, kind: o.kind, x: o.x, z: o.z });
   }
+}
+
+/** Takes a raised wall off the field for good. */
+export function removeObstacle(ctx: Ctx, o: Obstacle): void {
+  o.alive = false;
+  ctx.state.obstacles = ctx.state.obstacles.filter((q) => q !== o);
 }
 
 /** A section of the arena wall takes damage at (x, z). A broken section is a gap for the rest of the round. */
@@ -338,15 +385,23 @@ export function damageRim(ctx: Ctx, segment: number, damage: number, x: number, 
  * under it, however small the blast). A tile that runs out of health starts to crumble and drops a moment later.
  */
 export function damageFloor(ctx: Ctx, x: number, z: number, radius: number, damage: number): void {
+  const under = tileAt(x, z);
+  const tiles: number[] = [];
+  for (let i = 0; i < floorTiles.length; i++) {
+    const t = floorTiles[i]!;
+    if (i === under || Math.hypot(t.x - x, t.z - z) < radius) tiles.push(i);
+  }
+  damageFloorTiles(ctx, tiles, damage);
+}
+
+/** The named tiles take damage (a ground strike with a shape of its own, like a line). */
+export function damageFloorTiles(ctx: Ctx, tiles: readonly number[], damage: number): void {
   if (damage <= 0 || !fighting(ctx)) return;
   const floor = ctx.state.floor;
-  const under = tileAt(x, z);
   const cracked: number[] = [];
   const broken: number[] = [];
-  for (let i = 0; i < floorTiles.length; i++) {
+  for (const i of tiles) {
     if (floor.hp[i]! <= 0) continue;
-    const t = floorTiles[i]!;
-    if (i !== under && Math.hypot(t.x - x, t.z - z) >= radius) continue;
     floor.hp[i] = Math.max(0, floor.hp[i]! - damage);
     if (floor.hp[i] === 0) {
       floor.crumbling.push({ tile: i, time: arena.floor.crumbleTime });
@@ -368,10 +423,10 @@ export function hittables(ctx: Ctx, team: 0 | 1): Target[] {
 
 export const targetPos = (ctx: Ctx, t: Target): { x: number; z: number; radius: number } => (t === "orb" ? ctx.state.orb : t);
 
-/** Damages what stands within `radius` of a point: wood walls, pillars and sections of the arena wall. */
+/** Damages what stands within `radius` of a point: walls, pillars, crates and sections of the arena wall. */
 export function damageStructuresInArea(ctx: Ctx, x: number, z: number, radius: number, damage: number): void {
   for (const o of ctx.state.obstacles) {
-    if (o.alive && o.kind !== "crate" && obstacleDistance(o, x, z) < radius) damageObstacle(ctx, o, damage);
+    if (o.alive && obstacleDistance(o, x, z) < radius) damageObstacle(ctx, o, damage);
   }
   if (Math.hypot(x, z) + radius <= arena.radius) return;
   for (let segment = 0; segment < ctx.state.rim.length; segment++) {

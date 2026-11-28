@@ -198,7 +198,8 @@ export function planKillCam(replay: Replay): KillCam | null {
         // Whoever shoved or dragged the victim in is the killer, even if the hit itself landed before the replay starts.
         if (e.by >= 0) lastHitBy.set(e.unit, e.by);
       }
-      if (e.t === "death" && victimId < 0) victimId = e.unit;
+      // The last one to go down is the one that decided the round (in 2v2 a team-mate may have fallen a moment before).
+      if (e.t === "death") victimId = e.unit;
     }
   }
   const victim = end.units.find((u) => u.id === victimId);

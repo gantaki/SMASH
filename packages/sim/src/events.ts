@@ -4,7 +4,9 @@
 import type { AbilitySlot } from "@smash/content";
 import type { Phase } from "./state.ts";
 
-export type StatusKind = "stun" | "slow" | "root" | "burn" | "shield" | "empowered" | "counter";
+export type StatusKind = "stun" | "slow" | "root" | "burn" | "shield" | "empowered" | "counter" | "brace" | "hover";
+
+export type ObstacleKind = "stone" | "wood" | "crate" | "wall";
 
 export type ProjectileEndReason = "hit" | "blocked" | "expired" | "split" | "hook";
 
@@ -56,13 +58,36 @@ export type SimEvent =
   | { t: "death"; unit: number }
   | { t: "respawn"; unit: number }
   | { t: "companionDeath"; unit: number; killer: number }
-  | { t: "companionRespawn"; unit: number }
+  /** A companion appears beside its owner to carry out a command. */
+  | { t: "companionSummon"; unit: number; x: number; z: number }
+  /** The command is over and the companion leaves the field (unharmed). */
+  | { t: "companionLeave"; unit: number; x: number; z: number }
+  /** A rolling companion bounced off something. */
+  | { t: "companionBounce"; unit: number; x: number; z: number }
+  /** A companion opened a gravity well. */
+  | { t: "companionWell"; unit: number; x: number; z: number; radius: number; duration: number }
   | { t: "companionCommand"; unit: number; x: number; z: number }
   | { t: "companionAttack"; unit: number; target: number; heavy: boolean; x: number; z: number }
   | { t: "companionInteract"; kind: "split" | "pullCaster"; unit: number; x: number; z: number }
   | { t: "energy"; unit: number; amount: number }
-  | { t: "obstacleHit"; id: number; x: number; z: number }
-  | { t: "obstacleBreak"; id: number; x: number; z: number }
+  | { t: "obstacleHit"; id: number; kind: ObstacleKind; x: number; z: number }
+  | { t: "obstacleBreak"; id: number; kind: ObstacleKind; x: number; z: number }
+  /** A wall was raised by an ability. */
+  | { t: "wallRaise"; id: number; x: number; z: number }
+  /** A raised wall's time was up and it crumbled. */
+  | { t: "wallExpire"; id: number; x: number; z: number }
+  /** A wall was burst by its owner's line ability: everything within `radius` was hit. */
+  | { t: "wallShatter"; id: number; x: number; z: number; radius: number; abilityId: string }
+  /** A ring of walls went up around (x, z). */
+  | { t: "ringRaise"; id: number; x: number; z: number; radius: number; duration: number; abilityId: string }
+  | { t: "line"; unit: number; x0: number; z0: number; x1: number; z1: number; halfWidth: number; abilityId: string }
+  /** A charge caught `target` and is carrying it along. */
+  | { t: "dashHit"; unit: number; target: number; abilityId: string }
+  /** Two things traded places. `target` is a unit id, `obstacle` an obstacle id; the one that does not apply is -1. */
+  | { t: "swap"; unit: number; target: number; obstacle: number; ax: number; az: number; bx: number; bz: number }
+  | { t: "lift"; unit: number; obstacle: number; x: number; z: number }
+  /** A held crate was thrown, or put down (`thrown` false). */
+  | { t: "release"; unit: number; obstacle: number; x: number; z: number; thrown: boolean }
   | { t: "obstacleRebuild"; id: number }
   /** The floor under the obstacle is gone and it went down with it. */
   | { t: "obstacleFall"; id: number; x: number; z: number }

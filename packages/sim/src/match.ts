@@ -133,10 +133,11 @@ function updatePhase(ctx: Ctx): void {
 
 /**
  * Advances the match by one fixed tick (TICK_DT). Mutates `state` in place and returns what happened.
- * `inputs[team]` is used for human-controlled champions; bots and the training dummy make their own.
+ * `inputs[slot]` is used for human-controlled champions (the slot is the player's index in config.players; in a duel
+ * it is the team); bots and the training dummy make their own.
  * Deterministic: the same state and inputs always give the same result.
  */
-export function step(state: MatchState, inputs: readonly [PlayerInput | null, PlayerInput | null]): SimEvent[] {
+export function step(state: MatchState, inputs: readonly (PlayerInput | null)[]): SimEvent[] {
   if (state.phase === "matchEnd") return [];
   const ctx: Ctx = { state, events: [], rng: createRng(state.rng), dt: TICK_DT };
   const dt = ctx.dt;
@@ -149,7 +150,7 @@ export function step(state: MatchState, inputs: readonly [PlayerInput | null, Pl
   for (const u of champs) {
     if (u.dead) continue;
     const input =
-      u.controller === "human" ? (inputs[u.team] ?? emptyInput()) : u.controller === "bot" ? botInput(ctx, u) : dummyInput(state, u);
+      u.controller === "human" ? (inputs[u.slot] ?? emptyInput()) : u.controller === "bot" ? botInput(ctx, u) : dummyInput(state, u);
     applyInput(ctx, u, input);
   }
   for (const u of champs) updateChampion(ctx, u);
@@ -168,9 +169,10 @@ export function step(state: MatchState, inputs: readonly [PlayerInput | null, Pl
 
   if (state.config.mode === "training") updateTraining(ctx);
   else if (state.phase === "fight") {
-    const dead = champs.filter((u) => u.dead);
-    if (dead.length === champs.length) endRound(ctx, -1);
-    else if (dead.length > 0) endRound(ctx, dead[0]!.team === 0 ? 1 : 0);
+    // A team is out when all of its champions are down; both at once is a draw.
+    const standing = ([0, 1] as const).map((team) => champs.some((u) => u.team === team && !u.dead));
+    if (!standing[0] && !standing[1]) endRound(ctx, -1);
+    else if (!standing[0] || !standing[1]) endRound(ctx, standing[0] ? 0 : 1);
   }
 
   state.rng = ctx.rng.state();
@@ -212,7 +214,7 @@ export function trainingCommand(state: MatchState, cmd: TrainingCommand): SimEve
       startRound(state);
       state.tuning = tuning;
       state.training.dummyMoves = dummyMoves;
-      for (const u of state.units) if (u.kind === "companion") resetCompanion(u, champs.find((c) => c.id === u.owner)!);
+      for (const u of state.units) if (u.kind === "companion") resetCompanion(u, champs.find((c) => c.id === u.owner)!, true);
       break;
     }
     case "setTuning":

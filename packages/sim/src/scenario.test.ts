@@ -1,8 +1,9 @@
 // Scripted scenarios: each gameplay rule gets a small deterministic situation (CLAUDE.md rule 5).
 import { describe, expect, it } from "vitest";
-import { arena, ember, fang, rules, training, type AbilitySlot } from "@smash/content";
+import { arena, boulder, ember, fang, hound, moon, rook, rules, tide, training, wisp, type AbilitySlot } from "@smash/content";
 import {
   TICK_DT,
+  championOfSlot,
   championOfTeam,
   companionOf,
   createMatch,
@@ -81,6 +82,13 @@ function scene(champA = "ember", champB = "fang", opts: { mode?: MatchMode; comp
   }
   return s;
 }
+
+/** Puts a companion on the field as if it had just been summoned (tests then set what it is doing). */
+const out = <T extends { dead: boolean; respawn: number }>(c: T): T => {
+  c.dead = false;
+  c.respawn = 0;
+  return c;
+};
 
 const place = (u: { x: number; z: number }, x: number, z: number) => {
   u.x = x;
@@ -302,7 +310,7 @@ describe("projectiles", () => {
     const s = scene("ember", "fang", { companions: true });
     place(s.a, -10, 14);
     place(s.b, 10, -14);
-    const wisp = companionOf(s.state, s.a)!;
+    const wisp = out(companionOf(s.state, s.a)!);
     wisp.mode = "sentry";
     wisp.modeTime = 99;
     wisp.tx = -10;
@@ -319,10 +327,9 @@ describe("projectiles", () => {
     const s = scene("fang", "ember", { companions: true });
     place(s.a, 0, 14);
     place(s.b, 14, -10);
-    const hound = companionOf(s.state, s.a)!;
-    hound.mode = "go";
-    hound.tx = 0;
-    hound.tz = 8;
+    const hound = out(companionOf(s.state, s.a)!);
+    hound.mode = "cover";
+    hound.modeTime = 99;
     place(hound, 0, 8);
     s.press(0, "secondary", 0, 8);
     s.run(1.2);
@@ -397,12 +404,8 @@ describe("damage events", () => {
     // Owner to the left of the victim, hound on its right (within the hound's leash).
     place(s.a, -2, -2);
     place(s.b, 6, -2);
-    const hound = companionOf(s.state, s.a)!;
+    const hound = out(companionOf(s.state, s.a)!);
     Object.assign(hound, { x: 7.2, z: -2, mode: "engage", modeTime: 5, target: s.b.id, attackTimer: 0 });
-    // Park the victim's own companion out of the way.
-    const wisp = companionOf(s.state, s.b)!;
-    wisp.dead = true;
-    wisp.respawn = 1e9;
     const bite = of(s.run(0.3), "damage").find((e) => e.target === s.b.id)!;
     expect(bite.source).toBe(s.a.id);
     expect(Math.hypot(bite.fromX! - hound.x, bite.fromZ! - hound.z)).toBeLessThan(0.5);
@@ -884,8 +887,10 @@ describe("destructible arena", () => {
 
   it("a flying companion does not care about holes; a walking one falls in when thrown, but will not walk in", () => {
     const e = scene("ember", "fang", { companions: true });
-    const wisp = companionOf(e.state, e.a)!;
-    const hound = companionOf(e.state, e.b)!;
+    const wisp = out(companionOf(e.state, e.a)!);
+    const hound = out(companionOf(e.state, e.b)!);
+    Object.assign(wisp, { mode: "sentry", modeTime: 99, tx: 3, tz: 12 });
+    Object.assign(hound, { mode: "cover", modeTime: 99 });
     place(e.a, 0, 12);
     place(e.b, 0, -12);
     place(wisp, 3, 12);
@@ -902,7 +907,6 @@ describe("destructible arena", () => {
     const dog = companionOf(f.state, f.a)!;
     place(f.a, 0, 12);
     place(f.b, -12, -8);
-    place(dog, 1, 12);
     floorTiles.forEach((t, i) => {
       if (t.ring === 6) f.state.floor.hp[i] = 0;
     });
@@ -911,7 +915,9 @@ describe("destructible arena", () => {
     const sent = f.run(3);
     expect(of(sent, "companionCommand")).toHaveLength(1);
     expect(of(sent, "fall")).toHaveLength(0);
-    expect(dog.dead).toBe(false);
+    // It gave up at the edge and left, unharmed: it can be summoned again.
+    expect(of(sent, "companionLeave")).toHaveLength(1);
+    expect(dog.respawn).toBe(0);
   });
 
   it("a bot does not walk into a moat to reach its enemy", () => {
@@ -964,6 +970,426 @@ describe("destructible arena", () => {
     expect(s.state.floor.crumbling).toHaveLength(0);
     expect(s.state.rim.every((hp) => hp === arena.rim.hp)).toBe(true);
     expect(pillar.alive && !pillar.fallen).toBe(true);
+  });
+});
+
+describe("crates", () => {
+  it("take damage from what hits them, break, and stay broken", () => {
+    const s = scene();
+    const crate = s.state.obstacles.find((o) => o.kind === "crate" && o.x > 3 && o.z === 0)!;
+    place(s.a, crate.x, 6);
+    place(s.b, -12, -12);
+    const bolt = ember.abilities.primary!;
+    if (bolt.kind !== "projectile") throw new Error("expected projectile");
+    crate.hp = bolt.onHit.damage + 1;
+    s.press(0, "primary", crate.x, 0);
+    const first = s.run(0.8);
+    expect(of(first, "obstacleHit")[0]).toMatchObject({ id: crate.id, kind: "crate" });
+    expect(crate.alive).toBe(true);
+    // Still pushed by the hit, as before.
+    expect(crate.z).toBeLessThan(0);
+    s.press(0, "primary", crate.x, crate.z);
+    expect(of(s.run(0.8), "obstacleBreak")[0]).toMatchObject({ id: crate.id, kind: "crate" });
+    s.run(rules.obstacles.woodRespawn + 1);
+    expect(crate.alive).toBe(false);
+  });
+});
+
+describe("companions are summoned", () => {
+  it("is not on the field until commanded, appears beside its owner, does its job and leaves", () => {
+    const s = scene("ember", "fang", { companions: true });
+    const pet = companionOf(s.state, s.a)!;
+    place(s.a, -4.5, 12);
+    place(s.b, -4.5, 2);
+    expect(pet.dead).toBe(true);
+    s.a.energy = rules.energy.max;
+    s.press(0, "companion", -4.5, 7);
+    const ev = s.run(0.1);
+    expect(of(ev, "companionSummon")).toHaveLength(1);
+    expect(pet.dead).toBe(false);
+    expect(Math.hypot(pet.x - s.a.x, pet.z - s.a.z)).toBeLessThan(3);
+    if (wisp.command.kind !== "sentry") throw new Error("expected sentry");
+    const rest = s.run(wisp.command.duration + 2);
+    expect(of(rest, "companionAttack").length).toBeGreaterThan(0);
+    expect(of(rest, "companionLeave")).toHaveLength(1);
+    expect(pet.dead).toBe(true);
+    expect(pet.respawn).toBe(0);
+  });
+
+  it("cannot be summoned for a while after it is killed, and is away again when the next round starts", () => {
+    const s = scene("fang", "ember", { companions: true });
+    const pet = companionOf(s.state, s.a)!;
+    place(s.a, -4.5, 13);
+    place(s.b, -4.5, 3);
+    s.a.energy = rules.energy.max;
+    s.press(0, "companion", -4.5, 8);
+    s.run(0.1);
+    // Hold it still in the line of fire.
+    Object.assign(pet, { x: -4.5, z: 8, mode: "cover", modeTime: 99, hp: 1 });
+    s.press(1, "primary", -4.5, 8);
+    const ev = s.run(0.8);
+    expect(of(ev, "companionDeath")).toHaveLength(1);
+    expect(pet.respawn).toBeGreaterThan(rules.companion.respawn - 1);
+    s.a.cooldowns.companion = 0;
+    s.a.energy = rules.energy.max;
+    s.press(0, "companion", -4.5, 8);
+    expect(of(s.run(0.2), "companionSummon")).toHaveLength(0);
+    pet.respawn = 0.05;
+    s.run(0.1);
+    s.press(0, "companion", -4.5, 8);
+    expect(of(s.run(0.2), "companionSummon")).toHaveLength(1);
+    expect(hound.command.kind).toBe("pounce");
+  });
+});
+
+describe("2v2", () => {
+  const four = (controller: "human" | "bot" = "human") =>
+    createMatch({
+      seed: 11,
+      mode: "duel",
+      players: ["ember", "fang", "rook", "tide"].map((champion) => ({ champion, controller })),
+    });
+
+  it("puts even slots on team 0 and odd ones on team 1, side by side at their spawn", () => {
+    const state = four();
+    const [a, b, c, d] = [0, 1, 2, 3].map((slot) => championOfSlot(state, slot));
+    expect([a!.team, b!.team, c!.team, d!.team]).toEqual([0, 1, 0, 1]);
+    expect(a!.z).toBe(arena.spawns[0].z);
+    expect(c!.z).toBe(arena.spawns[0].z);
+    expect(Math.abs(a!.x - c!.x)).toBeCloseTo(arena.spawnSpread);
+    expect(a!.x + c!.x).toBeCloseTo(0);
+    expect(b!.z).toBe(arena.spawns[1].z);
+  });
+
+  it("takes input by slot, and a round ends only when a whole team is down", () => {
+    const state = four();
+    const inputs = [0, 1, 2, 3].map(() => emptyInput());
+    for (let i = 0; i < Math.round((rules.countdown + 0.1) / TICK_DT); i++) step(state, inputs);
+    const mate = championOfSlot(state, 2);
+    const x0 = mate.x;
+    inputs[2]!.move = { x: 1, z: 0 };
+    for (let i = 0; i < 30; i++) step(state, inputs);
+    expect(mate.x).toBeGreaterThan(x0 + 1);
+    expect(championOfSlot(state, 0).x).toBeCloseTo(-arena.spawnSpread / 2);
+
+    championOfSlot(state, 1).hp = 0.5;
+    championOfSlot(state, 1).burn = 1;
+    championOfSlot(state, 1).burnDps = 10;
+    const ev: SimEvent[] = [];
+    for (let i = 0; i < 60; i++) ev.push(...step(state, inputs));
+    expect(championOfSlot(state, 1).dead).toBe(true);
+    expect(of(ev, "roundEnd")).toHaveLength(0);
+    championOfSlot(state, 3).hp = 0.5;
+    championOfSlot(state, 3).burn = 1;
+    championOfSlot(state, 3).burnDps = 10;
+    for (let i = 0; i < 60; i++) ev.push(...step(state, inputs));
+    expect(of(ev, "roundEnd")[0]!.winner).toBe(0);
+  });
+
+  it("bots finish a 2v2 match", () => {
+    const r = runBotMatch({ seed: 21, champions: ["ember", "fang", "rook", "tide"], difficulty: "hard" });
+    expect(r.winner).not.toBe(-1);
+    expect(Math.max(...r.score)).toBe(rules.roundsToWin);
+  });
+});
+
+describe("Rook", () => {
+  const wallA = rook.abilities.secondary!;
+  const ram = rook.abilities.mobility!;
+  const skin = rook.abilities.q!;
+  const shatter = rook.abilities.e!;
+  const colosseum = rook.abilities.ultimate!;
+  if (wallA.kind !== "wall" || ram.kind !== "dash" || skin.kind !== "brace" || shatter.kind !== "line" || colosseum.kind !== "ring") throw new Error("unexpected Rook kit");
+  const walls = (s: Scene) => s.state.obstacles.filter((o) => o.kind === "wall");
+
+  it("raises a wall across his aim that stops shots, keeps at most two, and lets them crumble in time", () => {
+    const s = scene("rook", "ember");
+    place(s.a, -4.5, 12);
+    place(s.b, -4.5, 2);
+    s.press(0, "secondary", -4.5, 8);
+    s.run(wallA.castTime! + 0.1);
+    expect(walls(s)).toHaveLength(1);
+    const w = walls(s)[0]!;
+    expect(w.z).toBeCloseTo(8);
+    // Ember's bolt at Rook is stopped by it.
+    s.press(1, "primary", -4.5, 12);
+    const shot = s.run(1);
+    expect(of(shot, "projectileEnd")[0]!.reason).toBe("blocked");
+    expect(s.a.hp).toBe(s.a.maxHp);
+    expect(w.hp).toBeLessThan(wallA.hp);
+
+    for (const z of [6, 5]) {
+      s.a.cooldowns.secondary = 0;
+      s.press(0, "secondary", -4.5, z);
+      s.run(wallA.castTime! + 0.1);
+    }
+    expect(walls(s)).toHaveLength(wallA.maxActive);
+    expect(walls(s)).not.toContain(w);
+    const gone = s.run(wallA.duration + 0.2);
+    expect(of(gone, "wallExpire").length).toBeGreaterThan(0);
+    expect(walls(s)).toHaveLength(0);
+  });
+
+  it("rams an enemy along: into a wall it is a slam, over a hole it is a fall", () => {
+    const s = scene("rook", "ember");
+    place(s.a, -4.5, 12);
+    place(s.b, -4.5, 9.5);
+    s.press(0, "secondary", -4.5, 6.5);
+    s.run(wallA.castTime! + 0.1);
+    s.press(0, "mobility", -4.5, 4);
+    const ev = s.run(0.8);
+    expect(of(ev, "dashHit")).toHaveLength(1);
+    expect(of(ev, "slam")).toHaveLength(1);
+    expect(s.b.hp).toBe(s.b.maxHp - ram.onHit.damage - (rules.slam.damage + ram.carry.slamDamage!));
+    expect(s.a.z).toBeGreaterThan(7);
+
+    const h = scene("rook", "ember");
+    place(h.a, -4.5, 12);
+    place(h.b, -4.5, 9.5);
+    h.state.floor.hp[tileAt(-4.5, 5.2)] = 0;
+    h.press(0, "mobility", -4.5, 6.6);
+    const fell = h.run(0.8);
+    expect(of(fell, "fall")[0]).toMatchObject({ unit: h.b.id, by: h.a.id });
+    expect(h.a.dead).toBe(false);
+  });
+
+  it("is untouchable while braced, then throws everyone around back", () => {
+    const s = scene("rook", "fang");
+    place(s.a, -4.5, 8);
+    place(s.b, -4.5, 6);
+    s.press(0, "q", -4.5, 6);
+    s.run(0.05);
+    s.press(1, "e", -4.5, 8);
+    s.inputs[0].move = { x: 1, z: 0 };
+    const during = s.run(skin.duration - 0.1);
+    expect(s.a.hp).toBe(s.a.maxHp);
+    expect(s.a.x).toBe(-4.5);
+    expect(of(during, "nova")).toHaveLength(0);
+    const end = s.run(0.4);
+    expect(of(end, "nova")).toHaveLength(1);
+    expect(s.b.hp).toBe(s.b.maxHp - skin.onHit.damage);
+    expect(s.b.z).toBeLessThan(6 - 1.5);
+  });
+
+  it("cracks the floor along a line, and bursts his own wall on it into shards", () => {
+    const s = scene("rook", "ember");
+    place(s.a, -4.5, 13);
+    place(s.b, 10, -10);
+    s.press(0, "e", -4.5, 0);
+    const ev = s.run(shatter.castTime! + 0.1);
+    expect(of(ev, "line")).toHaveLength(1);
+    for (const z of [11, 9, 7]) expect(s.state.floor.hp[tileAt(-4.5, z)]).toBe(arena.floor.hp - shatter.floorDamage);
+    expect(s.state.floor.hp[tileAt(-4.5, 13)]).toBe(arena.floor.hp);
+    expect(s.state.floor.hp[tileAt(-4.5, 13 - shatter.range - 2)]).toBe(arena.floor.hp);
+    expect(s.state.floor.hp[tileAt(-1, 9)]).toBe(arena.floor.hp);
+
+    const w = scene("rook", "ember");
+    place(w.a, -4.5, 13);
+    place(w.b, -2.3, 8);
+    w.press(0, "secondary", -4.5, 9);
+    w.run(wallA.castTime! + 0.1);
+    w.a.cooldowns.e = 0;
+    w.press(0, "e", -4.5, 0);
+    const burst = w.run(shatter.castTime! + 0.2);
+    expect(of(burst, "wallShatter")).toHaveLength(1);
+    expect(w.state.obstacles.some((o) => o.kind === "wall")).toBe(false);
+    // Out of the line itself, but inside the burst.
+    expect(w.b.hp).toBe(w.b.maxHp - shatter.shatter!.onHit.damage);
+    expect(w.b.forced).not.toBeNull();
+  });
+
+  it("rolls his Boulder through an enemy, bounces it off a wall, and leaves it as cover for a while", () => {
+    const s = scene("rook", "ember", { companions: true });
+    const pet = companionOf(s.state, s.a)!;
+    place(s.a, -4.5, 13);
+    place(s.b, -4.5, 7);
+    s.a.energy = rules.energy.max;
+    s.press(0, "companion", -4.5, 2);
+    if (boulder.command.kind !== "roll") throw new Error("expected roll");
+    const ev = s.run(1.2);
+    expect(of(ev, "companionSummon")).toHaveLength(1);
+    expect(s.b.hp).toBe(s.b.maxHp - boulder.command.onHit.damage);
+    expect(s.b.z).toBeLessThan(6);
+    expect(pet.mode).toBe("cover");
+    expect(pet.dead).toBe(false);
+    const rest = s.run(boulder.command.coverTime + 0.2);
+    expect(of(rest, "companionLeave")).toHaveLength(1);
+
+    const b = scene("rook", "ember", { companions: true });
+    place(b.a, 2, 15);
+    place(b.b, -12, -12);
+    b.a.energy = rules.energy.max;
+    // Straight at the arena wall.
+    b.press(0, "companion", 2, 30);
+    const bounced = b.run(1.5);
+    expect(of(bounced, "companionBounce").length).toBeGreaterThan(0);
+    expect(of(bounced, "fall")).toHaveLength(0);
+  });
+
+  it("raises a Colosseum: a ring of walls where a slam hits twice as hard", () => {
+    const s = scene("rook", "ember");
+    place(s.a, -4.5, 10);
+    place(s.b, -4.5, 7.5);
+    s.a.energy = rules.energy.max;
+    s.press(0, "ultimate", -4.5, 8);
+    const ev = s.run(colosseum.castTime! + 0.1);
+    expect(of(ev, "ringRaise")).toHaveLength(1);
+    expect(s.state.obstacles.filter((o) => o.kind === "wall")).toHaveLength(colosseum.segments);
+    expect(s.state.arenas).toHaveLength(1);
+    place(s.a, -4.5, 9);
+    place(s.b, -4.5, 6.5);
+    s.press(0, "mobility", -4.5, 3);
+    const hit = s.run(0.8);
+    expect(of(hit, "slam")).toHaveLength(1);
+    expect(s.b.hp).toBe(s.b.maxHp - ram.onHit.damage - (rules.slam.damage + ram.carry.slamDamage!) * colosseum.slamMultiplier);
+    s.run(colosseum.duration);
+    expect(s.state.obstacles.some((o) => o.kind === "wall")).toBe(false);
+    expect(s.state.arenas).toHaveLength(0);
+  });
+});
+
+describe("Tide", () => {
+  const lift = tide.abilities.secondary!;
+  const shift = tide.abilities.mobility!;
+  const float = tide.abilities.q!;
+  const surge = tide.abilities.e!;
+  const maelstrom = tide.abilities.ultimate!;
+  if (lift.kind !== "lift" || shift.kind !== "swap" || float.kind !== "hover" || surge.kind !== "cone" || maelstrom.kind !== "groundAoe") throw new Error("unexpected Tide kit");
+  const crateAt = (s: Scene, x: number, z: number) => {
+    const c = s.state.obstacles.find((o) => o.kind === "crate")!;
+    c.x = x;
+    c.z = z;
+    return c;
+  };
+
+  it("lifts a crate and throws it; without a crate under the cursor nothing happens and nothing is paid", () => {
+    const s = scene("tide", "fang");
+    place(s.a, -4.5, 12);
+    place(s.b, -4.5, 4);
+    s.press(0, "secondary", -9, 9);
+    expect(of(s.run(0.4), "lift")).toHaveLength(0);
+    expect(s.a.cooldowns.secondary).toBe(0);
+
+    const crate = crateAt(s, -9, 10);
+    s.press(0, "secondary", -9, 10);
+    const up = s.run(lift.castTime! + 0.1);
+    expect(of(up, "lift")[0]!.obstacle).toBe(crate.id);
+    expect(s.a.held?.id).toBe(crate.id);
+    expect(crate.alive).toBe(false);
+    expect(s.a.cooldowns.secondary).toBeGreaterThan(0);
+
+    s.press(0, "secondary", -4.5, 4);
+    const thrown = s.run(1);
+    expect(of(thrown, "release")[0]).toMatchObject({ obstacle: crate.id, thrown: true });
+    expect(of(thrown, "crateHit")[0]!.target).toBe(s.b.id);
+    expect(s.b.hp).toBe(s.b.maxHp - rules.obstacles.crateHit.damage);
+    expect(crate.alive).toBe(true);
+  });
+
+  it("puts the crate down if it is not thrown in time", () => {
+    const s = scene("tide", "fang");
+    place(s.a, -4.5, 12);
+    place(s.b, 10, -10);
+    const crate = crateAt(s, -8, 11);
+    s.press(0, "secondary", -8, 11);
+    const ev = s.run(lift.castTime! + lift.holdTime + 0.2);
+    expect(of(ev, "release")[0]).toMatchObject({ obstacle: crate.id, thrown: false });
+    expect(s.a.held).toBeNull();
+    expect(crate.alive).toBe(true);
+    expect(Math.hypot(crate.x - s.a.x, crate.z - s.a.z)).toBeLessThan(2);
+  });
+
+  it("trades places with an enemy or a crate in sight, and does not fire without a target", () => {
+    const s = scene("tide", "fang");
+    place(s.a, -4.5, 12);
+    place(s.b, -4.5, 6);
+    s.press(0, "mobility", 0, 12);
+    s.run(0.4);
+    expect(s.a.cooldowns.mobility).toBe(0);
+    s.press(0, "mobility", -4.5, 6);
+    const ev = s.run(shift.castTime! + 0.1);
+    expect(of(ev, "swap")[0]).toMatchObject({ unit: s.a.id, target: s.b.id });
+    expect(s.a.z).toBeCloseTo(6, 0);
+    expect(s.b.z).toBeCloseTo(12, 0);
+
+    const c = scene("tide", "fang");
+    place(c.a, -4.5, 12);
+    place(c.b, 10, -10);
+    const crate = crateAt(c, -10, 9);
+    c.press(0, "mobility", -10, 9);
+    c.run(shift.castTime! + 0.1);
+    expect(c.a.x).toBeCloseTo(-10);
+    expect(crate.x).toBeCloseTo(-4.5);
+  });
+
+  it("floats: cannot be shoved, passes over a hole, cannot cast, and comes down where the float ends", () => {
+    const s = scene("tide", "fang");
+    place(s.a, -4.5, 8);
+    place(s.b, -4.5, 6);
+    s.press(0, "q", -4.5, 6);
+    s.run(0.05);
+    s.press(1, "e", -4.5, 8);
+    s.run(0.5);
+    expect(s.a.forced).toBeNull();
+    expect(s.a.z).toBeCloseTo(8);
+    // Damage still lands: it is not a shield.
+    expect(s.a.hp).toBeLessThan(s.a.maxHp);
+    s.press(0, "primary", -4.5, 6);
+    expect(of(s.run(0.2), "castStart").filter((e) => e.unit === s.a.id)).toHaveLength(0);
+
+    const h = scene("tide", "fang");
+    place(h.a, -4.5, 8);
+    place(h.b, 10, -10);
+    h.press(0, "q", -4.5, 6);
+    h.run(0.05);
+    h.state.floor.hp[tileAt(-4.5, 8)] = 0;
+    expect(of(h.run(float.duration - 0.2), "fall")).toHaveLength(0);
+    expect(of(h.run(0.4), "fall")[0]!.unit).toBe(h.a.id);
+  });
+
+  it("Surge throws an enemy back and a crate about twice as far", () => {
+    const s = scene("tide", "fang");
+    place(s.a, -4.5, 4);
+    place(s.b, -3.7, 2);
+    const crate = crateAt(s, -5.3, 2);
+    s.press(0, "e", -4.5, 2);
+    s.run(2);
+    const shove = surge.onHit.knockback!.distance / fang.stats.weight;
+    expect(Math.hypot(s.b.x + 3.7, s.b.z - 2)).toBeCloseTo(shove, 0);
+    expect(Math.hypot(crate.x + 5.3, crate.z - 2)).toBeGreaterThan(shove * 1.8);
+  });
+
+  it("sends the Moon to open a gravity well: enemies drift in, crates fly in and hit what is in their way", () => {
+    const s = scene("tide", "fang", { companions: true });
+    const pet = companionOf(s.state, s.a)!;
+    place(s.a, -4.5, 13);
+    place(s.b, -4.5, 3);
+    const crate = crateAt(s, -4.5, 1.2);
+    s.a.energy = rules.energy.max;
+    s.press(0, "companion", -4.5, 6);
+    if (moon.command.kind !== "well") throw new Error("expected well");
+    const ev = s.run(1.2 + moon.command.duration);
+    expect(of(ev, "companionWell")).toHaveLength(1);
+    // Dragged toward the well against no resistance (the enemy stands still).
+    expect(s.b.z).toBeGreaterThan(3.5);
+    expect(of(ev, "crateHit").some((e) => e.id === crate.id && e.target === s.b.id)).toBe(true);
+    expect(of(ev, "companionLeave")).toHaveLength(1);
+    expect(pet.dead).toBe(true);
+  });
+
+  it("Maelstrom drags enemies to its middle, then the middle of the floor goes", () => {
+    const s = scene("tide", "fang");
+    place(s.a, -4.5, 13);
+    place(s.b, -4.5 + 3, 5);
+    s.a.energy = rules.energy.max;
+    s.press(0, "ultimate", -4.5, 5);
+    const ev = s.run(maelstrom.castTime! + maelstrom.delay + 0.1);
+    expect(of(ev, "groundBurst")).toHaveLength(1);
+    expect(Math.abs(s.b.x + 4.5)).toBeLessThan(1);
+    expect(s.b.hp).toBe(s.b.maxHp - maelstrom.onHit.damage);
+    expect(s.state.floor.hp[tileAt(-4.5, 5)]).toBe(0);
+    // The rim of the whirl stays to stand on.
+    expect(s.state.floor.hp[tileAt(-4.5 + maelstrom.radius - 0.3, 5)]).toBe(arena.floor.hp);
   });
 });
 
@@ -1027,16 +1453,14 @@ describe("training mode", () => {
 });
 
 describe("bots", () => {
-  for (const [a, b] of [
-    ["ember", "fang"],
-    ["fang", "ember"],
-    ["ember", "ember"],
-    ["fang", "fang"],
-  ] as const) {
-    it(`${a} vs ${b} finishes a match`, () => {
-      const r = runBotMatch({ seed: 3, champions: [a, b], difficulty: "hard" });
-      expect(r.winner).not.toBe(-1);
-      expect(Math.max(...r.score)).toBe(rules.roundsToWin);
-    });
+  const ids = ["ember", "fang", "rook", "tide"] as const;
+  for (const a of ids) {
+    for (const b of ids) {
+      it(`${a} vs ${b} finishes a match`, () => {
+        const r = runBotMatch({ seed: 3, champions: [a, b], difficulty: "hard" });
+        expect(r.winner).not.toBe(-1);
+        expect(Math.max(...r.score)).toBe(rules.roundsToWin);
+      });
+    }
   }
 });

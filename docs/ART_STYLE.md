@@ -30,6 +30,8 @@ accents) all come from it.
 |---|---|---|---|---|
 | Ember | crimson, ember orange, flame yellow; violet lining | dark copper | deep wine-maroon `#3a0d14` | `#ff7a2b` |
 | Fang | cold steel, deep navy blue | polished gold | dark slate-navy `#141d33` | `#ffc93c` |
+| Rook | moss green, weathered sandstone grey | bronze | dark moss `#16241a` | `#8fc46b` |
+| Tide | lilac, deep indigo; moon-white hair | silver | dark indigo `#1a1730` | `#b9a4ff` |
 
 Rules for a new palette:
 

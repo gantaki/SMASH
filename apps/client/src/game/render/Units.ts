@@ -15,6 +15,8 @@ export interface Pose {
 }
 
 const FLASH_TIME = 0.12;
+/** How high a floating champion hangs above the ground. */
+const HOVER_HEIGHT = 0.9;
 const COMPANION_FALL_TIME = 1.4;
 const COMPANION_FALL_GRAVITY = 24;
 const SWING_TIME = 0.22;
@@ -109,6 +111,64 @@ function buildFang(body: THREE.Object3D, mats: Mats): Rig {
   return { arm, shield, focus: new THREE.Vector3(0, -0.06, 1), swingAxis: "y" };
 }
 
+function buildRook(body: THREE.Object3D, mats: Mats): Rig {
+  const { M, add } = builder(body, mats);
+  // Moss green, weathered stone and bronze: Rook's palette (docs/ART_STYLE.md §3). Broad and square, like a tower.
+  const stone = M(0x8d9482, { roughness: 0.95 });
+  const moss = M(0x5f8a45);
+  const bronze = M(0x9a6b3a, { metalness: 0.6, roughness: 0.4 });
+  const leather = M(0x3b3327);
+  add(G.box, leather, -0.24, 0.36, 0, [0.3, 0.72, 0.34]);
+  add(G.box, leather, 0.24, 0.36, 0, [0.3, 0.72, 0.34]);
+  add(G.box, moss, 0, 1.06, 0, [1.02, 0.8, 0.62]);
+  add(G.box, bronze, 0, 0.72, 0, [1.06, 0.14, 0.66]);
+  add(G.box, stone, -0.66, 1.44, 0, [0.4, 0.34, 0.5]);
+  add(G.box, stone, 0.66, 1.44, 0, [0.4, 0.34, 0.5]);
+  add(G.sphere, M(0xc99a72), 0, 1.7, 0.02, [0.22, 0.23, 0.22]);
+  // A crenellated crown: the rook of the chess set.
+  add(new THREE.CylinderGeometry(0.3, 0.27, 0.26, 8), stone, 0, 1.92, 0);
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * TAU + TAU / 8;
+    add(G.box, stone, Math.cos(a) * 0.24, 2.1, Math.sin(a) * 0.24, [0.15, 0.14, 0.15]);
+  }
+  const arm = new THREE.Group();
+  arm.position.set(0.66, 1.2, 0.08);
+  body.add(arm);
+  // A mason's maul.
+  add(new THREE.CylinderGeometry(0.05, 0.055, 1.3, 6), M(0x4b3a26), 0, -0.1, 0.45, undefined, arm).rotation.x = Math.PI / 2;
+  add(G.box, stone, 0, -0.1, 1.05, [0.34, 0.34, 0.5], arm);
+  return { arm, focus: new THREE.Vector3(0, -0.1, 1.05), swingAxis: "y" };
+}
+
+function buildTide(body: THREE.Object3D, mats: Mats): Rig {
+  const { M, add } = builder(body, mats);
+  // Lilac, deep indigo and silver: Tide's palette (docs/ART_STYLE.md §3). Slim, with a crescent over her head.
+  const robe = M(0x3a2f7a);
+  const lilac = M(0xb9a4ff);
+  const silver = M(0xd7dbe8, { metalness: 0.75, roughness: 0.25 });
+  add(new THREE.CylinderGeometry(0.24, 0.62, 1.25, 16), robe, 0, 0.62, 0);
+  add(new THREE.CylinderGeometry(0.27, 0.3, 0.12, 16), silver, 0, 1.0, 0);
+  add(G.sphere, M(0x4a3d99), 0, 1.32, 0, [0.34, 0.3, 0.28]);
+  add(G.sphere, M(0xe9c7b0), 0, 1.74, 0.03, [0.21, 0.23, 0.21]);
+  add(G.sphere, M(0xe8e4f7), 0, 1.8, -0.06, [0.25, 0.24, 0.25]);
+  // The crescent: a ring seen edge-on from above would vanish, so it lies tilted back.
+  const crescent = add(new THREE.TorusGeometry(0.3, 0.05, 8, 20, Math.PI * 1.25), silver, 0, 2.12, -0.05);
+  crescent.rotation.set(-0.5, 0, Math.PI * 0.87);
+  const arm = new THREE.Group();
+  arm.position.set(0.44, 1.25, 0.14);
+  body.add(arm);
+  const gem = new THREE.Mesh(G.sphere, basic(0xe6dcff));
+  gem.scale.setScalar(0.15);
+  gem.position.set(0, 0.25, 0.3);
+  arm.add(gem);
+  const halo = new THREE.Mesh(G.sphere, basic(0x8f73ff, 0.35, true));
+  halo.scale.setScalar(0.32);
+  halo.position.copy(gem.position);
+  arm.add(halo);
+  add(G.sphere, lilac, -0.4, 1.2, 0.26, [0.09, 0.09, 0.09]);
+  return { arm, gem, focus: new THREE.Vector3(0, 0.25, 0.3), swingAxis: "x" };
+}
+
 function buildDummy(body: THREE.Object3D, mats: Mats): Rig {
   const { M, add } = builder(body, mats);
   const wood = M(0x7a5232);
@@ -135,7 +195,7 @@ function buildDummy(body: THREE.Object3D, mats: Mats): Rig {
   return { arm, focus: new THREE.Vector3(0, 1.2, 0.4), swingAxis: "x" };
 }
 
-const RIGS: Record<string, (body: THREE.Object3D, mats: Mats) => Rig> = { ember: buildEmber, fang: buildFang, dummy: buildDummy };
+const RIGS: Record<string, (body: THREE.Object3D, mats: Mats) => Rig> = { ember: buildEmber, fang: buildFang, rook: buildRook, tide: buildTide, dummy: buildDummy };
 
 export class ChampionView {
   readonly root = new THREE.Group();
@@ -154,6 +214,8 @@ export class ChampionView {
   private bash = 0;
   private spin = 0;
   private readonly tmp = new THREE.Vector3();
+  /** Smoothed height of a floating champion. */
+  private lift = 0;
   private ragdoll: Ragdoll | null = null;
   private readonly ring: THREE.Object3D;
   private readonly arrow: THREE.Object3D;
@@ -262,15 +324,21 @@ export class ChampionView {
     this.swing = Math.max(0, this.swing - dt);
     this.bash = Math.max(0, this.bash - dt);
 
-    this.height = u.leap ? Math.sin(Math.min(1, u.leap.t / u.leap.duration) * Math.PI) * 2 : 0;
+    // Off the ground: the arc of a leap, or floating.
+    const floating = u.hover > 0 ? HOVER_HEIGHT * Math.min(1, u.hover / 0.2) + Math.sin(time * 5) * 0.08 : 0;
+    this.lift += (floating - this.lift) * Math.min(1, dt * 14);
+    this.height = u.leap ? Math.sin(Math.min(1, u.leap.t / u.leap.duration) * Math.PI) * 2 : this.lift;
     root.position.set(pose.x, this.height, pose.z);
+    // The ring stays on the ground under a floating champion: it marks where she really is.
+    this.ring.position.y = 0.03 - (u.leap ? 0 : this.lift);
 
     if (u.dead) {
       const k = Math.min(1, u.deadTime / 0.5);
       body.rotation.x = -k * 1.45;
       root.position.y = -k * 0.2;
     } else {
-      body.rotation.x = 0;
+      // Leaning into a charge.
+      body.rotation.x = u.dash ? 0.45 : 0;
       const spinning = !!u.channel;
       this.spin = spinning ? this.spin + dt * 16 : 0;
       body.rotation.y = pose.face + this.spin;
@@ -278,10 +346,10 @@ export class ChampionView {
       body.position.y = moving ? Math.abs(Math.sin(time * 10)) * 0.06 : 0;
     }
 
-    const guarded = (u.shield > 0 || u.counter > 0) && !u.dead;
+    const guarded = (u.shield > 0 || u.counter > 0 || !!u.brace) && !u.dead;
     this.bubble.visible = guarded;
     if (guarded) {
-      this.bubble.material.opacity = (u.counter > 0 ? 0.26 : 0.15) + 0.08 * Math.sin(time * 11);
+      this.bubble.material.opacity = (u.brace ? 0.42 : u.counter > 0 ? 0.26 : 0.15) + 0.08 * Math.sin(time * 11);
       this.bubble.scale.setScalar(1.35 + 0.05 * Math.sin(time * 6));
     }
     this.stars.visible = u.stun > 0 && !u.dead;
@@ -363,9 +431,12 @@ export class CompanionView {
   private bite = 0;
   /** Seconds since it went into the abyss, or -1: the model is shown dropping for a moment after it dies. */
   private fallT = -1;
+  /** How far a rolling companion has turned over. */
+  private spin = 0;
   private readonly seed: number;
 
-  constructor(c: CompanionUnit, ally: boolean, flying: boolean, private readonly particles: Particles) {
+  /** `kind` is the companion's id in content: it picks the model. */
+  constructor(c: CompanionUnit, ally: boolean, flying: boolean, private readonly particles: Particles, private readonly kind = "") {
     this.flying = flying;
     this.seed = c.team * 1.7;
     const { body, root } = this;
@@ -374,7 +445,27 @@ export class CompanionView {
     ring.scale.setScalar(c.radius + 0.18);
     ring.position.y = 0.03;
     root.add(ring);
-    if (flying) {
+    if (kind === "moon") {
+      // A small pale moon with a dark side, and a halo that swells while it pulls.
+      const core = new THREE.Mesh(G.sphere, basic(0xf1ecff));
+      core.scale.setScalar(0.3);
+      const shade = new THREE.Mesh(G.sphere, basic(0x4a3d99, 0.85));
+      shade.scale.setScalar(0.27);
+      shade.position.set(0.12, 0.03, 0.08);
+      this.halo = new THREE.Mesh(G.sphere, basic(0x8f73ff, 0.36, true));
+      this.halo.scale.setScalar(0.55);
+      body.add(core, shade, this.halo);
+      body.position.y = 1.8;
+    } else if (kind === "boulder") {
+      // A rock that walks: plates on a round back, curled up when it rolls.
+      const { M, add } = builder(body, this.mats);
+      const rock = M(0x8d9482, { roughness: 1 });
+      const moss = M(0x5f8a45, { roughness: 1 });
+      add(G.sphere, rock, 0, 0.7, 0, [0.72, 0.66, 0.78]);
+      add(G.sphere, moss, 0, 0.98, -0.12, [0.5, 0.36, 0.5]);
+      add(G.box, rock, 0, 0.62, 0.62, [0.34, 0.3, 0.3]);
+      for (const sx of [-1, 1]) add(G.box, M(0x5c6152), sx * 0.42, 0.22, 0.2, [0.24, 0.4, 0.3]);
+    } else if (flying) {
       const core = new THREE.Mesh(G.sphere, basic(0xffe6a8));
       core.scale.setScalar(0.2);
       this.halo = new THREE.Mesh(G.sphere, basic(0xff7a2b, 0.42, true));
@@ -456,6 +547,40 @@ export class CompanionView {
     this.bite = Math.max(0, this.bite - dt);
     this.root.position.set(pose.x, 0, pose.z);
     this.body.rotation.y = pose.face;
+    if (this.kind === "moon") {
+      const pulling = c.mode === "well";
+      this.body.position.y = 1.8 + Math.sin(time * 3 + this.seed) * 0.12;
+      this.halo?.scale.setScalar((pulling ? 1.1 : 0.55) * (1 + Math.sin(time * (pulling ? 16 : 8)) * 0.1) + (this.flashT > 0 ? 0.2 : 0));
+      if (Math.random() < dt * (pulling ? 60 : 14)) {
+        // Motes falling into it.
+        const a = Math.random() * TAU;
+        const r = pulling ? 2.4 : 0.6;
+        this.particles.emit(pose.x + Math.cos(a) * r, this.body.position.y + rand(-0.4, 0.4), pose.z + Math.sin(a) * r, {
+          spd: pulling ? 5 : 1,
+          dx: -Math.cos(a),
+          dz: -Math.sin(a),
+          cone: 0,
+          col: rgb("#e6dcff"),
+          col2: rgb("#5b3fb3"),
+          life: 0.4,
+          size: 0.28,
+        });
+      }
+      return;
+    }
+    if (this.kind === "boulder") {
+      // Curled up and turning over while it rolls, flat on the ground as cover.
+      const rolling = c.mode === "roll";
+      this.spin = rolling ? this.spin + Math.hypot(c.vx, c.vz) * dt * 1.3 : 0;
+      this.body.rotation.x = this.spin;
+      this.body.position.y = rolling ? 0.2 : 0;
+      if (this.flashT > 0 || this.flashOn) {
+        const f = (this.flashT / FLASH_TIME) * 0.9;
+        for (const m of this.mats) m.emissive.setRGB(f, f * 0.85, f * 0.7);
+        this.flashOn = this.flashT > 0;
+      }
+      return;
+    }
     if (this.flying) {
       this.body.position.y = 1.8 + Math.sin(time * 3 + this.seed) * 0.12;
       this.halo?.scale.setScalar(0.48 * (1 + Math.sin(time * 11) * 0.08) + (this.flashT > 0 ? 0.2 : 0));

@@ -1,7 +1,7 @@
-// Wood walls rebuilding and crates sliding around.
+// Wood walls rebuilding, raised walls running out of time, and crates sliding around.
 
 import { rules } from "@smash/content";
-import { applyOnHit, damageObstacle } from "./combat.ts";
+import { applyOnHit, damageObstacle, removeObstacle } from "./combat.ts";
 import type { Ctx } from "./context.ts";
 import { rimPenetration, solidAt } from "./floor.ts";
 import { obstaclePenetration } from "./geometry.ts";
@@ -14,7 +14,17 @@ export function updateObstacles(ctx: Ctx): void {
   const { state, dt } = ctx;
   const fight = state.phase === "fight";
   const cfg = rules.obstacles;
-  for (const o of state.obstacles) {
+  for (const a of state.arenas) a.time -= dt;
+  state.arenas = state.arenas.filter((a) => a.time > 0);
+  for (const o of [...state.obstacles]) {
+    if (o.kind === "wall") {
+      o.temp -= dt;
+      if (o.temp <= 0) {
+        ctx.events.push({ t: "wallExpire", id: o.id, x: o.x, z: o.z });
+        removeObstacle(ctx, o);
+      }
+      continue;
+    }
     if (o.kind === "wood") {
       if (o.alive || o.fallen || !fight) continue;
       o.respawn -= dt;

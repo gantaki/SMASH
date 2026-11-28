@@ -2,12 +2,15 @@
 
 import { ABILITY_SLOTS, arena, getChampion, rules } from "@smash/content";
 import { abilityOf, fire } from "./abilities.ts";
-import { applyOnHit, damageFloor, damageStructuresInArea, hittables, hurt, moveForced, pushCrates, slowFactor, targetPos } from "./combat.ts";
+import { applyOnHit, damageFloor, damageStructuresInArea, hittables, hurt, knock, moveForced, pushCrates, releaseHeld, slowFactor, targetPos } from "./combat.ts";
 import type { Ctx } from "./context.ts";
 import { rimPenetration, solidAt } from "./floor.ts";
 import { obstaclePenetration } from "./geometry.ts";
 import { angleDiff } from "./math.ts";
-import { unitById, type ChampionUnit, type Unit } from "./state.ts";
+import { enemiesOf, unitById, type ChampionUnit, type Unit } from "./state.ts";
+
+/** Extra reach when a charge catches someone (numerical: bodies touch a little before their circles do at 20 m/s). */
+const DASH_PAD = 0.2;
 
 const dec = (v: number, dt: number): number => (v > dt ? v - dt : 0);
 
@@ -22,6 +25,10 @@ function speedMultiplier(u: ChampionUnit): number {
   if (u.channel) {
     const a = abilityOf(u, u.channel.slot);
     if (a?.kind === "channel") m *= a.moveMultiplier;
+  }
+  if (u.hover > 0 && u.hoverSlot) {
+    const a = abilityOf(u, u.hoverSlot);
+    if (a?.kind === "hover") m *= a.moveMultiplier;
   }
   return m;
 }
@@ -68,6 +75,68 @@ function land(ctx: Ctx, u: ChampionUnit, slot: NonNullable<ChampionUnit["leap"]>
   ctx.events.push({ t: "leapLand", unit: u.id, x: u.x, z: u.z, radius, abilityId: a.id });
 }
 
+/** One tick of a charge: move, catch the first enemy in the way and carry it along, stop at anything solid. */
+function charge(ctx: Ctx, u: ChampionUnit): void {
+  const D = u.dash!;
+  const a = abilityOf(u, D.slot);
+  if (a?.kind !== "dash") {
+    u.dash = null;
+    return;
+  }
+  const { state } = ctx;
+  // The last step is cut to what is left, so the charge ends exactly where it was aimed.
+  const dt = Math.min(ctx.dt, D.time);
+  u.x += D.vx * dt;
+  u.z += D.vz * dt;
+  D.time -= ctx.dt;
+  const speed = Math.hypot(D.vx, D.vz);
+  const dx = D.vx / speed;
+  const dz = D.vz / speed;
+  if (!D.hit) {
+    for (const t of enemiesOf(state, u.team)) {
+      if ((t.kind === "champion" && t.leap) || Math.hypot(t.x - u.x, t.z - u.z) >= u.radius + t.radius + DASH_PAD) continue;
+      D.hit = true;
+      if (applyOnHit(ctx, t, a.onHit, u, u.x - dx, u.z - dz)) {
+        // Carried at the charge's own speed to where it ends, and a little further.
+        const left = Math.max(0, D.time);
+        knock(ctx, t, dx, dz, speed * left + a.carry.beyond, left + a.carry.beyond / speed, u, a.carry.slamStun, a.carry.slamDamage, true);
+        ctx.events.push({ t: "dashHit", unit: u.id, target: t.id, abilityId: a.id });
+      }
+      break;
+    }
+  }
+  // A counter may have stunned the charger just now.
+  if (!u.dash) return;
+  let blocked = !!rimPenetration(state, u.x, u.z, arena.wallMargin);
+  for (const o of state.obstacles) {
+    if (!obstaclePenetration(o, u.x, u.z, u.radius)) continue;
+    if (o.kind === "crate" && a.cratePush) {
+      o.vx = dx * a.cratePush;
+      o.vz = dz * a.cratePush;
+      o.pusher = u.id;
+      o.pusherTeam = u.team;
+    } else blocked = true;
+  }
+  if (D.time <= 0 || blocked) u.dash = null;
+}
+
+/** Braced: the time runs down, then everything around is thrown back. */
+function brace(ctx: Ctx, u: ChampionUnit): void {
+  const b = u.brace!;
+  const a = abilityOf(u, b.slot);
+  b.time -= ctx.dt;
+  if (a?.kind !== "brace") u.brace = null;
+  if (b.time > 0 || a?.kind !== "brace") return;
+  u.brace = null;
+  for (const t of hittables(ctx, u.team)) {
+    const pos = targetPos(ctx, t);
+    if (Math.hypot(pos.x - u.x, pos.z - u.z) < a.radius + pos.radius * rules.areaBodyFactor) applyOnHit(ctx, t, a.onHit, u, u.x, u.z);
+  }
+  damageStructuresInArea(ctx, u.x, u.z, a.radius, a.onHit.damage);
+  if (a.cratePush) pushCrates(ctx, u.x, u.z, a.radius, a.cratePush, u);
+  ctx.events.push({ t: "nova", unit: u.id, x: u.x, z: u.z, radius: a.radius, abilityId: a.id });
+}
+
 export function updateChampion(ctx: Ctx, u: ChampionUnit): void {
   const { state, dt } = ctx;
   for (const s of ABILITY_SLOTS) u.cooldowns[s] = dec(u.cooldowns[s], dt);
@@ -79,6 +148,8 @@ export function updateChampion(ctx: Ctx, u: ChampionUnit): void {
   u.cancelLock = dec(u.cancelLock, dt);
   u.counter = dec(u.counter, dt);
   if (u.counter <= 0) u.counterSlot = null;
+  u.hover = dec(u.hover, dt);
+  if (u.hover <= 0) u.hoverSlot = null;
   if (u.shieldTime > 0) {
     u.shieldTime = dec(u.shieldTime, dt);
     if (u.shieldTime <= 0) u.shield = 0;
@@ -116,10 +187,26 @@ export function updateChampion(ctx: Ctx, u: ChampionUnit): void {
       u.leap = null;
       land(ctx, u, L.slot);
     }
-  } else if (u.stun <= 0 && u.root <= 0 && fight) {
+  } else if (u.dash) {
+    charge(ctx, u);
+  } else if (u.stun <= 0 && u.root <= 0 && fight && !u.brace) {
     walk(ctx, u);
   } else {
     u.mvx = u.mvz = 0;
+  }
+  if (u.dead) return;
+  if (u.brace) brace(ctx, u);
+
+  if (u.held) {
+    // The crate overhead goes where its holder goes, and is put down when the time is up.
+    u.held.time -= dt;
+    const held = u.held;
+    const o = state.obstacles.find((q) => q.id === held.id);
+    if (o) {
+      o.x = u.x;
+      o.z = u.z;
+    }
+    if (!o || held.time <= 0) releaseHeld(ctx, u);
   }
 
   if (u.cast) {
@@ -167,7 +254,10 @@ export function updateChampion(ctx: Ctx, u: ChampionUnit): void {
 /** Pushes a unit out of obstacles, the orb and the arena wall (where the wall still stands). */
 export function pushOut(ctx: Ctx, t: Unit): void {
   const { state } = ctx;
+  // A floating champion passes over crates.
+  const over = t.kind === "champion" && t.hover > 0;
   for (const o of state.obstacles) {
+    if (over && o.kind === "crate") continue;
     const pen = obstaclePenetration(o, t.x, t.z, t.radius);
     if (pen) {
       t.x += pen.nx * pen.depth;

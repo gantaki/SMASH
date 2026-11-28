@@ -950,8 +950,10 @@ a,
 }
 .modes {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
+  /* One column per mode, however many there are. */
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 8px;
 }
 .mode {
   display: flex;
@@ -963,7 +965,8 @@ a,
   border: 2.5px solid var(--outline);
   background: var(--plate);
   color: var(--mut);
-  font: 600 14px Rubik, sans-serif;
+  font: 600 13px Rubik, sans-serif;
+  white-space: nowrap;
   box-shadow: 0 4px 0 var(--outline);
   cursor: pointer;
   transition:
@@ -973,8 +976,8 @@ a,
     color 0.12s;
 }
 .mode img {
-  width: 56px;
-  height: 56px;
+  width: 48px;
+  height: 48px;
   filter: saturate(0.5) brightness(0.78);
   transition: filter 0.12s;
 }

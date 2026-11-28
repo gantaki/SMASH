@@ -6,10 +6,11 @@ import { HowToPlay } from "./HowToPlay.tsx";
 import { ABILITY_ICONS, CHAMPION_EMBLEMS, KEY_LABELS } from "./icons.ts";
 import { Lobby } from "./Lobby.tsx";
 
-export type PlayMode = "duel" | "online" | "training";
+export type PlayMode = "duel" | "duel2" | "online" | "training";
 
 const MODES: readonly { id: PlayMode; label: string }[] = [
   { id: "duel", label: "С ботом" },
+  { id: "duel2", label: "2 на 2" },
   { id: "online", label: "Онлайн" },
   { id: "training", label: "Тренировка" },
 ];
@@ -164,7 +165,7 @@ export function Menu(p: Props) {
             ))}
           </div>
 
-          {p.mode === "duel" && (
+          {(p.mode === "duel" || p.mode === "duel2") && (
             <div className="playbar-row">
               <div className="levels" role="group" aria-label="Сложность бота">
                 {BOT_DIFFICULTIES.map((d) => (

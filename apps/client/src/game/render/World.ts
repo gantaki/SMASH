@@ -5,7 +5,7 @@ import * as THREE from "three";
 import { arena } from "@smash/content";
 import { tileSolid, type MatchState, type Obstacle } from "@smash/sim";
 import { FLOOR_DEPTH, Floor } from "./Floor.ts";
-import { G, GOLD, TAU, basic, canvasTexture, rand, rgb, std } from "./gfx.ts";
+import { G, GOLD, TAU, basic, canvasTexture, discard, keep, rand, rgb, std } from "./gfx.ts";
 import type { Particles } from "./Particles.ts";
 
 interface Fire {
@@ -35,6 +35,13 @@ const WOOD_FRESH = new THREE.Color(0xffffff);
 const WOOD_WORN = new THREE.Color(0x5a3a22);
 const STONE_FRESH = new THREE.Color(0xb27c4b);
 const STONE_WORN = new THREE.Color(0x4f3220);
+const WALL_FRESH = new THREE.Color(0x9aa38a);
+const WALL_WORN = new THREE.Color(0x4a4a3c);
+const WALL_HEIGHT = 1.7;
+/** Seconds a raised wall takes to come up out of the floor. */
+const WALL_RISE = 0.2;
+/** How high a held crate floats over its holder's head. */
+const HELD_HEIGHT = 2.9;
 /** How deep the abyss is drawn, and how an obstacle drops into it. */
 const ABYSS_DEPTH = 70;
 const FALL_GRAVITY = 26;
@@ -104,6 +111,11 @@ export class World {
   private readonly floor = new Floor();
   private readonly fires: Fire[] = [];
   private readonly obstacles = new Map<number, ObstacleView>();
+  private readonly dark = keep(std(0x7a4f2e, { roughness: 0.9 }));
+  private readonly metal = keep(std(0x3a2b22, { roughness: 0.5, metalness: 0.6 }));
+  private readonly coalMat = keep(basic(0xff6a1c));
+  private woodTex!: THREE.CanvasTexture;
+  private crateTex!: THREE.CanvasTexture;
   private readonly orb = new THREE.Group();
   private readonly orbCrystal: THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>;
   private readonly orbLight = new THREE.PointLight(0xffcf6a, 0, 14, 1.6);
@@ -142,10 +154,8 @@ export class World {
       add(top);
     });
 
-    const dark = std(0x7a4f2e, { roughness: 0.9 });
-    const metal = std(0x3a2b22, { roughness: 0.5, metalness: 0.6 });
-    const coalMat = basic(0xff6a1c);
-    const woodTex = canvasTexture(256, 128, (g, w, h) => {
+    const { dark, metal, coalMat } = this;
+    this.woodTex = canvasTexture(256, 128, (g, w, h) => {
       planks(g, w, h, 6, "#8b5a2c");
       g.fillStyle = "#3b2a1c";
       for (const y of [h * 0.22, h * 0.78]) {
@@ -156,7 +166,7 @@ export class World {
         }
       }
     });
-    const crateTex = canvasTexture(128, 128, (g, w, h) => {
+    this.crateTex = canvasTexture(128, 128, (g, w, h) => {
       planks(g, w, h, 4, "#9a6534");
       g.strokeStyle = "#4a3020";
       g.lineWidth = 12;
@@ -168,50 +178,7 @@ export class World {
       g.stroke();
     });
 
-    for (const o of state.obstacles) {
-      const g = new THREE.Group();
-      const part = (geo: THREE.BufferGeometry, mat: THREE.Material, y: number) => {
-        const m = new THREE.Mesh(geo, mat);
-        m.position.y = y;
-        m.castShadow = m.receiveShadow = true;
-        g.add(m);
-        return m;
-      };
-      const view: ObstacleView = { group: g, rise: 0, hit: 0, fall: -1, tilt: { x: rand(-0.5, 0.5), z: rand(-0.5, 0.5) } };
-      if (o.kind === "stone") {
-        const k = o.radius / 1.3;
-        const stone = std(STONE_FRESH, { roughness: 0.85 });
-        view.mat = stone;
-        part(new THREE.CylinderGeometry(1.65 * k, 1.75 * k, 0.45, 20), dark, 0.22);
-        part(new THREE.CylinderGeometry(1.2 * k, 1.3 * k, 2.2, 20), stone, 1.55);
-        part(new THREE.BoxGeometry(2.8 * k, 0.4, 2.8 * k), dark, 2.85);
-        part(new THREE.CylinderGeometry(0.75 * k, 0.45 * k, 0.45, 14), metal, 3.27);
-        const coal = new THREE.Mesh(G.circle, coalMat);
-        coal.scale.setScalar(0.66 * k);
-        coal.position.y = 3.52;
-        g.add(coal);
-        this.fires.push({ x: o.x, y: 3.55, z: o.z, rate: 34, size: 0.85, obstacle: o.id });
-      } else if (o.kind === "wood") {
-        const mat = std(0xffffff, { map: woodTex, roughness: 0.9 });
-        const wall = part(G.box, mat, 0.65);
-        wall.scale.set(o.halfWidth * 2, 1.3, o.halfDepth * 2);
-        for (const sx of [-1, 1]) {
-          const post = part(G.box, dark, 0.78);
-          post.scale.set(0.32, 1.55, o.halfDepth * 2 + 0.16);
-          post.position.x = sx * (o.halfWidth - 0.1);
-        }
-        const beam = part(G.box, dark, 1.0);
-        beam.scale.set(o.halfWidth * 2, 0.16, o.halfDepth * 2 + 0.08);
-        g.rotation.y = -o.rot;
-        view.mat = mat;
-      } else {
-        const c = part(G.box, std(0xffffff, { map: crateTex, roughness: 0.85 }), 0.525);
-        c.scale.set(o.radius * 1.6, 1.05, o.radius * 1.6);
-      }
-      g.position.set(o.x, 0, o.z);
-      add(g);
-      this.obstacles.set(o.id, view);
-    }
+    for (const o of state.obstacles) this.addObstacle(o);
 
     for (let k = 0; k < 4; k++) {
       const a = TAU / 8 + (k * TAU) / 4;
@@ -258,6 +225,69 @@ export class World {
     add(this.orbLight);
   }
 
+  /** Builds the model of an obstacle: the arena's own at the start, a raised wall when it appears. */
+  private addObstacle(o: Obstacle): ObstacleView {
+    const { dark, metal, coalMat } = this;
+    const g = new THREE.Group();
+    const part = (geo: THREE.BufferGeometry, mat: THREE.Material, y: number) => {
+      const m = new THREE.Mesh(geo, mat);
+      m.position.y = y;
+      m.castShadow = m.receiveShadow = true;
+      g.add(m);
+      return m;
+    };
+    const view: ObstacleView = { group: g, rise: 0, hit: 0, fall: -1, tilt: { x: rand(-0.5, 0.5), z: rand(-0.5, 0.5) } };
+    if (o.kind === "stone") {
+      const k = o.radius / 1.3;
+      const stone = std(STONE_FRESH, { roughness: 0.85 });
+      view.mat = stone;
+      part(new THREE.CylinderGeometry(1.65 * k, 1.75 * k, 0.45, 20), dark, 0.22);
+      part(new THREE.CylinderGeometry(1.2 * k, 1.3 * k, 2.2, 20), stone, 1.55);
+      part(new THREE.BoxGeometry(2.8 * k, 0.4, 2.8 * k), dark, 2.85);
+      part(new THREE.CylinderGeometry(0.75 * k, 0.45 * k, 0.45, 14), metal, 3.27);
+      const coal = new THREE.Mesh(G.circle, coalMat);
+      coal.scale.setScalar(0.66 * k);
+      coal.position.y = 3.52;
+      g.add(coal);
+      this.fires.push({ x: o.x, y: 3.55, z: o.z, rate: 34, size: 0.85, obstacle: o.id });
+    } else if (o.kind === "wood") {
+      const mat = std(0xffffff, { map: this.woodTex, roughness: 0.9 });
+      const wall = part(G.box, mat, 0.65);
+      wall.scale.set(o.halfWidth * 2, 1.3, o.halfDepth * 2);
+      for (const sx of [-1, 1]) {
+        const post = part(G.box, dark, 0.78);
+        post.scale.set(0.32, 1.55, o.halfDepth * 2 + 0.16);
+        post.position.x = sx * (o.halfWidth - 0.1);
+      }
+      const beam = part(G.box, dark, 1.0);
+      beam.scale.set(o.halfWidth * 2, 0.16, o.halfDepth * 2 + 0.08);
+      g.rotation.y = -o.rot;
+      view.mat = mat;
+    } else if (o.kind === "wall") {
+      // A slab of rough stone pushed up out of the floor: three blocks of uneven height.
+      const mat = std(WALL_FRESH, { roughness: 0.95 });
+      const n = 3;
+      for (let i = 0; i < n; i++) {
+        const h = WALL_HEIGHT * (i === 1 ? 1 : 0.86);
+        const block = part(G.box, mat, h / 2);
+        block.scale.set((o.halfWidth * 2) / n + 0.02, h, o.halfDepth * 2 + (i === 1 ? 0.1 : 0));
+        block.position.x = (i - (n - 1) / 2) * ((o.halfWidth * 2) / n);
+      }
+      g.rotation.y = -o.rot;
+      view.mat = mat;
+      view.rise = WALL_RISE;
+    } else {
+      const mat = std(0xffffff, { map: this.crateTex, roughness: 0.85 });
+      const c = part(G.box, mat, 0.525);
+      c.scale.set(o.radius * 1.6, 1.05, o.radius * 1.6);
+      view.mat = mat;
+    }
+    g.position.set(o.x, 0, o.z);
+    this.group.add(g);
+    this.obstacles.set(o.id, view);
+    return view;
+  }
+
   obstacleHit(id: number): void {
     const v = this.obstacles.get(id);
     if (v) v.hit = 0.15;
@@ -272,8 +302,8 @@ export class World {
     this.orbFlash = 0.12;
   }
 
-  /** `pos` gives the interpolated position of a moving obstacle (crates). */
-  update(state: MatchState, time: number, dt: number, pos: (o: Obstacle) => { x: number; z: number }): void {
+  /** `pos` gives the interpolated position of anything that moves (crates, and the unit that holds one). */
+  update(state: MatchState, time: number, dt: number, pos: (o: { id: number; x: number; z: number }) => { x: number; z: number }): void {
     this.floor.update(state, time, dt);
     // The orb hovers; its pedestal goes with the slab it stands on.
     this.pedestal.visible = tileSolid(state, 0);
@@ -283,9 +313,11 @@ export class World {
       const n = Math.floor(f.rate * dt + Math.random());
       if (n) this.particles.emit(f.x, f.y, f.z, { n, spd: 0.6, vy: 2.2, col: FIRE_A, col2: FIRE_B, life: 0.7, size: f.size, jit: 0.5, drag: 0.5 });
     }
+    const present = new Set<number>();
     for (const o of state.obstacles) {
-      const v = this.obstacles.get(o.id);
-      if (!v) continue;
+      present.add(o.id);
+      // A wall raised since the last frame gets its model now.
+      const v = this.obstacles.get(o.id) ?? this.addObstacle(o);
       if (o.fallen) {
         // Dropped with the floor under it: it tips over and goes down. (A wall that was already broken has nothing to drop.)
         if (v.fall < 0 && v.group.visible) v.fall = 0;
@@ -305,23 +337,36 @@ export class World {
         v.group.rotation.x = v.group.rotation.z = 0;
         v.group.position.y = 0;
       }
-      if (o.kind !== "crate") {
-        v.group.visible = o.alive;
-        if (!o.alive) continue;
-        const k = Math.max(0, o.hp / o.maxHp);
-        const wood = o.kind === "wood";
-        if (wood) v.group.scale.y = 0.6 + 0.4 * k;
-        v.mat?.color.copy(wood ? WOOD_FRESH : STONE_FRESH).lerp(wood ? WOOD_WORN : STONE_WORN, 1 - k);
-        v.rise = Math.max(0, v.rise - dt);
-        v.hit = Math.max(0, v.hit - dt);
-        const shake = v.hit > 0 && dt > 0 ? (wood ? 0.06 : 0.035) : 0;
-        v.group.position.set(o.x + rand(-shake, shake), -1.4 * (v.rise / 0.45), o.z + rand(-shake, shake));
-      } else {
-        v.group.visible = true;
-        const p = pos(o);
-        v.group.position.set(p.x, 0, p.z);
-        v.group.rotation.y = o.spin;
+      const k = Math.max(0, o.hp / o.maxHp);
+      v.hit = Math.max(0, v.hit - dt);
+      if (o.kind === "crate") {
+        // Held overhead by a champion, or on the floor.
+        const holder = o.heldBy >= 0 ? state.units.find((u) => u.id === o.heldBy) : undefined;
+        v.group.visible = o.alive || !!holder;
+        if (!v.group.visible) continue;
+        const p = holder ? pos(holder) : pos(o);
+        v.group.position.set(p.x, holder ? HELD_HEIGHT + Math.sin(time * 5) * 0.08 : 0, p.z);
+        v.group.rotation.y = o.spin + (holder ? time * 1.5 : 0);
+        v.mat?.color.copy(WOOD_FRESH).lerp(WOOD_WORN, (1 - k) * 0.8);
+        continue;
       }
+      v.group.visible = o.alive;
+      if (!o.alive) continue;
+      const wood = o.kind === "wood";
+      if (wood) v.group.scale.y = 0.6 + 0.4 * k;
+      if (o.kind === "wall") v.mat?.color.copy(WALL_FRESH).lerp(WALL_WORN, 1 - k);
+      else v.mat?.color.copy(wood ? WOOD_FRESH : STONE_FRESH).lerp(wood ? WOOD_WORN : STONE_WORN, 1 - k);
+      v.rise = Math.max(0, v.rise - dt);
+      const shake = v.hit > 0 && dt > 0 ? (wood ? 0.06 : 0.035) : 0;
+      // Rebuilt wood walls and raised stone walls come up out of the floor.
+      const sunk = o.kind === "wall" ? WALL_HEIGHT * (v.rise / WALL_RISE) : 1.4 * (v.rise / 0.45);
+      v.group.position.set(o.x + rand(-shake, shake), -sunk, o.z + rand(-shake, shake));
+    }
+    // Walls that are gone (time up, broken, burst) take their models with them.
+    for (const [id, v] of this.obstacles) {
+      if (present.has(id)) continue;
+      discard(this.group, v.group);
+      this.obstacles.delete(id);
     }
     const orb = state.orb;
     this.orb.visible = orb.alive;

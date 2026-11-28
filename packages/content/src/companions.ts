@@ -12,8 +12,6 @@ export const wisp: CompanionDef = {
   follow: { angleDeg: 137, distance: 1.7 },
   attack: {
     kind: "ranged",
-    interval: 1.3,
-    range: 8,
     projectile: {
       speed: 11.6,
       range: 10,
@@ -37,7 +35,7 @@ export const hound: CompanionDef = {
   commandSpeed: 11,
   flying: false,
   follow: { angleDeg: 137, distance: 1.7 },
-  attack: { kind: "melee", interval: 1, damage: 5, guardRange: 4, guardTime: 2.5, leash: 14 },
+  attack: { kind: "melee", interval: 1, damage: 5, leash: 14 },
   command: {
     kind: "pounce",
     maxRange: 11,
@@ -47,4 +45,41 @@ export const hound: CompanionDef = {
     searchEngageTime: 2,
   },
   color: "#c9a04a",
+};
+
+export const boulder: CompanionDef = {
+  id: "boulder",
+  name: "Boulder",
+  nameRu: "Валун",
+  hp: 80,
+  radius: 0.75,
+  moveSpeed: 6,
+  commandSpeed: 14,
+  flying: false,
+  follow: { angleDeg: 20, distance: 1.6 },
+  attack: { kind: "none" },
+  command: {
+    kind: "roll",
+    maxRange: 12,
+    bounces: 2,
+    bounceExtra: 4,
+    onHit: { damage: 14, knockback: { distance: 3, duration: 0.18 } },
+    coverTime: 4,
+  },
+  color: "#8fb86a",
+};
+
+export const moon: CompanionDef = {
+  id: "moon",
+  name: "Moon",
+  nameRu: "Луна",
+  hp: 45,
+  radius: 0.5,
+  moveSpeed: 7,
+  commandSpeed: 14,
+  flying: true,
+  follow: { angleDeg: 137, distance: 1.7 },
+  attack: { kind: "none" },
+  command: { kind: "well", maxRange: 11, duration: 3, radius: 5, unitPull: 2.6, cratePull: 10 },
+  color: "#b9a4ff",
 };

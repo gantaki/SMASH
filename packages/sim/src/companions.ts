@@ -1,32 +1,79 @@
-// Companion AI: follow the owner, attack by default, execute one command. Behaviour is driven by CompanionDef.
+// Companions. A companion is not on the field until its owner commands it: it appears beside the owner, carries the
+// command out (CompanionDef.command) and leaves. Killed while out, it cannot be summoned again for a while.
 
 import { arena, getChampion, rules, type CompanionDef } from "@smash/content";
-import { applyOnHit, hurt, moveForced, slowFactor } from "./combat.ts";
+import { applyOnHit, hurt, movable, moveForced, slowFactor } from "./combat.ts";
 import type { Ctx } from "./context.ts";
 import { nearestSafe, rimPenetration, safeAt } from "./floor.ts";
 import { clearLine, obstaclePenetration, reach } from "./geometry.ts";
 import { angleDiff, type Vec2 } from "./math.ts";
 import { spawnProjectile } from "./projectiles.ts";
-import { championById, enemiesOf, followPoint, resetCompanion, unitById, type ChampionUnit, type CompanionUnit, type Unit } from "./state.ts";
+import { championById, enemiesOf, resetCompanion, unitById, type ChampionUnit, type CompanionUnit, type Unit } from "./state.ts";
 
 // Path-finding and presentation helpers (not balance): how long to keep sliding around an obstacle, turn smoothing.
 const SLIDE_TIME = 0.6;
 const TURN_RATE = 12;
+/** A companion that has not reached its point in this many times the direct trip (plus a second) gives up: the way is cut off. */
+const GO_PATIENCE = 2;
+/** A roll covers at least this distance, however close the cursor is. */
+const ROLL_MIN = 4;
+/** How far ahead of its centre a rolling companion looks for the edge of a hole (less than the gap kept to the arena wall). */
+const ROLL_LOOK = 0.3;
+/** Extra reach when a rolling companion runs into someone. */
+const ROLL_PAD = 0.15;
+/** Things pulled by a gravity well stop this close to it. */
+const WELL_STOP = 0.8;
 
 export const companionDef = (state: Ctx["state"], c: CompanionUnit): CompanionDef => {
   const owner = championById(state, c.owner)!;
   return getChampion(owner.champion).companion!;
 };
 
+/** The command is over (or the owner is dead): the companion leaves the field unharmed. */
+function leave(ctx: Ctx, c: CompanionUnit): void {
+  c.dead = true;
+  c.forced = null;
+  c.target = -1;
+  c.vx = c.vz = 0;
+  ctx.events.push({ t: "companionLeave", unit: c.id, x: c.x, z: c.z });
+}
+
+/** Summons the companion if it is not out yet, and sends it to the aim point. */
 export function commandCompanion(ctx: Ctx, c: CompanionUnit, owner: ChampionUnit, aim: Vec2): void {
-  const def = companionDef(ctx.state, c);
-  let t = reach(owner, aim, def.command.maxRange);
-  // A walking companion sent onto a hole goes to the nearest floor instead.
-  if (!def.flying && !safeAt(ctx.state, t.x, t.z)) t = nearestSafe(ctx.state, t.x, t.z) ?? t;
-  c.mode = "go";
+  const { state } = ctx;
+  const def = companionDef(state, c);
+  const cmd = def.command;
+  if (c.dead) {
+    resetCompanion(c, owner);
+    // A walking companion does not appear over a hole.
+    if (!def.flying && !safeAt(state, c.x, c.z)) {
+      const p = safeAt(state, owner.x, owner.z) ? owner : (nearestSafe(state, owner.x, owner.z) ?? owner);
+      c.x = p.x;
+      c.z = p.z;
+    }
+    ctx.events.push({ t: "companionSummon", unit: c.id, x: c.x, z: c.z });
+  }
+  let t = reach(owner, aim, cmd.maxRange);
+  c.target = -1;
+  if (cmd.kind === "roll") {
+    // A straight line from where it is, whatever lies on it.
+    const dx = t.x - c.x;
+    const dz = t.z - c.z;
+    const d = Math.hypot(dx, dz);
+    c.rollX = d > 0.05 ? dx / d : Math.sin(owner.face);
+    c.rollZ = d > 0.05 ? dz / d : Math.cos(owner.face);
+    c.travel = Math.max(ROLL_MIN, d);
+    c.bounces = 0;
+    c.rolledOver = [];
+    c.mode = "roll";
+  } else {
+    // A walking companion sent onto a hole goes to the nearest floor instead.
+    if (!def.flying && !safeAt(state, t.x, t.z)) t = nearestSafe(state, t.x, t.z) ?? t;
+    c.mode = "go";
+    c.modeTime = (Math.hypot(t.x - c.x, t.z - c.z) / def.commandSpeed) * GO_PATIENCE + 1;
+  }
   c.tx = t.x;
   c.tz = t.z;
-  c.target = -1;
   ctx.events.push({ t: "companionCommand", unit: c.id, x: t.x, z: t.z });
 }
 
@@ -76,6 +123,83 @@ function pushOut(ctx: Ctx, c: CompanionUnit, flying: boolean): Vec2 {
   return { x: nx, z: nz };
 }
 
+/** One tick of rolling: straight on, over whoever is in the way, bouncing off anything solid. */
+function roll(ctx: Ctx, c: CompanionUnit, def: CompanionDef, enemies: Unit[]): void {
+  const cmd = def.command;
+  if (cmd.kind !== "roll") return;
+  const step = Math.min(c.travel, def.commandSpeed * ctx.state.tuning.moveSpeed * slowFactor(c) * ctx.dt);
+  // Like any walking companion it does not go off the floor by itself: at the edge of a hole it stops.
+  if (safeAt(ctx.state, c.x, c.z) && !safeAt(ctx.state, c.x + c.rollX * (step + ROLL_LOOK), c.z + c.rollZ * (step + ROLL_LOOK))) {
+    c.mode = "cover";
+    c.modeTime = cmd.coverTime;
+    return;
+  }
+  c.x += c.rollX * step;
+  c.z += c.rollZ * step;
+  c.travel -= step;
+  if (ctx.state.phase === "fight") {
+    for (const e of enemies) {
+      if (c.rolledOver.includes(e.id) || (e.kind === "champion" && e.leap)) continue;
+      if (Math.hypot(e.x - c.x, e.z - c.z) >= c.radius + e.radius + ROLL_PAD) continue;
+      c.rolledOver.push(e.id);
+      // Thrown the way the boulder rolls.
+      applyOnHit(ctx, e, cmd.onHit, c, e.x - c.rollX, e.z - c.rollZ);
+      ctx.events.push({ t: "companionAttack", unit: c.id, target: e.id, heavy: true, x: e.x, z: e.z });
+    }
+  }
+  const n = pushOut(ctx, c, false);
+  const nl = Math.hypot(n.x, n.z);
+  let stop = c.travel <= 0;
+  if (nl > 0) {
+    const ux = n.x / nl;
+    const uz = n.z / nl;
+    const into = c.rollX * ux + c.rollZ * uz;
+    if (into < 0) {
+      if (c.bounces >= cmd.bounces) stop = true;
+      else {
+        c.rollX -= 2 * into * ux;
+        c.rollZ -= 2 * into * uz;
+        c.bounces++;
+        c.travel += cmd.bounceExtra;
+        stop = false;
+        ctx.events.push({ t: "companionBounce", unit: c.id, x: c.x, z: c.z });
+      }
+    }
+  }
+  c.face = Math.atan2(c.rollX, c.rollZ);
+  if (stop) {
+    c.mode = "cover";
+    c.modeTime = cmd.coverTime;
+  }
+}
+
+/** One tick of a gravity well: enemies drift toward it, crates are flung at it. */
+function well(ctx: Ctx, c: CompanionUnit, def: CompanionDef, owner: ChampionUnit, enemies: Unit[]): void {
+  const cmd = def.command;
+  if (cmd.kind !== "well" || ctx.state.phase !== "fight") return;
+  for (const e of enemies) {
+    if (!movable(e) || (e.kind === "champion" && e.leap)) continue;
+    const dx = c.x - e.x;
+    const dz = c.z - e.z;
+    const d = Math.hypot(dx, dz);
+    if (d >= cmd.radius || d <= WELL_STOP) continue;
+    const move = Math.min(d - WELL_STOP, cmd.unitPull * ctx.dt);
+    e.x += (dx / d) * move;
+    e.z += (dz / d) * move;
+  }
+  for (const o of ctx.state.obstacles) {
+    if (o.kind !== "crate" || !o.alive) continue;
+    const dx = c.x - o.x;
+    const dz = c.z - o.z;
+    const d = Math.hypot(dx, dz);
+    if (d >= cmd.radius || d <= WELL_STOP) continue;
+    o.vx = (dx / d) * cmd.cratePull;
+    o.vz = (dz / d) * cmd.cratePull;
+    o.pusher = owner.id;
+    o.pusherTeam = owner.team;
+  }
+}
+
 export function updateCompanion(ctx: Ctx, c: CompanionUnit): void {
   const { state, dt } = ctx;
   const owner = championById(state, c.owner);
@@ -85,21 +209,10 @@ export function updateCompanion(ctx: Ctx, c: CompanionUnit): void {
 
   if (c.dead) {
     c.vx = c.vz = 0;
-    if (fight) {
-      c.respawn -= dt;
-      if (c.respawn <= 0 && !owner.dead) {
-        resetCompanion(c, owner);
-        // Not over a hole: a walking companion comes back on the nearest floor there is.
-        if (!def.flying && !safeAt(state, c.x, c.z)) {
-          const p = safeAt(state, owner.x, owner.z) ? owner : (nearestSafe(state, owner.x, owner.z) ?? owner);
-          c.x = c.tx = p.x;
-          c.z = c.tz = p.z;
-        }
-        ctx.events.push({ t: "companionRespawn", unit: c.id });
-      }
-    }
+    if (fight && c.respawn > 0) c.respawn = Math.max(0, c.respawn - dt);
     return;
   }
+  if (owner.dead) return leave(ctx, c);
   c.stun = Math.max(0, c.stun - dt);
   c.slow = Math.max(0, c.slow - dt);
   c.root = Math.max(0, c.root - dt);
@@ -127,41 +240,15 @@ export function updateCompanion(ctx: Ctx, c: CompanionUnit): void {
   let gz = c.z;
   let speed = def.moveSpeed;
   let target: Unit | undefined;
-  if (owner.dead && c.mode !== "follow") {
-    c.mode = "follow";
-    c.target = -1;
-  }
 
   switch (c.mode) {
-    case "follow": {
-      const p = followPoint(owner);
-      gx = p.x;
-      gz = p.z;
-      if (!fight || owner.dead) break;
-      if (def.attack.kind === "ranged") {
-        if (c.attackTimer <= 0) {
-          const t = nearestEnemy(ctx, c, enemies, def.attack.range, true);
-          if (t) {
-            shoot(ctx, c, def, t);
-            c.attackTimer = def.attack.interval;
-          }
-        }
-      } else {
-        const guard = def.attack;
-        const t = enemies.find((e) => e.kind === "champion" && Math.hypot(e.x - owner.x, e.z - owner.z) < guard.guardRange);
-        if (t) {
-          c.mode = "engage";
-          c.modeTime = guard.guardTime;
-          c.target = t.id;
-        }
-      }
-      break;
-    }
     case "go": {
       gx = c.tx;
       gz = c.tz;
       speed = def.commandSpeed;
       const cmd = def.command;
+      c.modeTime -= dt;
+      if (c.modeTime <= 0) return leave(ctx, c);
       if (cmd.kind === "pounce" && fight) {
         const t = enemies.find((e) => e.kind === "champion" && Math.hypot(e.x - c.x, e.z - c.z) < c.radius + e.radius + rules.companion.pounceTouchPad);
         if (t) {
@@ -171,7 +258,7 @@ export function updateCompanion(ctx: Ctx, c: CompanionUnit): void {
           c.mode = "engage";
           c.modeTime = cmd.engageTime;
           c.target = t.id;
-          c.attackTimer = def.attack.interval;
+          c.attackTimer = def.attack.kind === "melee" ? def.attack.interval : 0;
           break;
         }
       }
@@ -179,7 +266,11 @@ export function updateCompanion(ctx: Ctx, c: CompanionUnit): void {
         if (cmd.kind === "sentry") {
           c.mode = "sentry";
           c.modeTime = cmd.duration;
-        } else {
+        } else if (cmd.kind === "well") {
+          c.mode = "well";
+          c.modeTime = cmd.duration;
+          ctx.events.push({ t: "companionWell", unit: c.id, x: c.x, z: c.z, radius: cmd.radius, duration: cmd.duration });
+        } else if (cmd.kind === "pounce") {
           const t = nearestEnemy(
             ctx,
             c,
@@ -187,12 +278,11 @@ export function updateCompanion(ctx: Ctx, c: CompanionUnit): void {
             cmd.searchRange,
             false,
           );
-          if (t) {
-            c.mode = "engage";
-            c.modeTime = cmd.searchEngageTime;
-            c.target = t.id;
-          } else c.mode = "follow";
-        }
+          if (!t) return leave(ctx, c);
+          c.mode = "engage";
+          c.modeTime = cmd.searchEngageTime;
+          c.target = t.id;
+        } else return leave(ctx, c);
       }
       break;
     }
@@ -208,19 +298,14 @@ export function updateCompanion(ctx: Ctx, c: CompanionUnit): void {
           c.attackTimer = cmd.interval;
         }
       }
-      if (c.modeTime <= 0) c.mode = "follow";
+      if (c.modeTime <= 0) return leave(ctx, c);
       break;
     }
     case "engage": {
       target = c.target >= 0 ? unitById(state, c.target) : undefined;
       c.modeTime -= dt;
       const leash = def.attack.kind === "melee" ? def.attack.leash : Infinity;
-      if (!target || target.dead || c.modeTime <= 0 || Math.hypot(c.x - owner.x, c.z - owner.z) > leash) {
-        c.mode = "follow";
-        c.target = -1;
-        target = undefined;
-        break;
-      }
+      if (!target || target.dead || c.modeTime <= 0 || Math.hypot(c.x - owner.x, c.z - owner.z) > leash) return leave(ctx, c);
       gx = target.x;
       gz = target.z;
       speed = def.moveSpeed * rules.companion.engageSpeedFactor;
@@ -231,6 +316,22 @@ export function updateCompanion(ctx: Ctx, c: CompanionUnit): void {
       }
       break;
     }
+    case "roll":
+      roll(ctx, c, def, enemies);
+      finish();
+      return;
+    case "cover":
+      c.modeTime -= dt;
+      if (c.modeTime <= 0) return leave(ctx, c);
+      pushOut(ctx, c, def.flying);
+      finish();
+      return;
+    case "well":
+      c.modeTime -= dt;
+      well(ctx, c, def, owner, enemies);
+      if (c.modeTime <= 0) return leave(ctx, c);
+      finish();
+      return;
   }
 
   let stepLen = 0;
@@ -266,7 +367,7 @@ export function updateCompanion(ctx: Ctx, c: CompanionUnit): void {
   if (c.slideTime > 0) c.slideTime -= dt;
 
   // A walking companion never steps off the floor by itself (it can still be thrown off, or have the floor drop
-  // from under it). It walks along the edge of the hole until the way is clear, or waits there.
+  // from under it). It walks along the edge of the hole until the way is clear, or gives up there.
   if (!def.flying && !safeAt(state, c.x, c.z) && safeAt(state, ox, oz)) {
     c.x = ox;
     c.z = oz;
@@ -282,7 +383,7 @@ export function updateCompanion(ctx: Ctx, c: CompanionUnit): void {
       }
     }
     // A command to a spot it cannot reach ends at the edge.
-    if (c.mode === "go" && c.x === ox && c.z === oz) c.mode = "follow";
+    if (c.mode === "go" && c.x === ox && c.z === oz) return leave(ctx, c);
   }
 
   const mx = c.x - ox;

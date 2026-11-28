@@ -77,17 +77,25 @@ export function App() {
     game.current?.setPing(online.pingMs);
   }, [online.pingMs, run]);
 
-  const opponent = playableChampions.find((c) => c.id !== champion)?.id ?? champion;
   const isOnlineMatch = screen !== "menu" && online.activeMatch !== null;
   const gameMode: GameMode = screen === "menu" ? "demo" : isOnlineMatch ? "online" : mode === "online" ? "duel" : mode;
 
   useEffect(() => {
     if (!canvas.current || !overlay.current || !hud.current) return;
     const active = isOnlineMatch ? online.activeMatch : null;
+    // Bots play someone else from the roster, drawn afresh for every match (without repeats while there are enough).
+    const others = playableChampions.map((c) => c.id).filter((id) => id !== champion);
+    for (let i = others.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [others[i], others[j]] = [others[j]!, others[i]!];
+    }
+    const pick = (i: number) => others[i % Math.max(1, others.length)] ?? champion;
     const g = new Game({
       mode: gameMode,
       champion,
-      opponent,
+      opponent: pick(0),
+      ally: pick(2),
+      opponent2: pick(1),
       difficulty,
       canvas: canvas.current,
       overlay: overlay.current,

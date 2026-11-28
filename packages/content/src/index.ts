@@ -1,16 +1,18 @@
 import { dummy } from "./champions/dummy.ts";
 import { ember } from "./champions/ember.ts";
 import { fang } from "./champions/fang.ts";
+import { rook } from "./champions/rook.ts";
+import { tide } from "./champions/tide.ts";
 import type { Ability, Champion } from "./types.ts";
 
 export * from "./types.ts";
 export { arena, rules, defaultTuning } from "./arena.ts";
 export { botDifficulty, BOT_DIFFICULTIES, training } from "./bots.ts";
-export { wisp, hound } from "./companions.ts";
-export { ember, fang, dummy };
+export { wisp, hound, boulder, moon } from "./companions.ts";
+export { ember, fang, rook, tide, dummy };
 
 /** Register a new champion here; everything else (sim, bots, UI) picks it up from this map. */
-export const champions = { ember, fang, dummy } satisfies Record<string, Champion>;
+export const champions = { ember, fang, rook, tide, dummy } satisfies Record<string, Champion>;
 
 export type ChampionId = keyof typeof champions;
 

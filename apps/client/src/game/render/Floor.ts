@@ -7,8 +7,8 @@ import { arena } from "@smash/content";
 import { floorTiles, rimArc, type FloorTile, type MatchState } from "@smash/sim";
 import { G, TAU, rand, std } from "./gfx.ts";
 
-/** How thick the slabs are, and how far below the walking surface the rim's foundation goes. */
-export const FLOOR_DEPTH = 0.6;
+/** How thick the slabs are (thick enough to read as a slab from above when a neighbour is gone), and how far down the rim's foundation goes. */
+export const FLOOR_DEPTH = 1.1;
 const TEXTURE_SIZE = 1024;
 /** Arc segments are at most this wide, so tile edges follow the rings. */
 const ARC_STEP = (6 * Math.PI) / 180;
@@ -18,7 +18,8 @@ const GONE_BELOW = -70;
 const RIM_BLOCKS = 2;
 const RIM_FRESH = new THREE.Color(0xffffff);
 const RIM_WORN = new THREE.Color(0x6b3a22);
-const SIDE: [number, number, number] = [0.42, 0.34, 0.3];
+/** Tint of a slab's cut faces: lighter than the abyss below, so the thickness shows at the edge of a hole. */
+const SIDE: [number, number, number] = [0.62, 0.5, 0.42];
 const HOT = new THREE.Color(0xff5a1f);
 
 /** What a tile looks like right now: 0–3 = standing, more cracked as health goes; then about to drop; then gone. */
@@ -188,13 +189,13 @@ function paintCracks(g: CanvasRenderingContext2D, t: FloorTile, index: number, l
       z += Math.sin(a) * reach * 0.22;
       g.lineTo(x, z);
     }
-    g.strokeStyle = "rgba(20,8,3,.9)";
-    g.lineWidth = 1.5 + level * 0.9;
+    g.strokeStyle = "rgba(20,8,3,.85)";
+    g.lineWidth = 0.9 + level * 0.45;
     g.stroke();
     if (level >= 3) {
       // About to give: the abyss glows through.
-      g.strokeStyle = "rgba(255,120,40,.5)";
-      g.lineWidth = 1.2;
+      g.strokeStyle = "rgba(255,120,40,.45)";
+      g.lineWidth = 0.7;
       g.stroke();
     }
   }

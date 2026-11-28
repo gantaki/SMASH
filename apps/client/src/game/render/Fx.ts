@@ -3,7 +3,7 @@
 
 import * as THREE from "three";
 import { abilityById, getChampion, type Ability } from "@smash/content";
-import { reach, type ChampionUnit, type GroundEffect, type MatchState, type Projectile } from "@smash/sim";
+import { liftTarget, reach, swapTarget, type ChampionUnit, type GroundEffect, type MatchState, type Projectile } from "@smash/sim";
 import { ALLY, FOE, G, basic, discard, keep, rgb, sector, type RGB } from "./gfx.ts";
 import type { Particles } from "./Particles.ts";
 
@@ -56,6 +56,10 @@ export class Fx {
   private readonly grounds = new Map<number, GroundView>();
   private readonly casts = new Map<number, CastView>();
   private readonly leaps = new Map<number, AreaView>();
+  /** Bracing champions (the burst to come), Colosseums and gravity wells: areas that last a while. */
+  private readonly braces = new Map<number, AreaView>();
+  private readonly arenas = new Map<number, AreaView>();
+  private readonly wells = new Map<number, AreaView>();
   private readonly channels = new Map<number, AreaView>();
   private readonly flash = new THREE.PointLight(0xffa050, 0, 22, 1.6);
   private flashT = 0;
@@ -93,6 +97,16 @@ export class Fx {
     const m = new THREE.Mesh(G.circle, basic(color, opacity, true));
     m.position.set(x, 0.06, z);
     this.transient(m, dur, r, r, false);
+  }
+
+  /** A strip on the ground from one point to another: shows exactly where a line ability struck. */
+  line(x0: number, z0: number, x1: number, z1: number, halfWidth: number, color: THREE.ColorRepresentation, dur = 0.35, opacity = 0.6): void {
+    const length = Math.hypot(x1 - x0, z1 - z0);
+    const geo = new THREE.PlaneGeometry(halfWidth * 2, length).rotateX(-Math.PI / 2).translate(0, 0, length / 2);
+    const m = new THREE.Mesh(geo, basic(color, opacity, true));
+    m.position.set(x0, 0.065, z0);
+    m.rotation.y = Math.atan2(x1 - x0, z1 - z0);
+    this.transient(m, dur, 1, 1, false);
   }
 
   /** Dark burn mark left on the floor. */
@@ -243,6 +257,47 @@ export class Fx {
       fill.position.y = 0.005;
       group.add(base, edge, fill);
       progress = fill;
+    } else if (a.kind === "ring") {
+      // Where the ring of walls will stand.
+      const edge = new THREE.Mesh(G.band, basic(team, 0.8));
+      edge.scale.setScalar(a.radius + a.halfDepth);
+      const fill = new THREE.Mesh(G.ring, basic(a.color, 0.9, true));
+      fill.position.y = 0.005;
+      group.add(edge, fill);
+      progress = fill;
+    } else if (a.kind === "line") {
+      const w = a.halfWidth * 2;
+      const base = new THREE.Mesh(G.line, basic(team, 0.2));
+      base.scale.set(w, 1, a.range);
+      const fill = new THREE.Mesh(G.line, basic(a.color, 0.5, true));
+      fill.scale.set(w, 1, 0.01);
+      fill.position.y = 0.005;
+      for (const sx of [-1, 1]) {
+        const side = new THREE.Mesh(G.line, basic(team, 0.7));
+        side.scale.set(0.06, 1, a.range);
+        side.position.set((sx * w) / 2, 0.008, 0);
+        group.add(side);
+      }
+      group.add(base, fill);
+      progress = fill;
+    } else if (a.kind === "wall") {
+      // The footprint of the wall: across the line of aim.
+      const base = new THREE.Mesh(G.line, basic(team, 0.75));
+      base.scale.set(a.halfWidth * 2, 1, a.halfDepth * 2);
+      base.position.z = -a.halfDepth;
+      const fill = new THREE.Mesh(G.line, basic(a.color, 0.8, true));
+      fill.scale.set(0.01, 1, a.halfDepth * 2);
+      fill.position.set(0, 0.005, -a.halfDepth);
+      group.add(base, fill);
+      progress = fill;
+    } else if (a.kind === "swap" || a.kind === "lift") {
+      // A ring around what will be swapped with or picked up.
+      const edge = new THREE.Mesh(G.band, basic(team, 0.9));
+      edge.scale.setScalar(1.1);
+      const fill = new THREE.Mesh(G.circle, basic(a.color, 0.45, true));
+      fill.position.y = 0.005;
+      group.add(edge, fill);
+      progress = fill;
     } else return null;
     this.group.add(group);
     return { group, abilityId: a.id, progress, kind: a.kind };
@@ -370,14 +425,25 @@ export class Fx {
         if (v && a) {
           seen.add(u.id);
           const k = 1 - u.cast.time / u.cast.total;
-          if (a.kind === "groundAoe") {
+          if (a.kind === "groundAoe" || a.kind === "ring") {
             const t = reach(u, u.aim, a.maxRange);
             v.group.position.set(t.x, 0.04, t.z);
             v.progress.scale.setScalar(Math.max(0.01, a.radius * k));
+          } else if (a.kind === "wall") {
+            const t = reach(u, u.aim, a.maxRange);
+            v.group.position.set(t.x, 0.04, t.z);
+            v.group.rotation.y = Math.atan2(t.x - u.x, t.z - u.z);
+            v.progress.scale.x = Math.max(0.01, a.halfWidth * 2 * k);
+          } else if (a.kind === "swap" || a.kind === "lift") {
+            const found = a.kind === "swap" ? swapTarget(state, u, a) : null;
+            const t = a.kind === "lift" ? liftTarget(state, u, a) : (found?.unit ?? found?.obstacle ?? null);
+            v.group.visible = !!t;
+            if (t) v.group.position.set(t.x, 0.04, t.z);
+            v.progress.scale.setScalar(Math.max(0.01, 1.1 * k));
           } else {
             v.group.position.set(p.x, 0.04, p.z);
             v.group.rotation.y = Math.atan2(u.aim.x - u.x, u.aim.z - u.z);
-            if (a.kind === "projectile") v.progress.scale.z = Math.max(0.01, a.range * k);
+            if (a.kind === "projectile" || a.kind === "line") v.progress.scale.z = Math.max(0.01, a.range * k);
             else if (a.kind === "cone") v.progress.scale.setScalar(Math.max(0.01, a.range * k));
           }
         }
@@ -406,6 +472,49 @@ export class Fx {
     this.prune(this.casts, seen);
     this.prune(this.leaps, leaping);
     this.prune(this.channels, channelling);
+
+    // Bracing: the area that will be thrown back, filling up as the moment comes.
+    seen.clear();
+    for (const u of state.units) {
+      if (u.kind !== "champion" || u.dead || !u.brace) continue;
+      const a = getChampion(u.champion).abilities[u.brace.slot];
+      if (a?.kind !== "brace") continue;
+      seen.add(u.id);
+      let v = this.braces.get(u.id);
+      if (!v) this.braces.set(u.id, (v = this.makeArea(a.radius, u.team, a.color, true)));
+      const p = pos(u);
+      v.group.position.set(p.x, 0.035, p.z);
+      v.fill?.scale.setScalar(Math.max(0.01, a.radius * (1 - u.brace.time / a.duration)));
+    }
+    this.prune(this.braces, seen);
+
+    // Colosseums: the ground inside is marked for as long as slams hit harder there.
+    seen.clear();
+    for (const z of state.arenas) {
+      seen.add(z.id);
+      let v = this.arenas.get(z.id);
+      const owner = state.units.find((u) => u.id === z.owner);
+      const champ = owner?.kind === "champion" ? getChampion(owner.champion) : undefined;
+      if (!v) this.arenas.set(z.id, (v = this.makeArea(z.radius, owner?.team ?? 0, champ?.color ?? "#ffffff", false)));
+      v.group.position.set(z.x, 0.035, z.z);
+    }
+    this.prune(this.arenas, seen);
+
+    // Gravity wells: a turning ring as wide as the pull.
+    seen.clear();
+    for (const c of state.units) {
+      if (c.kind !== "companion" || c.dead || c.mode !== "well") continue;
+      const owner = state.units.find((u) => u.id === c.owner);
+      const def = owner?.kind === "champion" ? getChampion(owner.champion).companion : undefined;
+      if (def?.command.kind !== "well") continue;
+      seen.add(c.id);
+      let v = this.wells.get(c.id);
+      if (!v) this.wells.set(c.id, (v = this.makeArea(def.command.radius, c.team, def.color, true)));
+      v.group.position.set(c.x, 0.035, c.z);
+      // The fill breathes inward: things are being pulled to the middle.
+      v.fill?.scale.setScalar(def.command.radius * (1 - ((time * 0.9) % 1)));
+    }
+    this.prune(this.wells, seen);
   }
 
   clear(): void {
@@ -417,6 +526,9 @@ export class Fx {
     this.prune(this.casts, none);
     this.prune(this.leaps, none);
     this.prune(this.channels, none);
+    this.prune(this.braces, none);
+    this.prune(this.arenas, none);
+    this.prune(this.wells, none);
   }
 }
 

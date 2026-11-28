@@ -16,7 +16,13 @@ const onHits = (a: Ability): OnHit[] => {
     case "projectile":
     case "groundAoe":
     case "nova":
+    case "brace":
       return [a.onHit];
+    case "line":
+      return a.shatter ? [a.onHit, a.shatter.onHit] : [a.onHit];
+    case "dash":
+      // Carrying the target along is a knockback in everything but name.
+      return [{ ...a.onHit, knockback: { distance: a.carry.beyond, duration: a.duration } }];
     case "cone":
       return a.empoweredOnHit ? [a.onHit, a.empoweredOnHit] : [a.onHit];
     case "leap":
@@ -53,8 +59,8 @@ describe("champion content", () => {
         const q = c.abilities.q!;
         const e = c.abilities.e!;
         // New defensive or offensive ability kinds get added to these lists together with the kind.
-        expect(q.kind === "counter" || (q.kind === "nova" && q.shield !== undefined), q.id).toBe(true);
-        expect(e.kind === "cone" || e.kind === "groundAoe" || e.kind === "nova", e.id).toBe(true);
+        expect(q.kind === "counter" || (q.kind === "nova" && q.shield !== undefined) || q.kind === "brace" || q.kind === "hover", q.id).toBe(true);
+        expect(e.kind === "cone" || e.kind === "groundAoe" || e.kind === "nova" || e.kind === "line", e.id).toBe(true);
       });
 
       it("can move an enemy: at least one ability knocks back or pulls (knockback is the core mechanic, §2.3)", () => {
@@ -142,6 +148,7 @@ describe("arena", () => {
           expect(a.floorDamage, a.id).toBeGreaterThan(0);
           expect(arena.floor.crumbleTime, a.id).toBeGreaterThan((a.onHit.stun ?? 0) + a.radius / slowest);
         }
+        if (a?.kind === "line") expect(a.floorDamage, a.id).toBeGreaterThan(0);
         if (a?.kind === "leap") {
           expect(a.landing.floorDamage, a.id).toBeGreaterThan(0);
           // The one who lands has to get off it too.

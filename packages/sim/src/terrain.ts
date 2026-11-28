@@ -7,9 +7,9 @@ import type { Ctx } from "./context.ts";
 import { rimArc, solidAt } from "./floor.ts";
 import { championById, type Unit } from "./state.ts";
 
-/** Units that the floor does not concern right now: in the air mid-leap, or a flying companion. */
+/** Units that the floor does not concern right now: in the air mid-leap, floating, or a flying companion. */
 function airborne(ctx: Ctx, u: Unit): boolean {
-  if (u.kind === "champion") return !!u.leap;
+  if (u.kind === "champion") return !!u.leap || u.hover > 0;
   const owner = championById(ctx.state, u.owner);
   return !!owner && !!getChampion(owner.champion).companion?.flying;
 }
@@ -43,7 +43,7 @@ export function updateTerrain(ctx: Ctx): void {
 
   // Pillars and walls drop with the tile under their centre; a crate also when it slides over a hole or out through a gap.
   for (const o of state.obstacles) {
-    if (o.fallen || solidAt(state, o.x, o.z)) continue;
+    if (o.fallen || o.heldBy >= 0 || solidAt(state, o.x, o.z)) continue;
     // A wood wall that is already broken cannot be rebuilt over a hole, but there is nothing left to fall.
     const standing = o.alive;
     o.fallen = true;

@@ -20,6 +20,7 @@ Every branch gets a stable preview alias that follows its latest push. Short bra
 
 **Status:** M1 done; **M2 online 1v1 prototype (WebRTC P2P)** is playable in the browser (create/join `/r/CODE`, host-authoritative 60 Hz sim + 20 Hz snapshots + Guest prediction/reconciliation, rematch, ping). See [`docs/adr/0003-webrtc-p2p-prototype.md`](docs/adr/0003-webrtc-p2p-prototype.md).
 Next: full **M2** dedicated server (`apps/server`) / binary protocol if needed.
+Four champions (Ember, Fang, Rook, Tide), **2v2 with bots**, companions that are summoned by their command ([`docs/adr/0005-player-slots-and-summoned-companions.md`](docs/adr/0005-player-slots-and-summoned-companions.md)).
 Also in: the **destructible arena** (floor tiles, wall sections, pillars; a fall into the abyss under the arena is death): [`docs/GAME_DESIGN.md`](docs/GAME_DESIGN.md) §2.4, [`docs/adr/0004-destructible-arena.md`](docs/adr/0004-destructible-arena.md).
 
 ## Quick start
@@ -31,7 +32,7 @@ pnpm install
 pnpm dev          # client on http://localhost:5173, server on ws://localhost:2567
 ```
 
-Open the client, pick a champion from the tiles on the left, pick a mode in the bar at the bottom — **С ботом** (duel vs a bot), **Онлайн** (create a room or share `/r/CODE` over WebRTC P2P) or **Тренировка** (practice range) — and press the big button. Controls and arena rules are under **Как играть**.
+Open the client, pick a champion from the tiles on the left, pick a mode in the bar at the bottom — **С ботом** (duel vs a bot), **2 на 2** (you and a bot against two bots), **Онлайн** (create a room or share `/r/CODE` over WebRTC P2P) or **Тренировка** (practice range) — and press the big button. Controls and arena rules are under **Как играть**.
 
 | Command | What it does |
 |---|---|

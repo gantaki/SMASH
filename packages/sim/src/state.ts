@@ -32,10 +32,16 @@ export interface PlayerSetup {
 export interface MatchConfig {
   seed: number;
   mode: MatchMode;
-  /** Index = team. */
-  players: readonly [PlayerSetup, PlayerSetup];
+  /**
+   * Two players are a duel, four are 2v2. Players alternate teams: even indices are team 0, odd ones team 1,
+   * so in a duel the index is the team. A player's index is its `slot`: inputs and bot state are indexed by it.
+   */
+  players: readonly PlayerSetup[];
   tuning?: Partial<Tuning>;
 }
+
+/** The team a player slot belongs to. */
+export const teamOfSlot = (slot: number): Team => (slot % 2) as Team;
 
 /** One tick of input for a human-controlled champion. Bots produce the same structure. */
 export interface PlayerInput {
@@ -100,6 +106,8 @@ export interface ChampionUnit extends UnitBase {
   kind: "champion";
   champion: string;
   controller: Controller;
+  /** Index of this champion's player in config.players. */
+  slot: number;
   /** Id of this champion's companion unit, or -1. */
   companion: number;
   energy: number;
@@ -118,6 +126,15 @@ export interface ChampionUnit extends UnitBase {
   cancelLock: number;
   channel: { slot: AbilitySlot; time: number; tick: number } | null;
   leap: { slot: AbilitySlot; x0: number; z0: number; x1: number; z1: number; t: number; duration: number } | null;
+  /** A charge along the ground in progress. `hit`: it has already caught someone. */
+  dash: { slot: AbilitySlot; vx: number; vz: number; time: number; hit: boolean } | null;
+  /** Braced: takes no damage and no crowd control, cannot move; bursts when the time runs out. */
+  brace: { slot: AbilitySlot; time: number } | null;
+  /** Seconds of floating left: no knockback, no pull, no falling, no casting. */
+  hover: number;
+  hoverSlot: AbilitySlot | null;
+  /** The obstacle (a crate) held overhead and the seconds left before it is put down. */
+  held: { id: number; time: number } | null;
   burn: number;
   burnDps: number;
   burnTick: number;
@@ -135,8 +152,13 @@ export interface ChampionUnit extends UnitBase {
   deadTime: number;
 }
 
-export type CompanionMode = "follow" | "go" | "sentry" | "engage";
+/** What a summoned companion is doing. (One that is not on the field has `dead` set.) */
+export type CompanionMode = "go" | "sentry" | "engage" | "roll" | "cover" | "well";
 
+/**
+ * A companion is on the field only while it carries out a command. `dead` means "not on the field": not summoned
+ * yet, sent away when the command was over, or killed, in which case `respawn` counts down until it can be summoned again.
+ */
 export interface CompanionUnit extends UnitBase {
   kind: "companion";
   def: string;
@@ -152,6 +174,12 @@ export interface CompanionUnit extends UnitBase {
   slideTime: number;
   slideDir: number;
   riftTick: number;
+  /** Rolling: direction, meters left, bounces made, and the units already run over. */
+  rollX: number;
+  rollZ: number;
+  travel: number;
+  bounces: number;
+  rolledOver: number[];
 }
 
 export type Unit = ChampionUnit | CompanionUnit;
@@ -190,8 +218,11 @@ export interface GroundEffect {
   delay: number;
   t: number;
   onHit: OnHit;
-  /** Damage to the floor tiles inside the blast. */
+  /** Damage to the floor tiles within floorRadius of the centre. */
   floorDamage: number;
+  floorRadius: number;
+  /** Speed at which enemies inside are dragged to the centre while the marker is on the ground. */
+  drag: number;
   cratePush: number;
   falling: boolean;
   abilityId: string;
@@ -199,7 +230,8 @@ export interface GroundEffect {
 
 export interface Obstacle {
   id: number;
-  kind: "stone" | "wood" | "crate";
+  /** "wall": raised by an ability, stands for `temp` seconds. */
+  kind: "stone" | "wood" | "crate" | "wall";
   shape: "circle" | "box";
   x: number;
   z: number;
@@ -222,6 +254,23 @@ export interface Obstacle {
   pusher: number;
   pusherTeam: Team | -1;
   spin: number;
+  /** Raised walls: seconds left to stand, the champion who raised it and the ability it came from. -1 / "" for the arena's own obstacles. */
+  temp: number;
+  owner: number;
+  source: string;
+  /** Champion holding this crate overhead, or -1. A held crate is off the field (`alive` is false) until thrown or put down. */
+  heldBy: number;
+}
+
+/** A Colosseum: while it stands, slams inside its radius hit harder. */
+export interface ArenaZone {
+  id: number;
+  owner: number;
+  x: number;
+  z: number;
+  radius: number;
+  time: number;
+  slamMultiplier: number;
 }
 
 export interface Orb {
@@ -296,7 +345,9 @@ export interface MatchState {
   orb: Orb;
   suddenDeath: { active: boolean; startedAt: number; zoneRadius: number; pairsSpawned: number; nextRiftAt: number };
   rifts: Rift[];
-  bots: [BotState, BotState];
+  arenas: ArenaZone[];
+  /** Bot scratch data, by player slot. */
+  bots: BotState[];
   training: { dummyMoves: boolean; dummyDir: 1 | -1; dummyTime: number };
   nextId: number;
   rng: number;
@@ -358,6 +409,11 @@ export function resetChampion(u: ChampionUnit, x: number, z: number, face: numbe
     cancelLock: 0,
     channel: null,
     leap: null,
+    dash: null,
+    brace: null,
+    hover: 0,
+    hoverSlot: null,
+    held: null,
     burn: 0,
     burnDps: 0,
     burnTick: 0,
@@ -374,7 +430,8 @@ export function resetChampion(u: ChampionUnit, x: number, z: number, face: numbe
   } satisfies Partial<ChampionUnit>);
 }
 
-export function resetCompanion(c: CompanionUnit, owner: ChampionUnit): void {
+/** Puts a companion beside its owner with full health, ready for a command. `away`: not on the field (see CompanionUnit). */
+export function resetCompanion(c: CompanionUnit, owner: ChampionUnit, away = false): void {
   const def = getChampion(owner.champion).companion!;
   const p = followPoint(owner);
   Object.assign(c, {
@@ -386,7 +443,7 @@ export function resetCompanion(c: CompanionUnit, owner: ChampionUnit): void {
     hp: def.hp,
     maxHp: def.hp,
     radius: def.radius,
-    dead: false,
+    dead: away,
     stun: 0,
     slow: 0,
     slowAmount: 0,
@@ -395,7 +452,7 @@ export function resetCompanion(c: CompanionUnit, owner: ChampionUnit): void {
     root: 0,
     forced: null,
     respawn: 0,
-    mode: "follow",
+    mode: "go",
     modeTime: 0,
     tx: p.x,
     tz: p.z,
@@ -404,6 +461,11 @@ export function resetCompanion(c: CompanionUnit, owner: ChampionUnit): void {
     slideTime: 0,
     slideDir: 1,
     riftTick: 0,
+    rollX: 0,
+    rollZ: 0,
+    travel: 0,
+    bounces: 0,
+    rolledOver: [],
   } satisfies Partial<CompanionUnit>);
 }
 
@@ -431,6 +493,10 @@ function buildObstacles(nextId: () => number): Obstacle[] {
       pusher: -1,
       pusherTeam: -1,
       spin: 0,
+      temp: -1,
+      owner: -1,
+      source: "",
+      heldBy: -1,
     };
     if (o.kind === "wood") {
       base.halfWidth = o.halfWidth;
@@ -440,7 +506,7 @@ function buildObstacles(nextId: () => number): Obstacle[] {
       base.radius = Math.hypot(o.halfWidth, o.halfDepth);
     } else {
       base.radius = o.radius;
-      if (o.kind === "stone") base.hp = base.maxHp = o.hp;
+      base.hp = base.maxHp = o.hp;
     }
     return base;
   });
@@ -452,21 +518,22 @@ export const newRim = (): number[] => Array.from({ length: arena.rim.segments },
 export function createMatch(config: MatchConfig): MatchState {
   let id = 0;
   const nextId = () => ++id;
+  if (config.players.length !== 2 && config.players.length !== 4) throw new Error("A match has two players (a duel) or four (2v2)");
+  if (config.mode === "training" && config.players.length !== 2) throw new Error("The training range is for two");
   const units: Unit[] = [];
   const champs: ChampionUnit[] = [];
-  for (const team of [0, 1] as const) {
-    const setup = config.players[team];
+  config.players.forEach((setup, slot) => {
     getChampion(setup.champion); // throws on an unknown id
-    const u = { id: nextId(), kind: "champion", team, champion: setup.champion, controller: setup.controller, companion: -1 } as ChampionUnit;
+    const u = { id: nextId(), kind: "champion", team: teamOfSlot(slot), slot, champion: setup.champion, controller: setup.controller, companion: -1 } as ChampionUnit;
     resetChampion(u, 0, 0, 0);
     champs.push(u);
     units.push(u);
-  }
+  });
   for (const owner of champs) {
     const def = getChampion(owner.champion).companion;
     if (!def) continue;
     const c = { id: nextId(), kind: "companion", team: owner.team, def: def.id, owner: owner.id } as CompanionUnit;
-    resetCompanion(c, owner);
+    resetCompanion(c, owner, true);
     owner.companion = c.id;
     units.push(c);
   }
@@ -491,7 +558,8 @@ export function createMatch(config: MatchConfig): MatchState {
     orb: { alive: false, x: 0, z: 0, radius: arena.orb.radius, hp: 0, maxHp: arena.orb.hp, nextAt: arena.orb.spawnAt, lastHitter: -1 },
     suddenDeath: { active: false, startedAt: 0, zoneRadius: arena.radius, pairsSpawned: 0, nextRiftAt: 0 },
     rifts: [],
-    bots: [newBotState(), newBotState()],
+    arenas: [],
+    bots: config.players.map(() => newBotState()),
     training: { dummyMoves: false, dummyDir: 1, dummyTime: training.dummy.strafeInterval },
     nextId: id + 1,
     rng: config.seed >>> 0,
@@ -506,17 +574,23 @@ export function startRound(state: MatchState): void {
   state.projectiles = [];
   state.grounds = [];
   state.rifts = [];
-  for (const u of state.units) {
-    if (u.kind !== "champion") continue;
+  const all = champions(state);
+  for (const u of all) {
     const spawn = isTraining && u.controller === "dummy" ? training.dummy.spawn : arena.spawns[u.team];
+    // Team-mates stand side by side.
+    const mates = all.filter((m) => m.team === u.team);
+    const offset = (mates.indexOf(u) - (mates.length - 1) / 2) * arena.spawnSpread;
     // Team 0 spawns at +z and looks toward -z.
-    resetChampion(u, spawn.x, spawn.z, u.team === 0 ? Math.PI : 0);
+    resetChampion(u, spawn.x + offset, spawn.z, u.team === 0 ? Math.PI : 0);
   }
   for (const u of state.units) {
     if (u.kind !== "companion") continue;
     const owner = state.units.find((o) => o.id === u.owner) as ChampionUnit;
-    resetCompanion(u, owner);
+    resetCompanion(u, owner, true);
   }
+  // Walls raised during the round are gone.
+  state.obstacles = state.obstacles.filter((o) => o.kind !== "wall");
+  state.arenas = [];
   state.floor = newFloor();
   state.rim = newRim();
   for (const o of state.obstacles) {
@@ -529,6 +603,7 @@ export function startRound(state: MatchState): void {
     o.vx = o.vz = 0;
     o.pusher = -1;
     o.pusherTeam = -1;
+    o.heldBy = -1;
     o.spin = (o.homeX * 7 + o.homeZ * 3) % (Math.PI * 2);
   }
   state.orb.alive = false;
@@ -536,7 +611,7 @@ export function startRound(state: MatchState): void {
   state.orb.nextAt = arena.orb.spawnAt;
   state.orb.lastHitter = -1;
   state.suddenDeath = { active: false, startedAt: 0, zoneRadius: arena.radius, pairsSpawned: 0, nextRiftAt: 0 };
-  state.bots = [newBotState(), newBotState()];
+  state.bots = state.config.players.map(() => newBotState());
   state.roundTime = 0;
   state.lastCount = 0;
   if (isTraining) {
@@ -559,8 +634,13 @@ export const championById = (state: MatchState, id: number): ChampionUnit | unde
 
 export const champions = (state: MatchState): ChampionUnit[] => state.units.filter((u): u is ChampionUnit => u.kind === "champion");
 
+/** The first champion of a team: in a duel, the only one. */
 export const championOfTeam = (state: MatchState, team: Team): ChampionUnit =>
   state.units.find((u): u is ChampionUnit => u.kind === "champion" && u.team === team)!;
+
+/** The champion of a player slot. */
+export const championOfSlot = (state: MatchState, slot: number): ChampionUnit =>
+  state.units.find((u): u is ChampionUnit => u.kind === "champion" && u.slot === slot)!;
 
 export const companionOf = (state: MatchState, owner: ChampionUnit): CompanionUnit | undefined => {
   const u = owner.companion >= 0 ? unitById(state, owner.companion) : undefined;

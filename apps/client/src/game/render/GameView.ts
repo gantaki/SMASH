@@ -34,7 +34,7 @@ const CAMERA = { fov: 45, height: 26, back: 12.5, lookAhead: 0.28, lookAheadMax:
 const SPINE_PX_PER_M = 175;
 const TELEPORT_DISTANCE = 3;
 /** How tall obstacles are, for ragdolls flying over or into them (matches the meshes in World.ts). */
-const OBSTACLE_HEIGHT = { stone: 3.3, wood: 1.4, crate: 1.1 } as const;
+const OBSTACLE_HEIGHT = { stone: 3.3, wood: 1.4, crate: 1.1, wall: 1.7 } as const;
 const RIM = { height: 1.2, thickness: 1, standsGap: 7.2 } as const;
 
 const DUST: [RGB, RGB] = [rgb("#f2d18c"), rgb("#66482a")];
@@ -129,7 +129,7 @@ export class GameView {
       } else {
         const owner = state.units.find((o) => o.id === u.owner) as ChampionUnit;
         const def = getChampion(owner.champion).companion!;
-        const view = new CompanionView(u, ally, def.flying, this.particles);
+        const view = new CompanionView(u, ally, def.flying, this.particles, def.id);
         this.pets.set(u.id, view);
         scene.add(view.root);
         this.overlay.addCompanion(u, ally);
@@ -335,7 +335,10 @@ export class GameView {
     this.reticle.position.set(aim.x, 0.05, aim.z);
 
     this.ink.update(this.camera, dt);
-    const enemy = championOfTeam(state, this.viewerTeam === 0 ? 1 : 0);
+    // The off-screen arrow points at the nearest enemy still standing.
+    const enemy = state.units
+      .filter((u): u is ChampionUnit => u.kind === "champion" && u.team !== this.viewerTeam && !u.dead)
+      .sort((a, b) => Math.hypot(a.x - me.x, a.z - me.z) - Math.hypot(b.x - me.x, b.z - me.z))[0];
     this.overlay.update(
       state,
       dt,
@@ -560,6 +563,14 @@ export class GameView {
           if (!u) break;
           if (e.status === "stun") this.sound("stun", u.x, u.z, 0.8);
           if (e.status === "root") overlay.floatText(u.x, 3, u.z, "Прижат!", "#ffe2b8", true);
+          if (e.status === "brace") {
+            fx.wave(u.x, u.z, 1.6, 0xcfd6c2, 0.3, true);
+            p.emit(u.x, 1, u.z, { n: 26, spd: 2.5, up: 0.4, col: STONE[0], col2: STONE[1], life: 0.5, size: 0.45, drag: 3, jit: 0.5 });
+          }
+          if (e.status === "hover") {
+            fx.wave(u.x, u.z, 1.4, 0xb9a4ff, 0.35);
+            p.emit(u.x, 0.3, u.z, { n: 24, spd: 1.5, vy: 2.5, col: rgb("#e6dcff"), col2: rgb("#5b3fb3"), life: 0.6, size: 0.4, jit: 0.6 });
+          }
           break;
         }
         case "counter": {
@@ -606,6 +617,8 @@ export class GameView {
           p.emit(e.x, 1, e.z, { n: 50, spd: 8, col: col[0], col2: col[1], life: 0.5, size: 0.52, drag: 3 });
           fx.light(e.x, 1.5, e.z, a?.color ?? 0xff7a2b, 160, 0.35);
           this.shakeAt(e.x, e.z, 0.2);
+          // A brace bursts a second after it was raised: its sound belongs here, not to the key press.
+          if (a?.kind === "brace") this.sound(a.sfx?.hit, e.x, e.z);
           break;
         }
         case "channelTick": {
@@ -666,12 +679,32 @@ export class GameView {
           this.cb.message(own ? `Компаньон вернётся через ${rules.companion.respawn} с` : "Компаньон соперника повержен", 1.4);
           break;
         }
-        case "companionRespawn": {
+        case "companionSummon": {
           const c = unit(e.unit);
           if (!c) break;
           const col = this.palette(c, state);
-          p.emit(c.x, 1.2, c.z, { n: 26, spd: 3, up: 0.8, col: col[0], col2: col[1], life: 0.5, size: 0.4, jit: 0.5 });
-          fx.wave(c.x, c.z, 1.2, teamHex(c.team), 0.3);
+          p.emit(e.x, this.pets.get(c.id)?.centerHeight ?? 1, e.z, { n: 30, spd: 3.5, up: 0.8, col: col[0], col2: col[1], life: 0.5, size: 0.42, jit: 0.5 });
+          fx.wave(e.x, e.z, 1.3, teamHex(c.team), 0.3, true);
+          break;
+        }
+        case "companionLeave": {
+          const c = unit(e.unit);
+          if (!c) break;
+          const col = this.palette(c, state);
+          p.emit(e.x, this.pets.get(c.id)?.centerHeight ?? 1, e.z, { n: 20, spd: 2, vy: 1.6, col: col[0], col2: col[1], life: 0.45, size: 0.36, jit: 0.4 });
+          break;
+        }
+        case "companionBounce":
+          p.emit(e.x, 0.6, e.z, { n: 16, spd: 3.5, up: 0.6, col: DUST[0], col2: DUST[1], life: 0.4, size: 0.45, jit: 0.4 });
+          this.sound("crate_bump", e.x, e.z, 0.9);
+          this.shakeAt(e.x, e.z, 0.15);
+          break;
+        case "companionWell": {
+          const c = unit(e.unit);
+          const col = this.palette(c, state);
+          fx.wave(e.x, e.z, e.radius, 0xb9a4ff, 0.5, true);
+          p.emit(e.x, 1.8, e.z, { n: 40, spd: 5, col: col[0], col2: col[1], life: 0.5, size: 0.45, drag: 3 });
+          this.sound("orb_spawn", e.x, e.z, 0.7);
           break;
         }
         case "companionCommand": {
@@ -712,29 +745,90 @@ export class GameView {
         }
         case "obstacleHit": {
           this.world.obstacleHit(e.id);
-          const stone = state.obstacles.find((o) => o.id === e.id)?.kind === "stone";
+          const stone = e.kind === "stone" || e.kind === "wall";
           const col = stone ? STONE : WOOD;
-          p.emit(e.x, stone ? 1.5 : 0.9, e.z, { n: 9, spd: 3, up: 0.8, col: col[0], col2: col[1], life: 0.5, size: 0.35, grav: 6, jit: 1.2 });
+          p.emit(e.x, e.kind === "stone" ? 1.5 : 0.9, e.z, { n: 9, spd: 3, up: 0.8, col: col[0], col2: col[1], life: 0.5, size: 0.35, grav: 6, jit: 1.2 });
           this.sound(stone ? "stone_hit" : "wood_hit", e.x, e.z);
           break;
         }
         case "obstacleBreak": {
-          const stone = state.obstacles.find((o) => o.id === e.id)?.kind === "stone";
-          if (stone) {
-            for (const y of [0.6, 1.6, 2.8]) {
+          if (e.kind === "stone" || e.kind === "wall") {
+            for (const y of e.kind === "stone" ? [0.6, 1.6, 2.8] : [0.5, 1.2]) {
               p.emit(e.x, y, e.z, { n: 34, spd: 5, up: 0.7, vy: 1, col: STONE[0], col2: STONE[1], life: 1, size: 0.6, grav: 9, drag: 1, jit: 1.6 });
             }
             fx.wave(e.x, e.z, 3, 0xd9b48a, 0.4, true);
-            this.shakeAt(e.x, e.z, 0.5);
+            this.shakeAt(e.x, e.z, e.kind === "stone" ? 0.5 : 0.3);
             this.sound("stone_break", e.x, e.z);
             break;
           }
-          p.emit(e.x, 0.8, e.z, { n: 64, spd: 6, up: 1, vy: 2, col: WOOD[0], col2: WOOD[1], life: 0.9, size: 0.5, grav: 8, drag: 1, jit: 3 });
-          fx.wave(e.x, e.z, 2.4, 0xc89050, 0.35, true);
-          this.shakeAt(e.x, e.z, 0.35);
-          this.sound("wood_break", e.x, e.z);
+          const crate = e.kind === "crate";
+          p.emit(e.x, 0.8, e.z, { n: crate ? 40 : 64, spd: 6, up: 1, vy: 2, col: WOOD[0], col2: WOOD[1], life: 0.9, size: 0.5, grav: 8, drag: 1, jit: crate ? 1 : 3 });
+          fx.wave(e.x, e.z, crate ? 1.6 : 2.4, 0xc89050, 0.35, true);
+          this.shakeAt(e.x, e.z, crate ? 0.2 : 0.35);
+          this.sound("wood_break", e.x, e.z, crate ? 0.7 : 1);
           break;
         }
+        case "wallRaise":
+          p.emit(e.x, 0.3, e.z, { n: 30, spd: 3, up: 0.9, col: DUST[0], col2: DUST[1], life: 0.6, size: 0.5, drag: 2, grav: 4, jit: 1.2 });
+          this.shakeAt(e.x, e.z, 0.12);
+          break;
+        case "wallExpire":
+          p.emit(e.x, 0.8, e.z, { n: 26, spd: 2, up: 0.3, col: STONE[0], col2: STONE[1], life: 0.7, size: 0.45, grav: 7, jit: 1.2 });
+          this.sound("stone_hit", e.x, e.z, 0.5);
+          break;
+        case "wallShatter": {
+          const a = abilityById(e.abilityId);
+          fx.boom(e.x, e.z, e.radius, [STONE[0], STONE[1]], a?.color ?? 0xd9b48a);
+          p.emit(e.x, 1, e.z, { n: 70, spd: 9, up: 0.7, vy: 1.5, col: STONE[0], col2: STONE[1], life: 0.8, size: 0.55, grav: 9, drag: 1.5, jit: 1.2 });
+          this.shakeAt(e.x, e.z, 0.5);
+          this.sound("stone_break", e.x, e.z);
+          break;
+        }
+        case "ringRaise": {
+          const a = abilityById(e.abilityId);
+          fx.wave(e.x, e.z, e.radius, a?.color ?? 0x8fc46b, 0.5, true);
+          this.shakeAt(e.x, e.z, 0.5);
+          break;
+        }
+        case "line": {
+          const a = abilityById(e.abilityId);
+          fx.line(e.x0, e.z0, e.x1, e.z1, e.halfWidth, a?.color ?? 0x8fc46b);
+          const n = Math.ceil(Math.hypot(e.x1 - e.x0, e.z1 - e.z0));
+          for (let i = 1; i <= n; i++) {
+            const k = i / n;
+            p.emit(e.x0 + (e.x1 - e.x0) * k, 0.2, e.z0 + (e.z1 - e.z0) * k, { n: 8, spd: 2.5, up: 1.4, col: DUST[0], col2: DUST[1], life: 0.6, size: 0.5, grav: 6, jit: 0.6 });
+          }
+          this.shakeAt((e.x0 + e.x1) / 2, (e.z0 + e.z1) / 2, 0.35);
+          break;
+        }
+        case "dashHit": {
+          const t = unit(e.target);
+          if (!t) break;
+          const a = abilityById(e.abilityId);
+          p.emit(t.x, 1.1, t.z, { n: 24, spd: 5, up: 0.5, col: SPARK[0], col2: SPARK[1], life: 0.35, size: 0.45 });
+          this.sound(a?.sfx?.hit, t.x, t.z);
+          this.shakeAt(t.x, t.z, 0.3);
+          break;
+        }
+        case "swap": {
+          const col = this.palette(unit(e.unit), state);
+          for (const [x, z] of [
+            [e.ax, e.az],
+            [e.bx, e.bz],
+          ] as const) {
+            p.emit(x, 1, z, { n: 30, spd: 3, up: 0.6, vy: 0.5, col: col[0], col2: col[1], life: 0.45, size: 0.5, drag: 2, jit: 0.7 });
+            fx.wave(x, z, 1.5, 0xb9a4ff, 0.3, true);
+          }
+          fx.line(e.ax, e.az, e.bx, e.bz, 0.12, 0xb9a4ff, 0.3, 0.7);
+          break;
+        }
+        case "lift":
+          p.emit(e.x, 0.5, e.z, { n: 18, spd: 1.5, vy: 3, col: rgb("#e6dcff"), col2: rgb("#5b3fb3"), life: 0.5, size: 0.38, jit: 0.5 });
+          break;
+        case "release":
+          if (e.thrown) this.sound("hook_throw", e.x, e.z);
+          else this.sound("crate_bump", e.x, e.z, 0.6);
+          break;
         case "obstacleFall":
           p.emit(e.x, 0.4, e.z, { n: 40, spd: 4, up: 0.5, col: DUST[0], col2: DUST[1], life: 0.8, size: 0.6, drag: 2, grav: 4, jit: 1.2 });
           this.shakeAt(e.x, e.z, 0.3);

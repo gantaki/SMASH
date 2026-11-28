@@ -13,10 +13,10 @@ import {
 } from "@smash/content";
 import { abilityOf, canAct, isReady } from "./abilities.ts";
 import type { Ctx } from "./context.ts";
-import { dropTimeAt, nearestSafe, pathSolid, safeAt, voidAlong } from "./floor.ts";
+import { dropTimeAt, floorTiles, nearestSafe, pathSolid, safeAt, voidAlong } from "./floor.ts";
 import { blocker, clearLine, obstaclePenetration, polylineDistance, reach, wallBehind } from "./geometry.ts";
 import type { Vec2 } from "./math.ts";
-import { championOfTeam, companionOf, emptyInput, type BotState, type ChampionUnit, type MatchState, type PlayerInput } from "./state.ts";
+import { champions, companionOf, emptyInput, type BotState, type ChampionUnit, type MatchState, type PlayerInput } from "./state.ts";
 
 const EDGE_MARGIN = 3.5;
 const OBSTACLE_MARGIN = 1.1;
@@ -71,6 +71,8 @@ function timeToHit(a: Ability, dist: number, castScale: number, speedScale: numb
       return cast + a.delay;
     case "leap":
       return cast + a.duration;
+    case "dash":
+      return cast + (dist / a.maxRange) * a.duration;
     default:
       return cast;
   }
@@ -114,14 +116,26 @@ function safeTime(state: MatchState, b: ChampionUnit, dir: Vec2, top: number): n
   return FLOOR_HORIZON;
 }
 
+/** Where to run from a tile that is about to drop: the nearest safe tile with a straight, open way to it (any safe tile if there is none). */
+function escapeTile(state: MatchState, b: ChampionUnit): Vec2 | null {
+  const byDistance = floorTiles
+    .filter((_, i) => state.floor.hp[i]! > 0)
+    .map((t) => ({ t, d: Math.hypot(t.x - b.x, t.z - b.z) }))
+    .sort((p, q) => p.d - q.d);
+  for (const { t } of byDistance.slice(0, 24)) {
+    if (pathSolid(state, b.x, b.z, t.x, t.z) && !blocker(state, b, t)) return t;
+  }
+  return nearestSafe(state, b.x, b.z, true);
+}
+
 /**
  * Keeps a bot on the floor: turns the wanted direction away from holes, crumbling tiles and gaps in the wall,
  * and walks off a crumbling tile by the shortest way. `side` picks which way it turns first.
  */
 function steerOnFloor(state: MatchState, b: ChampionUnit, move: Vec2, side: 1 | -1): Vec2 {
   if (!safeAt(state, b.x, b.z)) {
-    // The tile under the bot is going: head for the nearest floor that is not.
-    const t = nearestSafe(state, b.x, b.z, true);
+    // The tile under the bot is going: head for the nearest floor that is not, by a way that is floor and not walled off.
+    const t = escapeTile(state, b);
     if (!t) return move;
     const d = Math.hypot(t.x - b.x, t.z - b.z) || 1;
     return { x: (t.x - b.x) / d, z: (t.z - b.z) / d };
@@ -154,11 +168,13 @@ export function botInput(ctx: Ctx, b: ChampionUnit): PlayerInput {
   const { state, rng, dt } = ctx;
   const input = emptyInput();
   input.aim = { ...b.aim };
-  const p = championOfTeam(state, b.team === 0 ? 1 : 0);
-  if (state.phase !== "fight" || b.dead || !p || p.dead) return input;
+  // The enemy this bot fights: the nearest one still standing.
+  const foes = champions(state).filter((c) => c.team !== b.team && !c.dead);
+  const p = foes.reduce<ChampionUnit | null>((best, c) => (!best || Math.hypot(c.x - b.x, c.z - b.z) < Math.hypot(best.x - b.x, best.z - b.z) ? c : best), null);
+  if (state.phase !== "fight" || b.dead || !p) return input;
 
-  const D = botDifficulty[state.config.players[b.team].difficulty ?? "normal"];
-  const ai = state.bots[b.team];
+  const D = botDifficulty[state.config.players[b.slot]!.difficulty ?? "normal"];
+  const ai = state.bots[b.slot]!;
   const profile = getChampion(b.champion).bot;
   const ranged = profile.style === "ranged";
   // A knockback travels its distance divided by the target's weight (combat.ts, knock).
@@ -168,12 +184,17 @@ export function botInput(ctx: Ctx, b: ChampionUnit): PlayerInput {
     input.aim = aim;
     return input;
   };
-  /** A blink or a leap toward `aim`, unless it would come down on a hole or on a tile that is about to drop. */
+  /**
+   * A blink, a leap or a charge toward `aim`, unless it would end on a hole or on a tile that is about to drop.
+   * A charge stays on the ground, so the whole way has to be floor.
+   */
   const jump = (slot: AbilitySlot, aim: Vec2): PlayerInput | null => {
     const a = abilityOf(b, slot);
-    if (a?.kind !== "blink" && a?.kind !== "leap") return null;
+    if (a?.kind !== "blink" && a?.kind !== "leap" && a?.kind !== "dash") return null;
     const land = reach(b, aim, a.maxRange);
-    return safeAt(state, land.x, land.z) ? press(slot, aim) : null;
+    if (!safeAt(state, land.x, land.z)) return null;
+    if (a.kind === "dash" && !pathSolid(state, b.x, b.z, land.x, land.z)) return null;
+    return press(slot, aim);
   };
   /** The way the enemy would be shoved from here leads into the abyss: over a hole, or out through a gap in the wall. */
   const ringOut = (dist: number): boolean => voidAlong(state, p.x, p.z, nx, nz, dist);
@@ -256,9 +277,13 @@ export function botInput(ctx: Ctx, b: ChampionUnit): PlayerInput {
   }
 
   const acting = canAct(ctx, b);
-  const counterSlot = findSlot(b, (a) => a.kind === "counter");
-  const mobilitySlot = b.root > 0 ? null : findSlot(b, (a) => a.kind === "blink" || a.kind === "leap");
+  // The guard a bot raises against a hit it sees coming: a counter stance, or bracing (not on a tile that is about to
+  // drop: braced, it could not step off).
+  const counterSlot = findSlot(b, (a) => a.kind === "counter" || (a.kind === "brace" && safeAt(state, b.x, b.z)));
+  const mobilitySlot = b.root > 0 ? null : findSlot(b, (a) => a.kind === "blink" || a.kind === "leap" || a.kind === "dash");
   const novaSlot = findSlot(b, (a) => a.kind === "nova");
+  const hoverSlot = findSlot(b, (a) => a.kind === "hover");
+  const swapSlot = b.root > 0 ? null : findSlot(b, (a) => a.kind === "swap");
 
   // ---------- dodge projectiles ----------
   ai.seen = ai.seen.filter((id) => state.projectiles.some((pr) => pr.id === id));
@@ -308,7 +333,19 @@ export function botInput(ctx: Ctx, b: ChampionUnit): PlayerInput {
     const enemyAbility = abilityOf(p, p.cast.slot);
     const threatening = enemyAbility && enemyAbility.kind !== "groundAoe" && d < 12;
     if (counterSlot && acting && threatening && p.cast.time < 0.2 && rng.next() < D.dodge * 0.4) return press(counterSlot, p);
+    // A heavy shot is being wound up from a distance: put a wall in its way.
+    const wallSlot = findSlot(b, (a) => a.kind === "wall");
+    const heavyShot = enemyAbility?.kind === "projectile" && p.cast.slot !== "primary";
+    if (wallSlot && acting && heavyShot && d > 4.5 && rng.next() < D.dodge * dt * 12) return press(wallSlot, { x: b.x + nx * 2.4, z: b.z + nz * 2.4 });
+    // A shove or a hook is coming: float through it.
+    const moves = enemyAbility && "onHit" in enemyAbility && (enemyAbility.onHit.knockback || enemyAbility.onHit.pull);
+    if (hoverSlot && acting && moves && d < 12 && p.cast.time < 0.2 && rng.next() < D.dodge * 0.5) return press(hoverSlot, p);
   } else ai.castSeen = false;
+  // Someone is about to land on the bot: brace for it.
+  if (p.leap && counterSlot && acting && abilityOf(b, counterSlot)?.kind === "brace") {
+    const lands = Math.hypot(p.leap.x1 - b.x, p.leap.z1 - b.z) < 3 && p.leap.duration - p.leap.t < 0.3;
+    if (lands && rng.next() < D.dodge) return press(counterSlot, p);
+  }
 
   // ---------- leave ground markers ----------
   for (const g of state.grounds) {
@@ -328,8 +365,13 @@ export function botInput(ctx: Ctx, b: ChampionUnit): PlayerInput {
   }
 
   // ---------- ranged champions peel when the enemy is on top of them ----------
+  const shoveSlot = findSlot(b, (a) => a.kind === "cone" && !!a.onHit.knockback);
   if (ranged && d < 3.3 && acting) {
-    if (novaSlot) {
+    const cone = shoveSlot ? abilityOf(b, shoveSlot) : undefined;
+    if (shoveSlot && cone?.kind === "cone" && d < cone.range) {
+      const reachK = cone.onHit.knockback!.distance / shoveWeight;
+      if (rng.next() < D.dodge * dt * (ringOut(reachK) ? 30 : 10)) return press(shoveSlot, p);
+    } else if (novaSlot) {
       const a = abilityOf(b, novaSlot)!;
       const reachK = a.kind === "nova" && a.onHit.knockback ? a.onHit.knockback.distance / shoveWeight : 0;
       const rate = ringOut(reachK) ? 30 : wallBehind(state, b, p, reachK) ? 16 : 8;
@@ -361,6 +403,16 @@ export function botInput(ctx: Ctx, b: ChampionUnit): PlayerInput {
     if (t && (Math.hypot(t.x - b.x, t.z - b.z) / speed > dropIn - FLOOR_PANIC || !pathSolid(state, b.x, b.z, t.x, t.z))) {
       const away = jump(mobilitySlot, t);
       if (away) return away;
+    }
+  }
+  if (dropIn < Infinity && acting && (swapSlot || hoverSlot)) {
+    const t = nearestSafe(state, b.x, b.z);
+    const speed = getChampion(b.champion).stats.moveSpeed * state.tuning.moveSpeed;
+    if (t && Math.hypot(t.x - b.x, t.z - b.z) / speed > dropIn - FLOOR_PANIC) {
+      // Walking will not make it. Trade places with the enemy, who gets the tile that is going; or float off it.
+      const sw = swapSlot ? abilityOf(b, swapSlot) : undefined;
+      if (swapSlot && sw?.kind === "swap" && d < sw.maxRange && safeAt(state, p.x, p.z) && clearLine(state, b, p)) return press(swapSlot, p);
+      if (hoverSlot && dropIn < 0.4) return press(hoverSlot, t);
     }
   }
 
@@ -402,21 +454,36 @@ export function botInput(ctx: Ctx, b: ChampionUnit): PlayerInput {
   const pet = companionOf(state, b);
   const cmdSlot = findSlot(b, (a) => a.kind === "companionCommand");
   const petDef = getChampion(b.champion).companion;
-  if (pet && !pet.dead && petDef) {
-    // Commands are paid from the first part of the bar; above the cap the bot saves for the ultimate.
-    if (cmdSlot && isReady(b, cmdSlot) && b.energy < COMMAND_ENERGY_CAP && rng.next() < dt * 0.9 * D.rate) {
-      if (petDef.command.kind === "sentry" && d < 12) return press(cmdSlot, { x: p.x - nz * 3 * ai.strafe, z: p.z + nx * 3 * ai.strafe });
-      if (petDef.command.kind === "pounce" && d > 3 && d < petDef.command.maxRange) return press(cmdSlot, leadAim(b, ai, D, p, d / petDef.commandSpeed));
+  if (pet && petDef) {
+    // A companion is summoned by its command. It is paid from the first part of the bar; above the cap the bot saves
+    // for the ultimate. One that is already out is left to finish what it is doing.
+    const free = pet.dead && pet.respawn <= 0;
+    if (cmdSlot && free && isReady(b, cmdSlot) && b.energy < COMMAND_ENERGY_CAP && rng.next() < dt * 0.9 * D.rate) {
+      const cmd = petDef.command;
+      if (cmd.kind === "sentry" && d < 12) return press(cmdSlot, { x: p.x - nz * 3 * ai.strafe, z: p.z + nx * 3 * ai.strafe });
+      if (cmd.kind === "pounce" && d > 3 && d < cmd.maxRange) return press(cmdSlot, leadAim(b, ai, D, p, d / petDef.commandSpeed));
+      // A boulder rolls straight: only over floor, and with a clear run at the enemy.
+      if (cmd.kind === "roll" && d > 2.5 && d < cmd.maxRange && clearLine(state, b, p) && pathSolid(state, b.x, b.z, p.x, p.z)) {
+        return press(cmdSlot, leadAim(b, ai, D, p, d / petDef.commandSpeed));
+      }
+      // A well goes just behind the enemy, to drag them away from where they want to be (and toward the bot's crates).
+      if (cmd.kind === "well" && d < cmd.maxRange - 1) return press(cmdSlot, { x: p.x + nx * 1.5, z: p.z + nz * 1.5 });
     }
     // Hook to the companion while it holds the enemy.
     const hookSlot = findSlot(b, (a) => a.kind === "projectile" && a.throughCompanion?.kind === "pullCaster");
     const dry = pathSolid(state, b.x, b.z, pet.x, pet.z);
-    if (hookSlot && acting && pet.mode === "engage" && pet.target === p.id && d > 6 && dry && clearLine(state, b, pet) && rng.next() < dt * 2.5) {
+    if (hookSlot && acting && !pet.dead && pet.mode === "engage" && pet.target === p.id && d > 6 && dry && clearLine(state, b, pet) && rng.next() < dt * 2.5) {
       return press(hookSlot, { x: pet.x, z: pet.z });
     }
   }
 
   if (!acting) return input;
+
+  // A crate held overhead: throw it as soon as there is a line to the target.
+  if (b.held) {
+    const liftSlot = ABILITY_SLOTS.find((sl) => abilityOf(b, sl)?.kind === "lift");
+    if (liftSlot && !blocker(state, b, tgt) && rng.next() < dt * 8) return press(liftSlot, leadAim(b, ai, D, tgt, td / 17));
+  }
 
   // ---------- offence, by ability kind ----------
   const block = blocker(state, b, tgt);
@@ -467,8 +534,58 @@ export function botInput(ctx: Ctx, b: ChampionUnit): PlayerInput {
         if (targetIsEnemy && d < a.radius + 0.3) return press(slot, p);
         break;
       }
+      case "wall": {
+        // Behind the enemy, so that the next shove has something to drive them into.
+        if (!targetIsEnemy || d > a.maxRange - 2.5 || rng.next() > dt * 0.6 * D.rate) break;
+        return press(slot, { x: p.x + nx * 2.2, z: p.z + nz * 2.2 });
+      }
+      case "dash": {
+        if (!targetIsEnemy || b.root > 0 || d > a.maxRange || d < 1.6) break;
+        // As far as the floor allows: the charger stops where the charge ends, what it carries goes a little further.
+        const run = [a.maxRange, (a.maxRange + d) / 2, d + 0.3].find((len) => {
+          const end = { x: b.x + nx * len, z: b.z + nz * len };
+          return safeAt(state, end.x, end.z) && pathSolid(state, b.x, b.z, end.x, end.z);
+        });
+        if (run === undefined) break;
+        const carried = run - d + a.carry.beyond;
+        const chance = ringOut(carried) ? dt * 25 : wallBehind(state, b, p, carried) ? dt * 6 : dt * 0.9 * D.rate;
+        if (rng.next() < chance) return press(slot, { x: b.x + nx * run, z: b.z + nz * run });
+        break;
+      }
+      case "brace": {
+        // "Get off me": worth it when the shove at the end has somewhere to send them.
+        if (!targetIsEnemy || d > a.radius - 0.4 || !safeAt(state, b.x, b.z)) break;
+        const shove = a.onHit.knockback ? a.onHit.knockback.distance / shoveWeight : 0;
+        const chance = ringOut(shove) ? dt * 20 : wallBehind(state, b, p, shove) ? dt * 5 : dt * 0.7 * D.rate;
+        if (rng.next() < chance) return press(slot, p);
+        break;
+      }
+      case "line": {
+        if (!targetIsEnemy || d > a.range - 0.5) break;
+        if (controlled || p.slow > 0 || rng.next() < dt * 0.9 * D.rate) return press(slot, lead(d));
+        break;
+      }
+      case "ring": {
+        // Around both of them when they are close, so that every shove inside is a slam.
+        if (!targetIsEnemy || d > a.radius * 1.4 || rng.next() > dt * 0.8) break;
+        return press(slot, { x: (b.x + p.x) / 2, z: (b.z + p.z) / 2 });
+      }
+      case "lift": {
+        if (rng.next() > dt * 1.5 * D.rate) break;
+        // The nearest crate in reach.
+        let crate: { x: number; z: number } | null = null;
+        let best = a.range;
+        for (const o of state.obstacles) {
+          const od = Math.hypot(o.x - b.x, o.z - b.z);
+          if (o.kind !== "crate" || !o.alive || od >= best) continue;
+          best = od;
+          crate = o;
+        }
+        if (crate) return press(slot, { x: crate.x, z: crate.z });
+        break;
+      }
       default:
-        // blink, nova, counter and companion commands are used reactively above.
+        // blink, nova, counter, hover, swap and companion commands are used reactively above.
         break;
     }
   }
