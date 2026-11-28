@@ -2,8 +2,9 @@
 
 import { arena, getChampion, rules, type OnHit } from "@smash/content";
 import type { Ctx } from "./context.ts";
-import { obstaclePenetration } from "./geometry.ts";
-import { championById, creditOf, unitById, type ChampionUnit, type Obstacle, type Unit } from "./state.ts";
+import { floorTiles, rimPenetration, rimPoint, tileAt } from "./floor.ts";
+import { obstacleDistance, obstaclePenetration } from "./geometry.ts";
+import { championById, creditOf, unitById, type ChampionUnit, type CompanionUnit, type Obstacle, type Unit } from "./state.ts";
 
 export type Target = Unit | "orb";
 
@@ -64,18 +65,7 @@ export function hurt(ctx: Ctx, target: Target, damage: number, source: Unit | nu
     target.hp -= damage;
     events.push({ t: "damage", target: target.id, targetKind: "companion", source: creditId, amount: damage, absorbed: 0, x: target.x, z: target.z, dot, ...origin });
     if (credit && credit.team !== target.team) addEnergy(credit, damage * rules.energy.perCompanionDamage);
-    if (target.hp <= 0) {
-      target.hp = 0;
-      target.dead = true;
-      target.respawn = rules.companion.respawn;
-      target.forced = null;
-      target.target = -1;
-      events.push({ t: "companionDeath", unit: target.id, killer: creditId });
-      if (credit && credit.team !== target.team) {
-        addEnergy(credit, rules.companion.killEnergy);
-        events.push({ t: "energy", unit: credit.id, amount: rules.companion.killEnergy });
-      }
-    }
+    if (target.hp <= 0) companionDie(ctx, target, credit);
     return true;
   }
 
@@ -114,6 +104,27 @@ function counterHit(ctx: Ctx, t: ChampionUnit, source: Unit): void {
     if (a.punish.stun) stun(ctx, source, a.punish.stun);
     hurt(ctx, source, a.punish.damage, t, { dot: true, from: { x: t.x, z: t.z } });
   }
+}
+
+function companionDie(ctx: Ctx, c: CompanionUnit, credit: ChampionUnit | undefined): void {
+  c.hp = 0;
+  c.dead = true;
+  c.respawn = rules.companion.respawn;
+  c.forced = null;
+  c.target = -1;
+  ctx.events.push({ t: "companionDeath", unit: c.id, killer: credit?.id ?? -1 });
+  if (credit && credit.team !== c.team) {
+    addEnergy(credit, rules.companion.killEnergy);
+    ctx.events.push({ t: "energy", unit: credit.id, amount: rules.companion.killEnergy });
+  }
+}
+
+/** Kills a unit outright (a fall into the abyss): no shield, counter or health pool stands in the way. */
+export function kill(ctx: Ctx, u: Unit, creditId: number): void {
+  if (u.dead) return;
+  u.hp = 0;
+  if (u.kind === "companion") companionDie(ctx, u, championById(ctx.state, creditId));
+  else die(ctx, u);
 }
 
 function die(ctx: Ctx, u: ChampionUnit): void {
@@ -184,7 +195,10 @@ export function burn(ctx: Ctx, t: Unit, dps: number, duration: number, source: U
   ctx.events.push({ t: "status", unit: t.id, status: "burn", duration });
 }
 
-/** Knockback along (nx, nz). Hitting an obstacle or the arena wall on the way is a slam. */
+/**
+ * Knockback along (nx, nz). Hitting an obstacle or the arena wall on the way is a slam; where the wall is gone,
+ * or over a hole in the floor, the target goes into the abyss instead (terrain.ts).
+ */
 export function knock(
   ctx: Ctx,
   t: Unit,
@@ -211,14 +225,17 @@ export function knock(
   cancelCast(ctx, t);
 }
 
-/** Drags `t` toward the point, stopping `stopDistance` short of it. Pulls do not slam. */
-export function pull(ctx: Ctx, t: Unit, toX: number, toZ: number, stopDistance: number, duration: number): void {
+/**
+ * Drags `t` toward the point, stopping `stopDistance` short of it. Pulls do not slam, but a drag over a hole is a fall.
+ * `source`: champion credited if it is (-1 when a champion pulls itself).
+ */
+export function pull(ctx: Ctx, t: Unit, toX: number, toZ: number, stopDistance: number, duration: number, source = -1): void {
   if (!controllable(t)) return;
   const dx = toX - t.x;
   const dz = toZ - t.z;
   const d = Math.hypot(dx, dz) || 1;
   const go = Math.max(0, d - stopDistance);
-  t.forced = { vx: ((dx / d) * go) / duration, vz: ((dz / d) * go) / duration, time: duration, kind: "pull", source: -1, slamStun: 0, slamDamage: 0 };
+  t.forced = { vx: ((dx / d) * go) / duration, vz: ((dz / d) * go) / duration, time: duration, kind: "pull", source, slamStun: 0, slamDamage: 0 };
   cancelCast(ctx, t);
 }
 
@@ -235,26 +252,28 @@ export function moveForced(ctx: Ctx, t: Unit): void {
       if (!pen) continue;
       t.x += pen.nx * pen.depth;
       t.z += pen.nz * pen.depth;
-      slam(ctx, t, pen.nx, pen.nz, o);
+      slam(ctx, t, pen.nx, pen.nz, o, -1);
       return;
     }
-    const d = Math.hypot(t.x, t.z);
-    const R = arena.radius - arena.wallMargin;
-    if (d > R) {
-      t.x *= R / d;
-      t.z *= R / d;
-      slam(ctx, t, -t.x / R, -t.z / R, null);
+    const wall = rimPenetration(ctx.state, t.x, t.z, arena.wallMargin);
+    if (wall) {
+      t.x += wall.nx * wall.depth;
+      t.z += wall.nz * wall.depth;
+      slam(ctx, t, wall.nx, wall.nz, null, wall.segment);
       return;
     }
   }
   if (f.time <= 0) t.forced = null;
 }
 
-function slam(ctx: Ctx, t: Unit, nx: number, nz: number, obstacle: Obstacle | null): void {
+/** `rimSegment`: the section of the arena wall that was hit, or -1 when it was an obstacle. */
+function slam(ctx: Ctx, t: Unit, nx: number, nz: number, obstacle: Obstacle | null, rimSegment: number): void {
   const f = t.forced!;
   t.forced = null;
   const source = f.source >= 0 ? (unitById(ctx.state, f.source) ?? null) : null;
-  if (obstacle?.kind === "wood") damageObstacle(ctx, obstacle, rules.slam.woodDamage);
+  // The body breaks what it is thrown into: the next shove the same way may go through.
+  if (obstacle) damageObstacle(ctx, obstacle, rules.slam.structureDamage);
+  if (rimSegment >= 0) damageRim(ctx, rimSegment, rules.slam.structureDamage, t.x - nx * t.radius, t.z - nz * t.radius);
   if (obstacle?.kind === "crate") {
     obstacle.vx -= nx * rules.slam.crateImpulse;
     obstacle.vz -= nz * rules.slam.crateImpulse;
@@ -277,7 +296,7 @@ export function applyOnHit(ctx: Ctx, target: Target, onHit: OnHit, source: Unit 
   if (onHit.slow) slow(ctx, target, onHit.slow.amount, onHit.slow.duration, onHit.slow.fading);
   if (onHit.root) root(ctx, target, onHit.root);
   if (onHit.burn) burn(ctx, target, onHit.burn.dps, onHit.burn.duration, source);
-  if (onHit.pull) pull(ctx, target, ox, oz, onHit.pull.stopDistance, onHit.pull.duration);
+  if (onHit.pull) pull(ctx, target, ox, oz, onHit.pull.stopDistance, onHit.pull.duration, creditOf(ctx.state, source ?? undefined)?.id ?? -1);
   if (onHit.knockback) {
     const dx = target.x - ox;
     const dz = target.z - oz;
@@ -288,19 +307,54 @@ export function applyOnHit(ctx: Ctx, target: Target, onHit: OnHit, source: Unit 
   return true;
 }
 
-// ---------- obstacles taking damage ----------
+// ---------- the arena taking damage ----------
 
+/** Walls and pillars lose health and break. Crates do not: they get pushed around instead. */
 export function damageObstacle(ctx: Ctx, o: Obstacle, damage: number): void {
-  if (o.kind !== "wood" || !o.alive || !fighting(ctx)) return;
+  if (o.kind === "crate" || !o.alive || !fighting(ctx)) return;
   o.hp -= damage;
   if (o.hp <= 0) {
     o.alive = false;
     o.hp = 0;
+    // Only wood walls are rebuilt (obstacles.ts).
     o.respawn = rules.obstacles.woodRespawn;
     ctx.events.push({ t: "obstacleBreak", id: o.id, x: o.x, z: o.z });
   } else {
     ctx.events.push({ t: "obstacleHit", id: o.id, x: o.x, z: o.z });
   }
+}
+
+/** A section of the arena wall takes damage at (x, z). A broken section is a gap for the rest of the round. */
+export function damageRim(ctx: Ctx, segment: number, damage: number, x: number, z: number): void {
+  const rim = ctx.state.rim;
+  if (rim[segment]! <= 0 || !fighting(ctx)) return;
+  rim[segment] = Math.max(0, rim[segment]! - damage);
+  if (rim[segment] === 0) ctx.events.push({ t: "rimBreak", segment, x, z, fell: false });
+  else ctx.events.push({ t: "rimHit", segment, x, z });
+}
+
+/**
+ * Something struck the ground: every tile with its centre inside the blast takes the damage (and the tile right
+ * under it, however small the blast). A tile that runs out of health starts to crumble and drops a moment later.
+ */
+export function damageFloor(ctx: Ctx, x: number, z: number, radius: number, damage: number): void {
+  if (damage <= 0 || !fighting(ctx)) return;
+  const floor = ctx.state.floor;
+  const under = tileAt(x, z);
+  const cracked: number[] = [];
+  const broken: number[] = [];
+  for (let i = 0; i < floorTiles.length; i++) {
+    if (floor.hp[i]! <= 0) continue;
+    const t = floorTiles[i]!;
+    if (i !== under && Math.hypot(t.x - x, t.z - z) >= radius) continue;
+    floor.hp[i] = Math.max(0, floor.hp[i]! - damage);
+    if (floor.hp[i] === 0) {
+      floor.crumbling.push({ tile: i, time: arena.floor.crumbleTime });
+      broken.push(i);
+    } else cracked.push(i);
+  }
+  if (cracked.length) ctx.events.push({ t: "floorCrack", tiles: cracked });
+  if (broken.length) ctx.events.push({ t: "floorCrumble", tiles: broken });
 }
 
 // ---------- area helpers ----------
@@ -314,17 +368,16 @@ export function hittables(ctx: Ctx, team: 0 | 1): Target[] {
 
 export const targetPos = (ctx: Ctx, t: Target): { x: number; z: number; radius: number } => (t === "orb" ? ctx.state.orb : t);
 
-/** Damages wood walls within `radius` of a point. */
-export function damageObstaclesInArea(ctx: Ctx, x: number, z: number, radius: number, damage: number): void {
+/** Damages what stands within `radius` of a point: wood walls, pillars and sections of the arena wall. */
+export function damageStructuresInArea(ctx: Ctx, x: number, z: number, radius: number, damage: number): void {
   for (const o of ctx.state.obstacles) {
-    if (!o.alive || o.kind !== "wood") continue;
-    const co = Math.cos(o.rot);
-    const si = Math.sin(o.rot);
-    const lx = (x - o.x) * co + (z - o.z) * si;
-    const lz = -(x - o.x) * si + (z - o.z) * co;
-    const ex = lx - Math.max(-o.halfWidth, Math.min(o.halfWidth, lx));
-    const ez = lz - Math.max(-o.halfDepth, Math.min(o.halfDepth, lz));
-    if (Math.hypot(ex, ez) < radius) damageObstacle(ctx, o, damage);
+    if (o.alive && o.kind !== "crate" && obstacleDistance(o, x, z) < radius) damageObstacle(ctx, o, damage);
+  }
+  if (Math.hypot(x, z) + radius <= arena.radius) return;
+  for (let segment = 0; segment < ctx.state.rim.length; segment++) {
+    if (ctx.state.rim[segment]! <= 0) continue;
+    const p = rimPoint(segment, x, z);
+    if (Math.hypot(p.x - x, p.z - z) < radius) damageRim(ctx, segment, damage, p.x, p.z);
   }
 }
 
@@ -332,7 +385,7 @@ export function damageObstaclesInArea(ctx: Ctx, x: number, z: number, radius: nu
 export function pushCrates(ctx: Ctx, x: number, z: number, radius: number, speed: number, pusher: Unit): void {
   const credit = creditOf(ctx.state, pusher);
   for (const c of ctx.state.obstacles) {
-    if (c.kind !== "crate") continue;
+    if (c.kind !== "crate" || !c.alive) continue;
     const dx = c.x - x;
     const dz = c.z - z;
     const d = Math.hypot(dx, dz) || 1;

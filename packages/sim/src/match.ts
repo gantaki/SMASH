@@ -9,12 +9,16 @@ import type { SimEvent } from "./events.ts";
 import { startSuddenDeath, stopSuddenDeath, updateOrb, updateSuddenDeath } from "./hazards.ts";
 import { updateObstacles } from "./obstacles.ts";
 import { updateGrounds, updateProjectiles } from "./projectiles.ts";
+import { nearestSafe, safeAt } from "./floor.ts";
 import { createRng } from "./rng.ts";
 import { emptyInput, resetChampion, resetCompanion, startRound, type ChampionUnit, type MatchState, type PlayerInput, type Team } from "./state.ts";
+import { updateTerrain } from "./terrain.ts";
 import { TICK_DT } from "./tick.ts";
 import { collide, updateChampion } from "./units.ts";
 
 const finite = (v: number): number => (Number.isFinite(v) ? v : 0);
+/** How far ahead the strafing training dummy checks the floor (a helper for the range, not balance). */
+const DUMMY_LOOK_AHEAD = 1.2;
 
 function applyInput(ctx: Ctx, u: ChampionUnit, input: PlayerInput): void {
   let mx = finite(input.move.x);
@@ -55,6 +59,11 @@ function dummyInput(state: MatchState, u: ChampionUnit): PlayerInput {
     t.dummyTime = training.dummy.strafeInterval;
     t.dummyDir = t.dummyDir === 1 ? -1 : 1;
   }
+  // Turns around early rather than strafing into a hole.
+  if (!safeAt(state, u.x + t.dummyDir * DUMMY_LOOK_AHEAD, u.z)) {
+    t.dummyDir = t.dummyDir === 1 ? -1 : 1;
+    t.dummyTime = training.dummy.strafeInterval;
+  }
   input.move = { x: t.dummyDir, z: 0 };
   return input;
 }
@@ -65,7 +74,9 @@ function updateTraining(ctx: Ctx): void {
     if (u.kind !== "champion") continue;
     if (u.dead) {
       if (u.deadTime < training.respawn) continue;
-      const spawn = u.controller === "dummy" ? training.dummy.spawn : { x: u.x, z: u.z };
+      // Back where it stood, or on the nearest floor that is left if that spot is a hole now.
+      const wanted = u.controller === "dummy" ? training.dummy.spawn : { x: u.x, z: u.z };
+      const spawn = safeAt(state, wanted.x, wanted.z) ? wanted : (nearestSafe(state, wanted.x, wanted.z) ?? wanted);
       const energy = u.energy;
       const cooldowns = u.cooldowns;
       resetChampion(u, spawn.x, spawn.z, u.face);
@@ -153,6 +164,7 @@ export function step(state: MatchState, inputs: readonly [PlayerInput | null, Pl
   updateProjectiles(ctx);
   updateGrounds(ctx);
   if (state.phase === "fight") updateSuddenDeath(ctx);
+  updateTerrain(ctx);
 
   if (state.config.mode === "training") updateTraining(ctx);
   else if (state.phase === "fight") {

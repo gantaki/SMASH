@@ -123,6 +123,34 @@ describe("arena", () => {
     }
   });
 
+  it("has a floor and a wall that come apart symmetrically", () => {
+    const { floor, rim } = arena;
+    expect(floor.tilesPerRing % 2).toBe(0);
+    expect(rim.segments % 2).toBe(0);
+    // Whole tiles under every section of the wall, so a section falls with exactly its own floor.
+    expect((floor.tilesPerRing * floor.rings) % rim.segments).toBe(0);
+    expect(floor.centerRadius).toBeLessThan(arena.radius);
+    expect(floor.hp).toBeGreaterThan(0);
+    expect(rim.hp).toBeGreaterThan(0);
+  });
+
+  it("gives time to walk off a floor that a ground blast has broken, even after its stun (pillar: readable and dodgeable)", () => {
+    const slowest = Math.min(...playableChampions.map((c) => c.stats.moveSpeed));
+    for (const c of playableChampions) {
+      for (const a of Object.values(c.abilities)) {
+        if (a?.kind === "groundAoe") {
+          expect(a.floorDamage, a.id).toBeGreaterThan(0);
+          expect(arena.floor.crumbleTime, a.id).toBeGreaterThan((a.onHit.stun ?? 0) + a.radius / slowest);
+        }
+        if (a?.kind === "leap") {
+          expect(a.landing.floorDamage, a.id).toBeGreaterThan(0);
+          // The one who lands has to get off it too.
+          expect(arena.floor.crumbleTime, a.id).toBeGreaterThan(a.landing.radius / slowest);
+        }
+      }
+    }
+  });
+
   it("keeps the orb inside the final zone", () => {
     expect(arena.suddenDeath.zone.minRadius).toBeGreaterThan(arena.orb.radius + 2);
   });

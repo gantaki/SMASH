@@ -26,6 +26,12 @@ export const RAGDOLL = {
   airDrag: 0.35,
   /** Normal speed above which hitting something counts as a slam (dust, sound). */
   slamSpeed: 3.2,
+  /** A point this far below the walking surface is under the floor slabs: nothing holds it up any more. */
+  slab: 0.6,
+  /** Depth at which a body that went into the abyss is out of sight and stops being simulated. */
+  abyss: 60,
+  /** A champion that fell keeps this much of its speed sideways, and gets this much of a hop, as it goes down. */
+  fall: { keep: 0.45, up: 1.2 },
   step: 1 / 120,
 } as const;
 
@@ -34,6 +40,8 @@ export interface RagdollWorld {
   collide(x: number, y: number, z: number, radius: number): { nx: number; nz: number; depth: number } | null;
   /** The body (or a prop) hit something hard. */
   impact(x: number, y: number, z: number, speed: number, kind: "ground" | "wall"): void;
+  /** Is there floor at (x, z)? A body over a hole, or beyond the arena's edge, drops into the abyss. Default: floor everywhere. */
+  ground?(x: number, z: number): boolean;
 }
 
 export interface Impulse {
@@ -83,6 +91,11 @@ export function launchFor(damage: number, dirX: number, dirZ: number): Impulse {
   const { launch, lift } = RAGDOLL;
   const speed = Math.min(launch.max, launch.base + damage * launch.perDamage);
   return { x: dirX * speed, z: dirZ * speed, up: Math.min(lift.max, lift.base + damage * lift.perDamage) };
+}
+
+/** A champion that fell into the abyss: it keeps some of its momentum and goes down (see `dropping` on the ragdoll). */
+export function fallImpulse(vx: number, vz: number): Impulse {
+  return { x: vx * RAGDOLL.fall.keep, z: vz * RAGDOLL.fall.keep, up: RAGDOLL.fall.up };
 }
 
 export function collapse(): Impulse {
@@ -138,6 +151,7 @@ export class Ragdoll {
    * @param body the model's body group: its direct children are distributed over the chain by their height
    * @param props children that break off and fly on their own (weapon arm, shield)
    * @param hide children that should simply disappear (facing arrow)
+   * @param dropping the champion fell into the abyss: nothing catches the body, whatever it flies over
    */
   constructor(
     private readonly scene: THREE.Object3D,
@@ -146,6 +160,7 @@ export class Ragdoll {
     hide: readonly THREE.Object3D[],
     impulse: Impulse,
     private readonly world: RagdollWorld,
+    private readonly dropping = false,
   ) {
     body.updateWorldMatrix(true, true);
     const origin = body.getWorldPosition(new THREE.Vector3());
@@ -154,6 +169,8 @@ export class Ragdoll {
 
     RAGDOLL.joints.forEach((h, i) => {
       const pos = new THREE.Vector3(origin.x + rand(-0.03, 0.03), Math.max(RAGDOLL.pointRadius, origin.y + h * scale), origin.z + rand(-0.03, 0.03));
+      // Going down a hole feet first: no hop for the feet, so the body tips in rather than floating.
+      if (dropping && i === 0) pos.y = RAGDOLL.pointRadius;
       const k = RAGDOLL.jointKick[i]! * rand(0.9, 1.1);
       const vel = new THREE.Vector3(impulse.x * k + rand(-0.6, 0.6), impulse.up * rand(0.85, 1.15), impulse.z * k + rand(-0.6, 0.6));
       this.points.push({ pos, prev: pos.clone().addScaledVector(vel, -dt), vel, grounded: false });
@@ -212,6 +229,11 @@ export class Ragdoll {
     }
   }
 
+  /** Is this point held up by the floor? Not once it is under the slabs, over a hole, or beyond the edge. */
+  private supported(p: THREE.Vector3): boolean {
+    return !this.dropping && p.y > -RAGDOLL.slab && (this.world.ground?.(p.x, p.z) ?? true);
+  }
+
   private slam(p: THREE.Vector3, speed: number, kind: "ground" | "wall"): void {
     if (speed < RAGDOLL.slamSpeed || this.slamCooldown > 0) return;
     this.slamCooldown = 0.18;
@@ -239,11 +261,11 @@ export class Ragdoll {
         b.addScaledVector(this.dir, -k);
       }
       for (const p of this.points) {
-        if (p.pos.y < R) {
+        if (p.pos.y < R && this.supported(p.pos)) {
           p.pos.y = R;
           p.grounded = true;
         }
-        const hit = this.world.collide(p.pos.x, p.pos.y, p.pos.z, R);
+        const hit = this.dropping ? null : this.world.collide(p.pos.x, p.pos.y, p.pos.z, R);
         if (hit) {
           p.pos.x += hit.nx * hit.depth;
           p.pos.z += hit.nz * hit.depth;
@@ -282,7 +304,7 @@ export class Ragdoll {
       l.vel.y -= RAGDOLL.gravity * h;
       const o = l.obj.position;
       o.addScaledVector(l.vel, h);
-      if (o.y < l.radius) {
+      if (o.y < l.radius && this.supported(o)) {
         o.y = l.radius;
         if (l.vel.y < -1.5) this.slam(o, -l.vel.y * 0.5, "ground");
         l.vel.y = Math.abs(l.vel.y) * 0.35;
@@ -294,7 +316,7 @@ export class Ragdoll {
           l.spin.set(0, 0, 0);
         }
       }
-      const hit = this.world.collide(o.x, o.y, o.z, l.radius);
+      const hit = this.dropping ? null : this.world.collide(o.x, o.y, o.z, l.radius);
       if (hit) {
         o.x += hit.nx * hit.depth;
         o.z += hit.nz * hit.depth;
@@ -311,6 +333,8 @@ export class Ragdoll {
     }
     this.quiet = energy < 0.05 ? this.quiet + h : 0;
     if (this.quiet > 0.6) this.asleep = true;
+    // Everything is deep in the abyss: out of sight.
+    if (this.points.every((p) => p.pos.y < -RAGDOLL.abyss) && this.loose.every((l) => l.obj.position.y < -RAGDOLL.abyss)) this.asleep = true;
   }
 
   /** Puts every part back on the model exactly as it was. */

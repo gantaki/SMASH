@@ -2,6 +2,7 @@
 
 import { arena } from "@smash/content";
 import { clamp, type Vec2 } from "./math.ts";
+import { rimPenetration } from "./floor.ts";
 import type { MatchState, Obstacle } from "./state.ts";
 
 export interface Penetration {
@@ -154,13 +155,13 @@ export function polylineDistance(points: readonly Vec2[], x: number, z: number):
   return best;
 }
 
-/** True if a target knocked away from `from` by `dist` would hit an obstacle or the arena wall. */
+/** True if a target knocked away from `from` by `dist` would hit an obstacle or the arena wall (where it still stands). */
 export function wallBehind(state: MatchState, from: Vec2, target: Vec2, dist: number): boolean {
   const dx = target.x - from.x;
   const dz = target.z - from.z;
   const d = Math.hypot(dx, dz) || 1;
   const px = target.x + (dx / d) * dist;
   const pz = target.z + (dz / d) * dist;
-  if (Math.hypot(px, pz) > arena.radius - 1.2) return true;
+  if (rimPenetration(state, px, pz, 1.2)) return true;
   return state.obstacles.some((o) => o.alive && obstacleDistance(o, px, pz) < 0.8);
 }

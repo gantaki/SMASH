@@ -15,6 +15,7 @@ import {
   type ProjectileVisual,
   type Tuning,
 } from "@smash/content";
+import { floorTiles } from "./floor.ts";
 import type { Vec2 } from "./math.ts";
 
 export type Phase = "countdown" | "fight" | "roundEnd" | "matchEnd";
@@ -58,7 +59,7 @@ export interface Forced {
   vz: number;
   time: number;
   kind: "knock" | "pull";
-  /** Champion credited if the knockback ends in a slam, or -1. */
+  /** Champion credited if the knockback ends in a slam, or if the unit goes into the abyss while it lasts; -1 = nobody. */
   source: number;
   slamStun: number;
   slamDamage: number;
@@ -189,6 +190,8 @@ export interface GroundEffect {
   delay: number;
   t: number;
   onHit: OnHit;
+  /** Damage to the floor tiles inside the blast. */
+  floorDamage: number;
   cratePush: number;
   falling: boolean;
   abilityId: string;
@@ -206,6 +209,8 @@ export interface Obstacle {
   /** Radians. */
   rot: number;
   alive: boolean;
+  /** Dropped into the abyss with the floor under it: gone for the rest of the round. */
+  fallen: boolean;
   hp: number;
   maxHp: number;
   respawn: number;
@@ -228,6 +233,14 @@ export interface Orb {
   maxHp: number;
   nextAt: number;
   lastHitter: number;
+}
+
+/** What is left of the floor. The layout (where each tile is) is in floor.ts. */
+export interface FloorState {
+  /** Health left per tile, indexed like `floorTiles`. 0 = broken. */
+  hp: number[];
+  /** Broken tiles that have not dropped yet: still solid ground until `time` runs out. A broken tile not listed here is a hole. */
+  crumbling: { tile: number; time: number }[];
 }
 
 export type RiftPhase = "dormant" | "warn" | "erupt" | "closing";
@@ -277,6 +290,9 @@ export interface MatchState {
   projectiles: Projectile[];
   grounds: GroundEffect[];
   obstacles: Obstacle[];
+  floor: FloorState;
+  /** Health left per section of the arena wall. 0 = gone: a way out, into the abyss. */
+  rim: number[];
   orb: Orb;
   suddenDeath: { active: boolean; startedAt: number; zoneRadius: number; pairsSpawned: number; nextRiftAt: number };
   rifts: Rift[];
@@ -404,6 +420,7 @@ function buildObstacles(nextId: () => number): Obstacle[] {
       halfDepth: 0,
       rot: 0,
       alive: true,
+      fallen: false,
       hp: 0,
       maxHp: 0,
       respawn: 0,
@@ -423,10 +440,14 @@ function buildObstacles(nextId: () => number): Obstacle[] {
       base.radius = Math.hypot(o.halfWidth, o.halfDepth);
     } else {
       base.radius = o.radius;
+      if (o.kind === "stone") base.hp = base.maxHp = o.hp;
     }
     return base;
   });
 }
+
+export const newFloor = (): FloorState => ({ hp: floorTiles.map(() => arena.floor.hp), crumbling: [] });
+export const newRim = (): number[] => Array.from({ length: arena.rim.segments }, () => arena.rim.hp);
 
 export function createMatch(config: MatchConfig): MatchState {
   let id = 0;
@@ -465,6 +486,8 @@ export function createMatch(config: MatchConfig): MatchState {
     projectiles: [],
     grounds: [],
     obstacles,
+    floor: newFloor(),
+    rim: newRim(),
     orb: { alive: false, x: 0, z: 0, radius: arena.orb.radius, hp: 0, maxHp: arena.orb.hp, nextAt: arena.orb.spawnAt, lastHitter: -1 },
     suddenDeath: { active: false, startedAt: 0, zoneRadius: arena.radius, pairsSpawned: 0, nextRiftAt: 0 },
     rifts: [],
@@ -494,8 +517,11 @@ export function startRound(state: MatchState): void {
     const owner = state.units.find((o) => o.id === u.owner) as ChampionUnit;
     resetCompanion(u, owner);
   }
+  state.floor = newFloor();
+  state.rim = newRim();
   for (const o of state.obstacles) {
     o.alive = true;
+    o.fallen = false;
     o.hp = o.maxHp;
     o.respawn = 0;
     o.x = o.homeX;

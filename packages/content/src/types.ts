@@ -32,7 +32,10 @@ export interface OnHit {
   burn?: { dps: number; duration: number };
   /** Drags the target toward the source, stopping `stopDistance` away. */
   pull?: { stopDistance: number; duration: number };
-  /** Pushes the target away. Hitting an obstacle or the arena wall on the way is a slam (see rules.slam). */
+  /**
+   * Pushes the target away. Hitting an obstacle or the arena wall on the way is a slam (see rules.slam);
+   * sliding over a hole in the floor or out through a broken wall is a fall into the abyss.
+   */
   knockback?: { distance: number; duration: number; slamStun?: number; slamDamage?: number };
 }
 
@@ -105,6 +108,8 @@ export interface GroundAoeAbility extends AbilityCommon {
   /** Seconds between the marker appearing and the explosion (after the cast time, if any). */
   delay: number;
   onHit: OnHit;
+  /** It strikes the ground: damage to every floor tile inside the blast (a tile has arena.floor.hp). */
+  floorDamage: number;
   /** Speed given to crates inside the blast. */
   cratePush?: number;
   /** Purely visual: draw something falling from the sky during the delay. */
@@ -131,7 +136,8 @@ export interface LeapAbility extends AbilityCommon {
   maxRange: number;
   /** Air time in seconds. The caster cannot be hit by ground effects' collision while airborne, but can be damaged. */
   duration: number;
-  landing: { radius: number; onHit: OnHit; cratePush?: number };
+  /** The landing strikes the ground: `floorDamage` goes to every floor tile inside it (a tile has arena.floor.hp). */
+  landing: { radius: number; onHit: OnHit; floorDamage: number; cratePush?: number };
 }
 
 export interface NovaAbility extends AbilityCommon {
@@ -254,17 +260,43 @@ export interface Vec2Data {
 }
 
 export type ObstacleDef =
-  /** Indestructible. Blocks movement, projectiles and line of sight. */
-  | { kind: "stone"; x: number; z: number; radius: number }
+  /** Pillar. Blocks movement, projectiles and line of sight. Takes a lot of punishment, then breaks for the rest of the round. */
+  | { kind: "stone"; x: number; z: number; radius: number; hp: number }
   /** Breakable wall (oriented box). Rebuilds after rules.obstacles.woodRespawn. rotDeg 0 = long side along x. */
   | { kind: "wood"; x: number; z: number; halfWidth: number; halfDepth: number; rotDeg: number; hp: number }
   /** Movable. Pushed by knockbacks, pulled by hooks; hurts enemies when it flies into them. */
   | { kind: "crate"; x: number; z: number; radius: number };
 
+/**
+ * The floor is a round slab in the middle with rings of tiles around it, out to the arena radius. Every tile has
+ * health; a broken tile drops into the abyss under the arena, and whatever stands on a hole falls with it.
+ * Only what strikes the ground hurts tiles (`floorDamage` on ground blasts and leap landings); attacks that travel
+ * above the ground (projectiles, melee arcs, novas, channels) only hurt walls, pillars and the rim.
+ */
+export interface FloorConfig {
+  /** Radius of the round slab in the middle (one tile). */
+  centerRadius: number;
+  /** Rings of tiles around it. Ring i (1 = innermost) has tilesPerRing × i tiles, so tiles keep about the same size. */
+  rings: number;
+  /** Must be even: the layout is then point-symmetric, like everything else in the arena. */
+  tilesPerRing: number;
+  hp: number;
+  /** Seconds a broken tile hangs before it drops: the telegraph. It is still solid ground meanwhile. */
+  crumbleTime: number;
+}
+
+/** The wall around the arena, cut into equal sections that break one by one. A gap is a way out: into the abyss. */
+export interface RimConfig {
+  segments: number;
+  hp: number;
+}
+
 export interface ArenaConfig {
   radius: number;
   /** Distance kept between a unit's centre and the arena wall. */
   wallMargin: number;
+  floor: FloorConfig;
+  rim: RimConfig;
   spawns: readonly [Vec2Data, Vec2Data];
   obstacles: readonly ObstacleDef[];
   orb: {
@@ -346,8 +378,11 @@ export interface MatchRules {
   movement: MovementConfig;
   /** `commandCost` is what a companion command costs: one part of the bar (max / commandCost parts are drawn on it). */
   energy: { max: number; commandCost: number; perDamage: number; perCompanionDamage: number; passivePerSecond: number };
-  /** Knockback into an obstacle or the arena wall. Abilities can add to both numbers. */
-  slam: { stun: number; damage: number; woodDamage: number; crateImpulse: number };
+  /**
+   * Knockback into an obstacle or the arena wall. Abilities can add to stun and damage.
+   * `structureDamage` is what the wall, pillar or rim section takes from the body thrown into it.
+   */
+  slam: { stun: number; damage: number; structureDamage: number; crateImpulse: number };
   burn: { tickInterval: number };
   /** Area effects reach a target's centre within their radius plus this fraction of the target's radius. */
   areaBodyFactor: number;

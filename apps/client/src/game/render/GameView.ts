@@ -3,7 +3,18 @@
 
 import * as THREE from "three";
 import { abilityById, arena, getChampion, rules } from "@smash/content";
-import { championOfTeam, obstaclePenetration, type ChampionUnit, type MatchState, type SimEvent, type Unit } from "@smash/sim";
+import {
+  championOfTeam,
+  floorTiles,
+  obstaclePenetration,
+  rimSegmentAt,
+  solidAt,
+  tileAt,
+  type ChampionUnit,
+  type MatchState,
+  type SimEvent,
+  type Unit,
+} from "@smash/sim";
 import type { AudioEngine } from "../../audio/AudioEngine.ts";
 import { Fx } from "./Fx.ts";
 import { KILL_CAM, type KillShot } from "../killcam.ts";
@@ -11,7 +22,8 @@ import { GOLD, ALLY, FOE, G, basic, clamp, rand, rgb, type RGB } from "./gfx.ts"
 import { Hazards } from "./Hazards.ts";
 import { Overlay } from "./Overlay.ts";
 import { Particles } from "./Particles.ts";
-import { RAGDOLL, blowOf, impulseFor, type Blow, type RagdollWorld } from "./Ragdoll.ts";
+import { Floor } from "./Floor.ts";
+import { RAGDOLL, blowOf, fallImpulse, impulseFor, type Blow, type RagdollWorld } from "./Ragdoll.ts";
 import { SpineBillboard } from "./SpineBillboard.ts";
 import { ChampionView, CompanionView, type Pose } from "./Units.ts";
 import { World } from "./World.ts";
@@ -27,7 +39,10 @@ const RIM = { height: 1.2, thickness: 1, standsGap: 7.2 } as const;
 
 const DUST: [RGB, RGB] = [rgb("#f2d18c"), rgb("#66482a")];
 const WOOD: [RGB, RGB] = [rgb("#c0803f"), rgb("#593314")];
+const STONE: [RGB, RGB] = [rgb("#d9b48a"), rgb("#4a2f1c")];
 const SPARK: [RGB, RGB] = [rgb("#fff2d9"), rgb("#b33319")];
+/** At most this many tiles of one blast get their own puff of dust. */
+const TILE_PUFFS = 14;
 const GOLDEN: [RGB, RGB] = [rgb("#fff299"), rgb("#e6800d")];
 
 export interface ViewCallbacks {
@@ -214,20 +229,23 @@ export class GameView {
     this.lastHit.clear();
   }
 
-  /** What a ragdoll can bump into: obstacles (up to their height), the arena rim, the stands. */
+  /** What a ragdoll can bump into: obstacles (up to their height), the arena wall where it stands, the far cliff. */
   private readonly ragdollWorld: RagdollWorld = {
     collide: (x, y, z, radius) => {
+      if (y < 0) return null;
       for (const o of this.latest.obstacles) {
         if (y > OBSTACLE_HEIGHT[o.kind]) continue;
         const pen = obstaclePenetration(o, x, z, radius);
         if (pen) return pen;
       }
-      // A body thrown high enough clears the low rim and lands between the arena and the stands.
+      // A body thrown high enough clears the low wall (or flies out through a gap) and goes down the chasm.
       const d = Math.hypot(x, z);
       const inside = d < arena.radius + RIM.thickness / 2;
-      const limit = inside && y < RIM.height ? arena.radius - radius : arena.radius + RIM.standsGap - radius;
+      const walled = inside && y < RIM.height && this.latest.rim[rimSegmentAt(x, z)]! > 0;
+      const limit = walled ? arena.radius - radius : arena.radius + RIM.standsGap - radius;
       return d > limit && (inside || d > arena.radius + RIM.standsGap - radius) ? { nx: -x / d, nz: -z / d, depth: d - limit } : null;
     },
+    ground: (x, z) => solidAt(this.latest, x, z),
     impact: (x, y, z, speed, kind) => {
       const k = Math.min(1, speed / (RAGDOLL.slamSpeed * 3));
       this.particles.emit(x, Math.max(0.2, y), z, { n: Math.round(8 + 18 * k), spd: 2 + 3 * k, up: 0.8, col: DUST[0], col2: DUST[1], life: 0.5, size: 0.45, drag: 3, grav: 4, jit: 0.4 });
@@ -292,7 +310,7 @@ export class GameView {
       this.shake = Math.max(0, this.shake - dt * 2.2);
       const sh = this.reducedMotion ? 0 : this.shake * 0.35;
       this.camera.position.set(shot.focus.x + sx * dist, shot.height + (Math.random() - 0.5) * sh, shot.focus.z + sz * dist);
-      this.camera.lookAt(fx, KILL_CAM.lookHeight, fz);
+      this.camera.lookAt(fx, shot.lookHeight, fz);
     } else if (this.orbit) {
       const a = time * 0.1;
       this.camera.position.set(Math.sin(a) * 24, 13, Math.cos(a) * 24);
@@ -372,6 +390,17 @@ export class GameView {
     const me = championOfTeam(state, this.viewerTeam);
     const unit = (id: number) => state.units.find((u) => u.id === id);
     const teamHex = (team: 0 | 1) => (team === this.viewerTeam ? ALLY : FOE);
+    /** Units that went into the abyss in this batch: their death is a drop, not a burst. */
+    const fell = new Set<number>();
+    /** A few of the tiles an event names, for effects: a big blast does not need a puff on every one. */
+    const some = (tiles: readonly number[]) => {
+      const step = Math.max(1, Math.ceil(tiles.length / TILE_PUFFS));
+      return tiles.filter((_, i) => i % step === 0).map((i) => floorTiles[i]!);
+    };
+    const middle = (tiles: readonly number[]) => {
+      const list = tiles.map((i) => floorTiles[i]!);
+      return { x: list.reduce((a, t) => a + t.x, 0) / list.length, z: list.reduce((a, t) => a + t.z, 0) / list.length };
+    };
 
     for (const e of events) {
       switch (e.t) {
@@ -586,9 +615,28 @@ export class GameView {
           this.sound("cleave", e.x, e.z, 0.7);
           break;
         }
+        case "fall": {
+          fell.add(e.unit);
+          const u = unit(e.unit);
+          if (!u) break;
+          p.emit(e.x, 0.3, e.z, { n: 26, spd: 2.5, up: 0.6, col: DUST[0], col2: DUST[1], life: 0.6, size: 0.5, drag: 2, grav: 5, jit: 0.5 });
+          this.sound("abyss_fall", e.x, e.z, u.kind === "champion" ? 1 : 0.6);
+          if (u.kind === "champion") {
+            overlay.floatText(e.x, 2.8, e.z, "В бездну!", "#ffd28a", true);
+            this.shakeAt(e.x, e.z, 0.3);
+          } else this.pets.get(u.id)?.fall(e.x, e.z);
+          break;
+        }
         case "death": {
           const u = unit(e.unit);
           if (!u) break;
+          if (fell.has(u.id)) {
+            // No burst and no launch: the body tips over the edge with what speed it had and is gone.
+            this.sound("death", u.x, u.z, 0.6);
+            this.lastHit.delete(u.id);
+            this.champs.get(u.id)?.startRagdoll(this.scene, fallImpulse(u.vx, u.vz), this.ragdollWorld, { x: u.x, z: u.z, face: u.face }, true);
+            break;
+          }
           const c: RGB = u.team === this.viewerTeam ? [0.3, 0.85, 1] : [1, 0.35, 0.25];
           p.emit(u.x, 1, u.z, { n: 80, spd: 6, up: 0.9, vy: 1, col: c, col2: [0.3, 0.1, 0.05], life: 0.8, size: 0.5, drag: 2, grav: 4, jit: 0.6 });
           fx.wave(u.x, u.z, 3, teamHex(u.team), 0.5, true);
@@ -610,8 +658,10 @@ export class GameView {
           const c = unit(e.unit);
           if (!c) break;
           const col = this.palette(c, state);
-          p.emit(c.x, this.pets.get(c.id)?.centerHeight ?? 1, c.z, { n: 44, spd: 5, up: 0.8, col: col[0], col2: [0.3, 0.1, 0.05], life: 0.7, size: 0.45, drag: 2, grav: 3, jit: 0.4 });
-          this.sound("companion_death", c.x, c.z);
+          if (!fell.has(c.id)) {
+            p.emit(c.x, this.pets.get(c.id)?.centerHeight ?? 1, c.z, { n: 44, spd: 5, up: 0.8, col: col[0], col2: [0.3, 0.1, 0.05], life: 0.7, size: 0.45, drag: 2, grav: 3, jit: 0.4 });
+            this.sound("companion_death", c.x, c.z);
+          }
           const own = c.team === this.viewerTeam;
           this.cb.message(own ? `Компаньон вернётся через ${rules.companion.respawn} с` : "Компаньон соперника повержен", 1.4);
           break;
@@ -660,17 +710,80 @@ export class GameView {
           if (u) overlay.floatText(u.x, 3, u.z, `+${e.amount} энергии`, "#ffe066");
           break;
         }
-        case "obstacleHit":
+        case "obstacleHit": {
           this.world.obstacleHit(e.id);
-          p.emit(e.x, 0.9, e.z, { n: 9, spd: 3, up: 0.8, col: WOOD[0], col2: WOOD[1], life: 0.5, size: 0.35, grav: 6, jit: 1.2 });
-          this.sound("wood_hit", e.x, e.z);
+          const stone = state.obstacles.find((o) => o.id === e.id)?.kind === "stone";
+          const col = stone ? STONE : WOOD;
+          p.emit(e.x, stone ? 1.5 : 0.9, e.z, { n: 9, spd: 3, up: 0.8, col: col[0], col2: col[1], life: 0.5, size: 0.35, grav: 6, jit: 1.2 });
+          this.sound(stone ? "stone_hit" : "wood_hit", e.x, e.z);
           break;
-        case "obstacleBreak":
+        }
+        case "obstacleBreak": {
+          const stone = state.obstacles.find((o) => o.id === e.id)?.kind === "stone";
+          if (stone) {
+            for (const y of [0.6, 1.6, 2.8]) {
+              p.emit(e.x, y, e.z, { n: 34, spd: 5, up: 0.7, vy: 1, col: STONE[0], col2: STONE[1], life: 1, size: 0.6, grav: 9, drag: 1, jit: 1.6 });
+            }
+            fx.wave(e.x, e.z, 3, 0xd9b48a, 0.4, true);
+            this.shakeAt(e.x, e.z, 0.5);
+            this.sound("stone_break", e.x, e.z);
+            break;
+          }
           p.emit(e.x, 0.8, e.z, { n: 64, spd: 6, up: 1, vy: 2, col: WOOD[0], col2: WOOD[1], life: 0.9, size: 0.5, grav: 8, drag: 1, jit: 3 });
           fx.wave(e.x, e.z, 2.4, 0xc89050, 0.35, true);
           this.shakeAt(e.x, e.z, 0.35);
           this.sound("wood_break", e.x, e.z);
           break;
+        }
+        case "obstacleFall":
+          p.emit(e.x, 0.4, e.z, { n: 40, spd: 4, up: 0.5, col: DUST[0], col2: DUST[1], life: 0.8, size: 0.6, drag: 2, grav: 4, jit: 1.2 });
+          this.shakeAt(e.x, e.z, 0.3);
+          this.sound("floor_collapse", e.x, e.z, 0.7);
+          break;
+        case "floorCrack": {
+          for (const t of some(e.tiles)) {
+            p.emit(t.x, 0.15, t.z, { n: 5, spd: 1.6, up: 0.9, col: DUST[0], col2: DUST[1], life: 0.5, size: 0.4, drag: 2, grav: 3, jit: 0.6 });
+          }
+          const at = middle(e.tiles);
+          this.sound("floor_crack", at.x, at.z);
+          break;
+        }
+        case "floorCrumble": {
+          for (const t of some(e.tiles)) {
+            p.emit(t.x, 0.2, t.z, { n: 9, spd: 2.2, up: 1.1, col: DUST[0], col2: DUST[1], life: 0.7, size: 0.5, drag: 2, grav: 4, jit: 0.7 });
+          }
+          const at = middle(e.tiles);
+          this.sound("floor_crumble", at.x, at.z);
+          this.shakeAt(at.x, at.z, 0.3);
+          // Only when it is the viewer's problem: the floor under them is about to go.
+          if (!me.dead && !this.orbit && e.tiles.includes(tileAt(me.x, me.z))) this.cb.message("Пол уходит из-под ног!", 1.2);
+          break;
+        }
+        case "floorDrop": {
+          for (const t of some(e.tiles)) {
+            p.emit(t.x, 0, t.z, { n: 10, spd: 2.5, up: 0.4, col: DUST[0], col2: DUST[1], life: 0.9, size: 0.6, drag: 1.5, grav: 6, jit: 0.8 });
+          }
+          const at = middle(e.tiles);
+          this.sound("floor_collapse", at.x, at.z, Math.min(1, 0.5 + e.tiles.length * 0.05));
+          this.shakeAt(at.x, at.z, Math.min(0.7, 0.2 + e.tiles.length * 0.03));
+          break;
+        }
+        case "rimHit":
+          p.emit(e.x, 0.8, e.z, { n: 8, spd: 3, up: 0.8, col: STONE[0], col2: STONE[1], life: 0.5, size: 0.35, grav: 6, jit: 0.8 });
+          this.sound("stone_hit", e.x, e.z, 0.8);
+          break;
+        case "rimBreak": {
+          for (const k of [0, 1]) {
+            const b = Floor.rimBlock(e.segment, k);
+            p.emit(b.x, 0.6, b.z, { n: 30, spd: 5, up: 0.8, vy: e.fell ? 0 : 1.5, col: STONE[0], col2: STONE[1], life: 0.9, size: 0.55, grav: 9, drag: 1, jit: 1.2 });
+          }
+          if (!e.fell) {
+            fx.wave(e.x, e.z, 2.6, 0xd9b48a, 0.35, true);
+            this.sound("stone_break", e.x, e.z);
+          }
+          this.shakeAt(e.x, e.z, 0.4);
+          break;
+        }
         case "obstacleRebuild":
           this.world.obstacleRebuilt(e.id);
           break;

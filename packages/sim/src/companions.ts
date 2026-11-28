@@ -3,6 +3,7 @@
 import { arena, getChampion, rules, type CompanionDef } from "@smash/content";
 import { applyOnHit, hurt, moveForced, slowFactor } from "./combat.ts";
 import type { Ctx } from "./context.ts";
+import { nearestSafe, rimPenetration, safeAt } from "./floor.ts";
 import { clearLine, obstaclePenetration, reach } from "./geometry.ts";
 import { angleDiff, type Vec2 } from "./math.ts";
 import { spawnProjectile } from "./projectiles.ts";
@@ -19,7 +20,9 @@ export const companionDef = (state: Ctx["state"], c: CompanionUnit): CompanionDe
 
 export function commandCompanion(ctx: Ctx, c: CompanionUnit, owner: ChampionUnit, aim: Vec2): void {
   const def = companionDef(ctx.state, c);
-  const t = reach(owner, aim, def.command.maxRange);
+  let t = reach(owner, aim, def.command.maxRange);
+  // A walking companion sent onto a hole goes to the nearest floor instead.
+  if (!def.flying && !safeAt(ctx.state, t.x, t.z)) t = nearestSafe(ctx.state, t.x, t.z) ?? t;
   c.mode = "go";
   c.tx = t.x;
   c.tz = t.z;
@@ -63,13 +66,12 @@ function pushOut(ctx: Ctx, c: CompanionUnit, flying: boolean): Vec2 {
       nz += pen.nz;
     }
   }
-  const d = Math.hypot(c.x, c.z);
-  const R = arena.radius - arena.wallMargin;
-  if (d > R) {
-    c.x *= R / d;
-    c.z *= R / d;
-    nx -= c.x / R;
-    nz -= c.z / R;
+  const wall = rimPenetration(ctx.state, c.x, c.z, arena.wallMargin);
+  if (wall) {
+    c.x += wall.nx * wall.depth;
+    c.z += wall.nz * wall.depth;
+    nx += wall.nx;
+    nz += wall.nz;
   }
   return { x: nx, z: nz };
 }
@@ -87,6 +89,12 @@ export function updateCompanion(ctx: Ctx, c: CompanionUnit): void {
       c.respawn -= dt;
       if (c.respawn <= 0 && !owner.dead) {
         resetCompanion(c, owner);
+        // Not over a hole: a walking companion comes back on the nearest floor there is.
+        if (!def.flying && !safeAt(state, c.x, c.z)) {
+          const p = safeAt(state, owner.x, owner.z) ? owner : (nearestSafe(state, owner.x, owner.z) ?? owner);
+          c.x = c.tx = p.x;
+          c.z = c.tz = p.z;
+        }
         ctx.events.push({ t: "companionRespawn", unit: c.id });
       }
     }
@@ -256,6 +264,26 @@ export function updateCompanion(ctx: Ctx, c: CompanionUnit): void {
     }
   }
   if (c.slideTime > 0) c.slideTime -= dt;
+
+  // A walking companion never steps off the floor by itself (it can still be thrown off, or have the floor drop
+  // from under it). It walks along the edge of the hole until the way is clear, or waits there.
+  if (!def.flying && !safeAt(state, c.x, c.z) && safeAt(state, ox, oz)) {
+    c.x = ox;
+    c.z = oz;
+    if (stepLen > 0) {
+      for (const k of [1, -1]) {
+        const px = ox - sz * k * stepLen;
+        const pz = oz + sx * k * stepLen;
+        if (!safeAt(state, px, pz)) continue;
+        c.x = px;
+        c.z = pz;
+        pushOut(ctx, c, false);
+        break;
+      }
+    }
+    // A command to a spot it cannot reach ends at the edge.
+    if (c.mode === "go" && c.x === ox && c.z === oz) c.mode = "follow";
+  }
 
   const mx = c.x - ox;
   const mz = c.z - oz;

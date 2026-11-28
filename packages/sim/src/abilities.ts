@@ -1,10 +1,11 @@
 // Ability pipeline: tryCast → (wind-up) → fire → behaviour for the ability's kind.
 // To add a mechanic: add a kind to packages/content/src/types.ts and one entry to `behaviors` below.
 
-import { botDifficulty, getChampion, rules, type Ability, type AbilityKind, type AbilitySlot } from "@smash/content";
-import { applyOnHit, cancelCast, damageObstacle, hittables, pushCrates, targetPos } from "./combat.ts";
+import { arena, botDifficulty, getChampion, rules, type Ability, type AbilityKind, type AbilitySlot } from "@smash/content";
+import { applyOnHit, cancelCast, damageObstacle, damageRim, damageStructuresInArea, hittables, pushCrates, targetPos } from "./combat.ts";
 import { commandCompanion } from "./companions.ts";
 import type { Ctx } from "./context.ts";
+import { rimPoint } from "./floor.ts";
 import { obstacleDistance, obstaclePenetration, reach } from "./geometry.ts";
 import { angleDiff } from "./math.ts";
 import { spawnProjectile } from "./projectiles.ts";
@@ -117,6 +118,7 @@ const behaviors: { [K in AbilityKind]: Behavior<K> } = {
       delay: a.delay,
       t: 0,
       onHit: a.onHit,
+      floorDamage: a.floorDamage,
       cratePush: a.cratePush ?? 0,
       falling: !!a.falling,
       abilityId: a.id,
@@ -141,17 +143,27 @@ const behaviors: { [K in AbilityKind]: Behavior<K> } = {
       }
     }
     for (const o of ctx.state.obstacles) {
-      if (!o.alive || o.kind === "stone" || obstacleDistance(o, u.x, u.z) > a.range) continue;
+      if (!o.alive || obstacleDistance(o, u.x, u.z) > a.range) continue;
       const ox = o.x - u.x;
       const oz = o.z - u.z;
       if (Math.abs(angleDiff(Math.atan2(ox, oz), u.face)) > half + CONE_OBSTACLE_SLACK) continue;
-      if (o.kind === "wood") damageObstacle(ctx, o, onHit.damage);
+      if (o.kind !== "crate") damageObstacle(ctx, o, onHit.damage);
       else if (a.cratePush) {
         const d = Math.hypot(ox, oz) || 1;
         o.vx = (ox / d) * a.cratePush;
         o.vz = (oz / d) * a.cratePush;
         o.pusher = u.id;
         o.pusherTeam = u.team;
+      }
+    }
+    // The arena wall, section by section: the swing reaches the nearest point of a section.
+    if (Math.hypot(u.x, u.z) + a.range > arena.radius) {
+      for (let segment = 0; segment < ctx.state.rim.length; segment++) {
+        if (ctx.state.rim[segment]! <= 0) continue;
+        const p = rimPoint(segment, u.x, u.z);
+        if (Math.hypot(p.x - u.x, p.z - u.z) > a.range) continue;
+        if (Math.abs(angleDiff(Math.atan2(p.x - u.x, p.z - u.z), u.face)) > half) continue;
+        damageRim(ctx, segment, onHit.damage, p.x, p.z);
       }
     }
   },
@@ -186,6 +198,7 @@ const behaviors: { [K in AbilityKind]: Behavior<K> } = {
     for (const t of enemiesOf(ctx.state, u.team)) {
       if (Math.hypot(t.x - u.x, t.z - u.z) < a.radius + t.radius * rules.areaBodyFactor) applyOnHit(ctx, t, a.onHit, u, u.x, u.z);
     }
+    damageStructuresInArea(ctx, u.x, u.z, a.radius, a.onHit.damage);
     if (a.cratePush) pushCrates(ctx, u.x, u.z, a.radius, a.cratePush, u);
     ctx.events.push({ t: "nova", unit: u.id, x: u.x, z: u.z, radius: a.radius, abilityId: a.id });
   },

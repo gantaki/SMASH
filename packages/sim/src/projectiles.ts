@@ -1,8 +1,9 @@
 // Projectiles and delayed ground effects.
 
 import { arena, rules, type CompanionInteraction, type ProjectileSpec } from "@smash/content";
-import { applyOnHit, damageObstacle, damageObstaclesInArea, hittables, pull, pushCrates, targetPos } from "./combat.ts";
+import { applyOnHit, damageFloor, damageObstacle, damageRim, damageStructuresInArea, hittables, pull, pushCrates, targetPos } from "./combat.ts";
 import type { Ctx } from "./context.ts";
+import { rimPenetration } from "./floor.ts";
 import { obstaclePenetration } from "./geometry.ts";
 import { companionOf, creditOf, unitById, type Projectile, type Unit } from "./state.ts";
 import type { ProjectileEndReason } from "./events.ts";
@@ -72,8 +73,15 @@ export function updateProjectiles(ctx: Ctx): void {
     p.x += p.vx * dt;
     p.z += p.vz * dt;
     p.dist += p.speed * dt;
-    if (p.dist > p.range || Math.hypot(p.x, p.z) > arena.radius - cfg.wallMargin) {
+    if (p.dist > p.range) {
       endProjectile(ctx, i, "expired");
+      continue;
+    }
+    // The arena wall stops it and takes the hit; through a gap it flies on over the abyss until its range runs out.
+    const wall = rimPenetration(state, p.x, p.z, cfg.wallMargin);
+    if (wall) {
+      damageRim(ctx, wall.segment, p.onHit.damage, p.x, p.z);
+      endProjectile(ctx, i, "blocked");
       continue;
     }
     const owner = unitById(state, p.owner);
@@ -104,8 +112,8 @@ export function updateProjectiles(ctx: Ctx): void {
     let blocked = false;
     for (const o of state.obstacles) {
       if (!o.alive || !obstaclePenetration(o, p.x, p.z, p.radius)) continue;
-      if (o.kind === "wood") damageObstacle(ctx, o, p.onHit.damage);
-      else if (o.kind === "crate") {
+      if (o.kind !== "crate") damageObstacle(ctx, o, p.onHit.damage);
+      else {
         if (p.hook && owner) {
           // Yank the crate so that friction stops it just in front of the caster.
           const dx = owner.x - o.x;
@@ -154,7 +162,8 @@ export function updateGrounds(ctx: Ctx): void {
       const pos = targetPos(ctx, t);
       if (Math.hypot(pos.x - g.x, pos.z - g.z) < g.radius + pos.radius * rules.areaBodyFactor) applyOnHit(ctx, t, g.onHit, owner, g.x, g.z);
     }
-    damageObstaclesInArea(ctx, g.x, g.z, g.radius, g.onHit.damage);
+    damageStructuresInArea(ctx, g.x, g.z, g.radius, g.onHit.damage);
+    damageFloor(ctx, g.x, g.z, g.radius, g.floorDamage);
     if (g.cratePush && owner) pushCrates(ctx, g.x, g.z, g.radius, g.cratePush, owner);
     ctx.events.push({ t: "groundBurst", id: g.id, x: g.x, z: g.z, radius: g.radius, abilityId: g.abilityId, falling: g.falling });
     state.grounds.splice(i, 1);

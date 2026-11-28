@@ -64,6 +64,19 @@ export type SimEvent =
   | { t: "obstacleHit"; id: number; x: number; z: number }
   | { t: "obstacleBreak"; id: number; x: number; z: number }
   | { t: "obstacleRebuild"; id: number }
+  /** The floor under the obstacle is gone and it went down with it. */
+  | { t: "obstacleFall"; id: number; x: number; z: number }
+  /** Floor tiles (ids = indices into floorTiles) took damage and still hold. */
+  | { t: "floorCrack"; tiles: number[] }
+  /** Tiles broke: they stay solid for arena.floor.crumbleTime, then drop. */
+  | { t: "floorCrumble"; tiles: number[] }
+  /** Tiles dropped into the abyss: holes from now on. */
+  | { t: "floorDrop"; tiles: number[] }
+  | { t: "rimHit"; segment: number; x: number; z: number }
+  /** A section of the arena wall is gone. `fell`: the floor under it dropped, rather than it being broken. */
+  | { t: "rimBreak"; segment: number; x: number; z: number; fell: boolean }
+  /** A unit went into the abyss (a death or companionDeath event follows). `by`: champion who shoved or pulled it there, or -1. */
+  | { t: "fall"; unit: number; x: number; z: number; by: number }
   | { t: "crateBump"; id: number; x: number; z: number }
   | { t: "crateHit"; id: number; target: number; x: number; z: number }
   | { t: "orbSpawn" }

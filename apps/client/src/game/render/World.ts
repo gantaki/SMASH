@@ -1,8 +1,10 @@
-// Static arena: floor, rim, stands, pillars with braziers, plus the obstacles and the orb that the sim moves.
+// The arena: a slab floor over an abyss (Floor.ts draws the tiles and the wall), the stands across the chasm,
+// pillars with braziers, plus the obstacles and the orb that the sim moves.
 
 import * as THREE from "three";
 import { arena } from "@smash/content";
-import type { MatchState, Obstacle } from "@smash/sim";
+import { tileSolid, type MatchState, type Obstacle } from "@smash/sim";
+import { FLOOR_DEPTH, Floor } from "./Floor.ts";
 import { G, GOLD, TAU, basic, canvasTexture, rand, rgb, std } from "./gfx.ts";
 import type { Particles } from "./Particles.ts";
 
@@ -12,58 +14,67 @@ interface Fire {
   z: number;
   rate: number;
   size: number;
+  /** Burns only while this obstacle stands (a pillar's brazier). */
+  obstacle?: number;
 }
 
 interface ObstacleView {
   group: THREE.Group;
+  /** Tinted as the obstacle loses health. */
   mat?: THREE.MeshStandardMaterial;
   rise: number;
   hit: number;
+  /** Seconds since it started dropping into the abyss, or -1. */
+  fall: number;
+  tilt: { x: number; z: number };
 }
 
 const FIRE_A = rgb("#ffb84d");
 const FIRE_B = rgb("#bf1f05");
 const WOOD_FRESH = new THREE.Color(0xffffff);
 const WOOD_WORN = new THREE.Color(0x5a3a22);
+const STONE_FRESH = new THREE.Color(0xb27c4b);
+const STONE_WORN = new THREE.Color(0x4f3220);
+/** How deep the abyss is drawn, and how an obstacle drops into it. */
+const ABYSS_DEPTH = 70;
+const FALL_GRAVITY = 26;
+const FALL_GONE = 2.4;
+/** Distance from the arena to the stands: the width of the chasm. */
+const CHASM = 7.6;
 
-function floorTexture(): THREE.CanvasTexture {
-  return canvasTexture(1024, 1024, (g, S) => {
+/** Rock wall of the abyss: dark at the top, lit from far below. */
+function abyssWallTexture(): THREE.CanvasTexture {
+  return canvasTexture(128, 512, (g, w, h) => {
+    const grd = g.createLinearGradient(0, 0, 0, h);
+    grd.addColorStop(0, "#1b110b");
+    grd.addColorStop(0.6, "#150906");
+    grd.addColorStop(0.88, "#34100a");
+    grd.addColorStop(1, "#6e260c");
+    g.fillStyle = grd;
+    g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 260; i++) {
+      g.fillStyle = Math.random() < 0.5 ? "rgba(0,0,0,.18)" : "rgba(255,170,110,.05)";
+      g.fillRect(Math.random() * w, Math.random() * h, rand(2, 7), rand(10, 60));
+    }
+  });
+}
+
+/** What is at the bottom: a dark crust with glowing veins. */
+function abyssFloorTexture(): THREE.CanvasTexture {
+  return canvasTexture(512, 512, (g, S) => {
     const m = S / 2;
     const grd = g.createRadialGradient(m, m, 0, m, m, m);
-    grd.addColorStop(0, "#c99a63");
-    grd.addColorStop(0.65, "#b5834f");
-    grd.addColorStop(1, "#8a5a30");
+    grd.addColorStop(0, "#8a3410");
+    grd.addColorStop(0.5, "#551a08");
+    grd.addColorStop(1, "#260a04");
     g.fillStyle = grd;
     g.fillRect(0, 0, S, S);
-    const rings = [0.08, 0.15, 0.24, 0.35, 0.48, 0.62, 0.78, 0.95];
-    g.lineWidth = 3;
-    for (let i = 0; i < rings.length - 1; i++) {
-      const n = 8 + i * 6;
-      const r0 = rings[i]! * m;
-      const r1 = rings[i + 1]! * m;
-      const off = Math.random() * TAU;
-      for (let k = 0; k < n; k++) {
-        const a0 = off + (k / n) * TAU;
-        const a1 = off + ((k + 1) / n) * TAU;
-        g.beginPath();
-        g.arc(m, m, r1, a0, a1);
-        g.arc(m, m, r0, a1, a0, true);
-        g.closePath();
-        g.fillStyle = Math.random() < 0.5 ? `rgba(255,236,200,${rand(0.02, 0.08)})` : `rgba(80,44,18,${rand(0.03, 0.1)})`;
-        g.fill();
-        g.strokeStyle = "rgba(70,38,14,.45)";
-        g.stroke();
-      }
+    for (let i = 0; i < 70; i++) {
+      g.fillStyle = `rgba(20,6,3,${rand(0.35, 0.7)})`;
+      g.beginPath();
+      g.ellipse(Math.random() * S, Math.random() * S, rand(14, 60), rand(10, 40), Math.random() * TAU, 0, TAU);
+      g.fill();
     }
-    for (let i = 0; i < 11000; i++) {
-      g.fillStyle = Math.random() < 0.5 ? "rgba(255,238,205,.08)" : "rgba(70,38,14,.1)";
-      g.fillRect(Math.random() * S, Math.random() * S, 2, 2);
-    }
-    g.strokeStyle = "rgba(60,30,12,.6)";
-    g.lineWidth = 16;
-    g.beginPath();
-    g.arc(m, m, m - 8, 0, TAU);
-    g.stroke();
   });
 }
 
@@ -90,43 +101,37 @@ function planks(g: CanvasRenderingContext2D, w: number, h: number, n: number, ba
 
 export class World {
   readonly group = new THREE.Group();
+  private readonly floor = new Floor();
   private readonly fires: Fire[] = [];
   private readonly obstacles = new Map<number, ObstacleView>();
   private readonly orb = new THREE.Group();
   private readonly orbCrystal: THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>;
   private readonly orbLight = new THREE.PointLight(0xffcf6a, 0, 14, 1.6);
+  private readonly pedestal = new THREE.Group();
   private orbFlash = 0;
 
   constructor(state: MatchState, private readonly particles: Particles) {
     const R = arena.radius;
     const add = (m: THREE.Object3D) => this.group.add(m);
 
-    const floor = new THREE.Mesh(new THREE.CircleGeometry(R + 0.2, 96), std(0xffffff, { map: floorTexture(), roughness: 0.95 }));
-    floor.rotation.x = -Math.PI / 2;
-    floor.receiveShadow = true;
-    add(floor);
-    const outer = new THREE.Mesh(new THREE.RingGeometry(R, R + 7.6, 96), std(0x4a2f1f, { roughness: 1 }));
-    outer.rotation.x = -Math.PI / 2;
-    outer.position.y = -0.01;
-    outer.receiveShadow = true;
-    add(outer);
+    add(this.floor.group);
 
-    const rim = new THREE.InstancedMesh(G.box, std(0x9a6a42, { roughness: 0.9 }), 72);
-    const d = new THREE.Object3D();
-    for (let i = 0; i < 72; i++) {
-      const a = (i / 72) * TAU;
-      const h = i % 2 ? 1.25 : 0.85;
-      d.position.set(Math.cos(a) * (R + 0.5), h / 2, Math.sin(a) * (R + 0.5));
-      d.rotation.set(0, -a - Math.PI / 2, 0);
-      d.scale.set(1.72, h, 0.9);
-      d.updateMatrix();
-      rim.setMatrixAt(i, d.matrix);
-    }
-    rim.castShadow = rim.receiveShadow = true;
-    add(rim);
+    // The abyss. The arena is the top of a hollow shaft: through a hole you look down into it, from outside it is
+    // a column of rock. Across the chasm the stands rise from a cliff. Unlit and unfogged, so the glow far below shows.
+    const rock = (side: THREE.Side) => new THREE.MeshBasicMaterial({ map: abyssWallTexture(), side, fog: false });
+    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(R - 0.1, R * 0.82, ABYSS_DEPTH, 72, 1, true), rock(THREE.DoubleSide));
+    shaft.position.y = -FLOOR_DEPTH - ABYSS_DEPTH / 2;
+    add(shaft);
+    const cliff = new THREE.Mesh(new THREE.CylinderGeometry(R + CHASM, R + CHASM, ABYSS_DEPTH, 80, 1, true), rock(THREE.BackSide));
+    cliff.position.y = -ABYSS_DEPTH / 2;
+    add(cliff);
+    const bottom = new THREE.Mesh(new THREE.CircleGeometry(R + CHASM, 64), new THREE.MeshBasicMaterial({ map: abyssFloorTexture(), fog: false }));
+    bottom.rotation.x = -Math.PI / 2;
+    bottom.position.y = -ABYSS_DEPTH;
+    add(bottom);
 
     [0x5c3b26, 0x513421, 0x472d1c, 0x3d2717].forEach((col, i) => {
-      const r = R + 7.6 + i * 3.2;
+      const r = R + CHASM + i * 3.2;
       const h = 1.4 + i * 1.5;
       const wall = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, 80, 1, true), std(col, { side: THREE.DoubleSide, roughness: 1 }));
       wall.position.y = h / 2;
@@ -137,7 +142,6 @@ export class World {
       add(top);
     });
 
-    const stone = std(0xb27c4b, { roughness: 0.85 });
     const dark = std(0x7a4f2e, { roughness: 0.9 });
     const metal = std(0x3a2b22, { roughness: 0.5, metalness: 0.6 });
     const coalMat = basic(0xff6a1c);
@@ -173,9 +177,11 @@ export class World {
         g.add(m);
         return m;
       };
-      const view: ObstacleView = { group: g, rise: 0, hit: 0 };
+      const view: ObstacleView = { group: g, rise: 0, hit: 0, fall: -1, tilt: { x: rand(-0.5, 0.5), z: rand(-0.5, 0.5) } };
       if (o.kind === "stone") {
         const k = o.radius / 1.3;
+        const stone = std(STONE_FRESH, { roughness: 0.85 });
+        view.mat = stone;
         part(new THREE.CylinderGeometry(1.65 * k, 1.75 * k, 0.45, 20), dark, 0.22);
         part(new THREE.CylinderGeometry(1.2 * k, 1.3 * k, 2.2, 20), stone, 1.55);
         part(new THREE.BoxGeometry(2.8 * k, 0.4, 2.8 * k), dark, 2.85);
@@ -184,7 +190,7 @@ export class World {
         coal.scale.setScalar(0.66 * k);
         coal.position.y = 3.52;
         g.add(coal);
-        this.fires.push({ x: o.x, y: 3.55, z: o.z, rate: 34, size: 0.85 });
+        this.fires.push({ x: o.x, y: 3.55, z: o.z, rate: 34, size: 0.85, obstacle: o.id });
       } else if (o.kind === "wood") {
         const mat = std(0xffffff, { map: woodTex, roughness: 0.9 });
         const wall = part(G.box, mat, 0.65);
@@ -209,33 +215,35 @@ export class World {
 
     for (let k = 0; k < 4; k++) {
       const a = TAU / 8 + (k * TAU) / 4;
-      const x = Math.cos(a) * (R + 4);
-      const z = Math.sin(a) * (R + 4);
+      // On the first tier of the stands, across the chasm.
+      const x = Math.cos(a) * (R + CHASM + 1.2);
+      const z = Math.sin(a) * (R + CHASM + 1.2);
+      const y = 1.4;
       const ped = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.65, 2.4, 12), dark);
-      ped.position.set(x, 1.2, z);
+      ped.position.set(x, y + 1.2, z);
       ped.castShadow = true;
       add(ped);
       const bowl = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.5, 0.5, 14), metal);
-      bowl.position.set(x, 2.6, z);
+      bowl.position.set(x, y + 2.6, z);
       add(bowl);
       const coal = new THREE.Mesh(G.circle, coalMat);
       coal.scale.setScalar(0.8);
-      coal.position.set(x, 2.87, z);
+      coal.position.set(x, y + 2.87, z);
       add(coal);
-      const light = new THREE.PointLight(0xff8a3a, 70, 26, 1.8);
-      light.position.set(x, 3.6, z);
+      const light = new THREE.PointLight(0xff8a3a, 120, 34, 1.8);
+      light.position.set(x, y + 3.6, z);
       add(light);
-      this.fires.push({ x, y: 2.9, z, rate: 46, size: 1.1 });
+      this.fires.push({ x, y: y + 2.9, z, rate: 46, size: 1.1 });
     }
 
     const pedestal = new THREE.Mesh(new THREE.CylinderGeometry(1.05, 1.2, 0.18, 24), std(0xa47148, { roughness: 0.8 }));
     pedestal.position.y = 0.09;
     pedestal.receiveShadow = true;
-    add(pedestal);
     const pr = new THREE.Mesh(G.ring, basic(0xe0a640, 0.9));
     pr.scale.setScalar(0.85);
     pr.position.y = 0.19;
-    add(pr);
+    this.pedestal.add(pedestal, pr);
+    add(this.pedestal);
 
     this.orbCrystal = new THREE.Mesh(G.oct, std(0xffd36b, { emissive: 0xffb020, emissiveIntensity: 1.2, roughness: 0.25, metalness: 0.2 }));
     this.orbCrystal.scale.set(0.6, 0.85, 0.6);
@@ -266,24 +274,50 @@ export class World {
 
   /** `pos` gives the interpolated position of a moving obstacle (crates). */
   update(state: MatchState, time: number, dt: number, pos: (o: Obstacle) => { x: number; z: number }): void {
+    this.floor.update(state, time, dt);
+    // The orb hovers; its pedestal goes with the slab it stands on.
+    this.pedestal.visible = tileSolid(state, 0);
+    const standing = new Set(state.obstacles.filter((o) => o.alive).map((o) => o.id));
     for (const f of this.fires) {
+      if (f.obstacle !== undefined && !standing.has(f.obstacle)) continue;
       const n = Math.floor(f.rate * dt + Math.random());
       if (n) this.particles.emit(f.x, f.y, f.z, { n, spd: 0.6, vy: 2.2, col: FIRE_A, col2: FIRE_B, life: 0.7, size: f.size, jit: 0.5, drag: 0.5 });
     }
     for (const o of state.obstacles) {
       const v = this.obstacles.get(o.id);
       if (!v) continue;
-      if (o.kind === "wood") {
+      if (o.fallen) {
+        // Dropped with the floor under it: it tips over and goes down. (A wall that was already broken has nothing to drop.)
+        if (v.fall < 0 && v.group.visible) v.fall = 0;
+        if (v.fall < 0 || v.fall > FALL_GONE) {
+          v.group.visible = false;
+          continue;
+        }
+        v.fall += dt;
+        v.group.position.y = -0.5 * FALL_GRAVITY * v.fall * v.fall;
+        v.group.rotation.x = v.tilt.x * v.fall;
+        v.group.rotation.z = v.tilt.z * v.fall;
+        continue;
+      }
+      if (v.fall >= 0) {
+        // Standing again (next round, kill cam rewind).
+        v.fall = -1;
+        v.group.rotation.x = v.group.rotation.z = 0;
+        v.group.position.y = 0;
+      }
+      if (o.kind !== "crate") {
         v.group.visible = o.alive;
         if (!o.alive) continue;
         const k = Math.max(0, o.hp / o.maxHp);
-        v.group.scale.y = 0.6 + 0.4 * k;
-        v.mat?.color.copy(WOOD_FRESH).lerp(WOOD_WORN, 1 - k);
+        const wood = o.kind === "wood";
+        if (wood) v.group.scale.y = 0.6 + 0.4 * k;
+        v.mat?.color.copy(wood ? WOOD_FRESH : STONE_FRESH).lerp(wood ? WOOD_WORN : STONE_WORN, 1 - k);
         v.rise = Math.max(0, v.rise - dt);
         v.hit = Math.max(0, v.hit - dt);
-        const shake = v.hit > 0 ? 0.06 : 0;
+        const shake = v.hit > 0 && dt > 0 ? (wood ? 0.06 : 0.035) : 0;
         v.group.position.set(o.x + rand(-shake, shake), -1.4 * (v.rise / 0.45), o.z + rand(-shake, shake));
-      } else if (o.kind === "crate") {
+      } else {
+        v.group.visible = true;
         const p = pos(o);
         v.group.position.set(p.x, 0, p.z);
         v.group.rotation.y = o.spin;

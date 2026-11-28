@@ -9,8 +9,12 @@ import {
   currentSlow,
   polylineDistance,
   emptyInput,
+  floorTiles,
+  rimSegmentAt,
   runBotMatch,
+  solidAt,
   step,
+  tileAt,
   trainingCommand,
   type ChampionUnit,
   type MatchMode,
@@ -621,6 +625,348 @@ describe("sudden death", () => {
   });
 });
 
+describe("destructible arena", () => {
+  /** Knocks a tile out at once (no crumbling): a hole. */
+  const hole = (s: Scene, x: number, z: number) => {
+    s.state.floor.hp[tileAt(x, z)] = 0;
+  };
+  const intact = (s: Scene) => s.state.floor.hp.every((hp) => hp === arena.floor.hp);
+  const ring = ember.abilities.e!;
+  if (ring.kind !== "groundAoe") throw new Error("expected groundAoe");
+
+  it("lays the floor out in rings: every point of the arena is on exactly one tile, point-symmetrically", () => {
+    const f = arena.floor;
+    expect(f.tilesPerRing % 2).toBe(0);
+    expect(floorTiles).toHaveLength(1 + (f.tilesPerRing * f.rings * (f.rings + 1)) / 2);
+    floorTiles.forEach((t, i) => {
+      expect(tileAt(t.x, t.z)).toBe(i);
+      const mirror = floorTiles[tileAt(-t.x, -t.z)]!;
+      expect(mirror.x).toBeCloseTo(-t.x, 9);
+      expect(mirror.z).toBeCloseTo(-t.z, 9);
+    });
+    expect(tileAt(0, arena.radius + 0.01)).toBe(-1);
+    expect(tileAt(arena.radius - 0.01, 0)).toBeGreaterThan(0);
+    // Two tiles of the outer ring under every section of the arena wall.
+    const outer = floorTiles.filter((t) => t.ring === f.rings);
+    expect(outer).toHaveLength(arena.rim.segments * 2);
+    const perSection = new Map<number, number>();
+    for (const t of outer) perSection.set(rimSegmentAt(t.x, t.z), (perSection.get(rimSegmentAt(t.x, t.z)) ?? 0) + 1);
+    expect([...perSection.values()].every((n) => n === 2)).toBe(true);
+  });
+
+  it("a ground blast cracks the floor; a second one breaks it, the tiles hang for a moment, then drop with whoever stands on them", () => {
+    const s = scene();
+    place(s.a, 0, 12);
+    place(s.b, 0, 4);
+    const under = tileAt(0, 4);
+    s.press(0, "e", 0, 4);
+    const first = s.run(ring.castTime! + ring.delay + 0.1);
+    expect(of(first, "floorCrack")[0]!.tiles).toContain(under);
+    expect(s.state.floor.hp[under]).toBe(arena.floor.hp - ring.floorDamage);
+    expect(of(first, "floorCrumble")).toHaveLength(0);
+
+    s.a.cooldowns.e = 0;
+    s.b.stun = 0;
+    s.press(0, "e", 0, 4);
+    const second = s.run(ring.castTime! + ring.delay + 0.1);
+    expect(of(second, "floorCrumble")[0]!.tiles).toContain(under);
+    expect(s.state.floor.hp[under]).toBe(0);
+    // Broken, but still there: this is the telegraph.
+    expect(solidAt(s.state, 0, 4)).toBe(true);
+    expect(s.b.dead).toBe(false);
+
+    const drop = s.run(arena.floor.crumbleTime);
+    expect(of(drop, "floorDrop")[0]!.tiles).toContain(under);
+    expect(solidAt(s.state, 0, 4)).toBe(false);
+    expect(of(drop, "fall").map((e) => e.unit)).toEqual([s.b.id]);
+    expect(s.b.dead).toBe(true);
+    expect(of(drop, "roundEnd")[0]!.winner).toBe(0);
+  });
+
+  it("there is time to walk off a crumbling tile", () => {
+    const s = scene();
+    place(s.a, 0, 12);
+    place(s.b, 0, 4);
+    hole(s, 0, 4);
+    s.state.floor.crumbling.push({ tile: tileAt(0, 4), time: arena.floor.crumbleTime });
+    s.inputs[1].move = { x: 1, z: 0 };
+    const ev = s.run(arena.floor.crumbleTime + 0.2);
+    expect(of(ev, "floorDrop")).toHaveLength(1);
+    expect(s.b.dead).toBe(false);
+  });
+
+  it("only what strikes the ground hurts the floor: projectiles, melee, novas and channels do not", () => {
+    const cases: [string, string, AbilitySlot][] = [
+      ["ember", "fang", "primary"],
+      ["ember", "fang", "secondary"],
+      ["ember", "fang", "q"],
+      ["fang", "ember", "primary"],
+      ["fang", "ember", "e"],
+      ["fang", "ember", "ultimate"],
+    ];
+    for (const [caster, target, slot] of cases) {
+      const s = scene(caster, target);
+      place(s.a, -5, 3);
+      place(s.b, -5, 1);
+      s.a.energy = rules.energy.max;
+      s.press(0, slot, -5, 1);
+      const ev = s.run(3);
+      expect(of(ev, "abilityFire"), `${caster} ${slot}`).toHaveLength(1);
+      expect(s.b.hp, `${caster} ${slot}`).toBeLessThan(s.b.maxHp);
+      expect(intact(s), `${caster} ${slot}`).toBe(true);
+    }
+  });
+
+  it("a leap landing strikes the ground: the third one on the same spot goes through", () => {
+    const s = scene("fang", "ember");
+    const leap = fang.abilities.mobility!;
+    if (leap.kind !== "leap") throw new Error("expected leap");
+    place(s.b, 10, -10);
+    const broke: boolean[] = [];
+    for (let i = 0; i < 3; i++) {
+      place(s.a, 0, 9);
+      s.a.cooldowns.mobility = 0;
+      s.press(0, "mobility", 0, 4);
+      broke.push(of(s.run(leap.duration + 0.1), "floorCrumble").length > 0);
+    }
+    expect(broke).toEqual([false, false, true]);
+  });
+
+  it("a projectile hits the arena wall, breaks its section, and the next one flies out through the gap", () => {
+    const s = scene();
+    const bolt = ember.abilities.primary!;
+    if (bolt.kind !== "projectile") throw new Error("expected projectile");
+    // Straight at the middle of a section, from 6 m away.
+    const section = 2;
+    const a = (section * Math.PI * 2) / arena.rim.segments;
+    const at = (r: number) => ({ x: Math.sin(a) * r, z: Math.cos(a) * r });
+    place(s.a, at(12).x, at(12).z);
+    place(s.b, -10, -10);
+    expect(rimSegmentAt(at(18).x, at(18).z)).toBe(section);
+    s.state.rim[section] = bolt.onHit.damage + 1;
+    s.press(0, "primary", at(30).x, at(30).z);
+    const hit = s.run(0.8);
+    expect(of(hit, "rimHit")[0]!.segment).toBe(section);
+    expect(of(hit, "projectileEnd")[0]!.reason).toBe("blocked");
+    expect(s.state.rim[section]).toBe(1);
+
+    s.press(0, "primary", at(30).x, at(30).z);
+    const broke = s.run(0.8);
+    expect(of(broke, "rimBreak")[0]).toMatchObject({ segment: section, fell: false });
+    expect(s.state.rim[section]).toBe(0);
+
+    s.press(0, "primary", at(30).x, at(30).z);
+    const through = of(s.run(1.2), "projectileEnd")[0]!;
+    expect(through.reason).toBe("expired");
+    expect(Math.hypot(through.x, through.z)).toBeGreaterThan(arena.radius);
+    expect(intact(s)).toBe(true);
+  });
+
+  it("a slam damages the wall section; with the section gone the same shove is a ring-out, credited to the pusher", () => {
+    const edge = arena.radius - arena.wallMargin;
+    const bash = (prepare: (s: Scene) => void) => {
+      const s = scene("fang", "ember");
+      place(s.a, 0.5, edge - 2.4);
+      place(s.b, 0.5, edge - 0.5);
+      prepare(s);
+      s.press(0, "e", 0.5, edge);
+      return { s, ev: s.run(0.6) };
+    };
+    const section = rimSegmentAt(0.5, edge);
+    const wall = bash(() => {});
+    expect(of(wall.ev, "slam")).toHaveLength(1);
+    expect(wall.s.state.rim[section]).toBe(arena.rim.hp - rules.slam.structureDamage);
+    expect(wall.s.b.dead).toBe(false);
+
+    const gap = bash((s) => {
+      s.state.rim[section] = 0;
+    });
+    expect(of(gap.ev, "slam")).toHaveLength(0);
+    expect(of(gap.ev, "fall")[0]).toMatchObject({ unit: gap.s.b.id, by: gap.s.a.id });
+    expect(gap.s.b.dead).toBe(true);
+    expect(of(gap.ev, "roundEnd")[0]!.winner).toBe(0);
+  });
+
+  it("a knockback or a pull across a hole ends in it; a shield does not help", () => {
+    const s = scene("fang", "ember");
+    place(s.a, 4, 2);
+    place(s.b, 4, 4);
+    s.b.shield = 100;
+    s.b.shieldTime = 5;
+    hole(s, 4, 6.3);
+    s.press(0, "e", 4, 4);
+    const ev = s.run(0.6);
+    expect(of(ev, "fall")[0]).toMatchObject({ unit: s.b.id, by: s.a.id });
+    expect(s.b.dead).toBe(true);
+
+    const h = scene("fang", "ember");
+    place(h.a, -5, 1);
+    place(h.b, -5, 9);
+    hole(h, -5, 5);
+    h.press(0, "secondary", -5, 9);
+    const pulled = h.run(1.5);
+    expect(of(pulled, "fall")[0]).toMatchObject({ unit: h.b.id, by: h.a.id });
+  });
+
+  it("a leap carries over a hole, but coming down in one is a fall (and no landing blow)", () => {
+    const over = scene("fang", "ember");
+    place(over.a, 0, 12);
+    place(over.b, 10, -10);
+    hole(over, 0, 9);
+    over.press(0, "mobility", 0, 5.5);
+    const ev = over.run(1);
+    expect(of(ev, "leapLand")).toHaveLength(1);
+    expect(over.a.dead).toBe(false);
+
+    const into = scene("fang", "ember");
+    place(into.a, 0, 12);
+    place(into.b, 0.5, 6);
+    hole(into, 0, 7);
+    into.press(0, "mobility", 0, 7);
+    const down = into.run(1);
+    expect(of(down, "leapLand")).toHaveLength(0);
+    expect(of(down, "fall")[0]).toMatchObject({ unit: into.a.id, by: -1 });
+    expect(into.b.hp).toBe(into.b.maxHp);
+    expect(of(down, "roundEnd")[0]!.winner).toBe(1);
+  });
+
+  it("walking or blinking onto a hole is a fall too", () => {
+    const s = scene();
+    place(s.a, 0, 12);
+    hole(s, 0, 10);
+    s.inputs[0].move = { x: 0, z: -1 };
+    expect(of(s.run(0.8), "fall")[0]!.unit).toBe(s.a.id);
+
+    const b = scene();
+    place(b.a, 0, 12);
+    hole(b, 0, 7);
+    b.press(0, "mobility", 0, 7);
+    expect(of(b.run(0.2), "fall")[0]!.unit).toBe(b.a.id);
+  });
+
+  it("pillars can be broken, and pillars, walls and crates go down with the floor under them", () => {
+    const s = scene();
+    const pillar = s.state.obstacles.find((o) => o.kind === "stone" && o.x > 0 && o.z > 0)!;
+    place(s.a, 7.5, 13);
+    place(s.b, -10, -10);
+    pillar.hp = 5;
+    s.press(0, "primary", 7.5, 7.5);
+    const ev = s.run(0.8);
+    expect(of(ev, "obstacleBreak")[0]!.id).toBe(pillar.id);
+    expect(pillar.alive).toBe(false);
+
+    const other = s.state.obstacles.find((o) => o.kind === "stone" && o.x < 0 && o.z > 0)!;
+    const wood = s.state.obstacles.find((o) => o.kind === "wood")!;
+    const crate = s.state.obstacles.find((o) => o.kind === "crate")!;
+    for (const o of [other, wood, crate]) hole(s, o.x, o.z);
+    const fell = of(s.run(0.1), "obstacleFall").map((e) => e.id);
+    expect(fell.sort()).toEqual([other.id, wood.id, crate.id].sort());
+    expect([other, wood, crate].every((o) => o.fallen && !o.alive)).toBe(true);
+    // Nothing is rebuilt over a hole.
+    s.run(rules.obstacles.woodRespawn + 1);
+    expect(wood.alive).toBe(false);
+  });
+
+  it("a section of the arena wall goes with the floor it stands on", () => {
+    const s = scene();
+    place(s.a, 0, 5);
+    place(s.b, 0, -5);
+    const section = 4;
+    const tiles = floorTiles.map((t, i) => ({ t, i })).filter(({ t }) => t.ring === arena.floor.rings && rimSegmentAt(t.x, t.z) === section);
+    s.state.floor.hp[tiles[0]!.i] = 0;
+    s.state.floor.crumbling.push({ tile: tiles[0]!.i, time: 0.05 });
+    expect(of(s.run(0.2), "rimBreak")).toHaveLength(0);
+    s.state.floor.hp[tiles[1]!.i] = 0;
+    s.state.floor.crumbling.push({ tile: tiles[1]!.i, time: 0.05 });
+    expect(of(s.run(0.2), "rimBreak")[0]).toMatchObject({ segment: section, fell: true });
+    expect(s.state.rim[section]).toBe(0);
+  });
+
+  it("a flying companion does not care about holes; a walking one falls in when thrown, but will not walk in", () => {
+    const e = scene("ember", "fang", { companions: true });
+    const wisp = companionOf(e.state, e.a)!;
+    const hound = companionOf(e.state, e.b)!;
+    place(e.a, 0, 12);
+    place(e.b, 0, -12);
+    place(wisp, 3, 12);
+    place(hound, 3, -12);
+    hole(e, 3, 12);
+    hole(e, 3, -12);
+    const ev = e.run(0.1);
+    expect(of(ev, "fall").map((f) => f.unit)).toEqual([hound.id]);
+    expect(hound.dead).toBe(true);
+    expect(wisp.dead).toBe(false);
+
+    // A moat between Fang and the point the Hound is sent to: it stops at the edge.
+    const f = scene("fang", "ember", { companions: true });
+    const dog = companionOf(f.state, f.a)!;
+    place(f.a, 0, 12);
+    place(f.b, -12, -8);
+    place(dog, 1, 12);
+    floorTiles.forEach((t, i) => {
+      if (t.ring === 6) f.state.floor.hp[i] = 0;
+    });
+    f.a.energy = rules.energy.max;
+    f.press(0, "companion", 0, 5);
+    const sent = f.run(3);
+    expect(of(sent, "companionCommand")).toHaveLength(1);
+    expect(of(sent, "fall")).toHaveLength(0);
+    expect(dog.dead).toBe(false);
+  });
+
+  it("a bot does not walk into a moat to reach its enemy", () => {
+    const state = createMatch({
+      seed: 3,
+      mode: "duel",
+      players: [
+        { champion: "fang", controller: "bot", difficulty: "hard" },
+        { champion: "ember", controller: "human" },
+      ],
+    });
+    const bot = championOfTeam(state, 0);
+    const still = emptyInput();
+    still.aim = { x: 0, z: 0 };
+    for (let i = 0; i < Math.round((rules.countdown + 0.1) / TICK_DT); i++) step(state, [null, still]);
+    // Three rings gone: a moat about 4 m wide between the bot and the enemy in the middle.
+    floorTiles.forEach((t, i) => {
+      if (t.ring >= 3 && t.ring <= 5) state.floor.hp[i] = 0;
+    });
+    expect(solidAt(state, bot.x, bot.z)).toBe(true);
+    const enemy = championOfTeam(state, 1);
+    enemy.x = 0;
+    enemy.z = 0;
+    const falls: SimEvent[] = [];
+    for (let i = 0; i < Math.round(12 / TICK_DT); i++) {
+      // The target stands in the middle and does nothing; keep it alive so the round goes on.
+      enemy.hp = enemy.maxHp;
+      falls.push(...of(step(state, [null, still]), "fall"));
+    }
+    // (What it does do is drag or shove the enemy into the moat: those falls are the enemy's.)
+    expect(falls.filter((e) => e.t === "fall" && e.unit === bot.id)).toHaveLength(0);
+    expect(bot.dead).toBe(false);
+  });
+
+  it("is whole again when the next round starts", () => {
+    const s = scene();
+    hole(s, 0, 0);
+    s.state.rim[3] = 0;
+    const pillar = s.state.obstacles.find((o) => o.kind === "stone")!;
+    hole(s, pillar.x, pillar.z);
+    s.run(0.1);
+    expect(pillar.fallen).toBe(true);
+    s.b.hp = 1;
+    place(s.a, 0, 12);
+    place(s.b, 0, 8);
+    s.press(0, "primary", 0, 8);
+    s.run(1 + rules.roundEndDelay + 0.2);
+    expect(s.state.round).toBe(2);
+    expect(intact(s)).toBe(true);
+    expect(s.state.floor.crumbling).toHaveLength(0);
+    expect(s.state.rim.every((hp) => hp === arena.rim.hp)).toBe(true);
+    expect(pillar.alive && !pillar.fallen).toBe(true);
+  });
+});
+
 describe("training mode", () => {
   it("has no countdown, a dummy that heals back, and no round end", () => {
     const s = scene("ember", "dummy", { mode: "training" });
@@ -638,6 +984,21 @@ describe("training mode", () => {
     expect(of(ev, "respawn")).toHaveLength(1);
     expect(s.state.phase).toBe("fight");
     expect(s.b.dead).toBe(false);
+  });
+
+  it("stands a fallen champion back up on floor that is still there, and the arena reset mends the floor", () => {
+    const s = scene("ember", "dummy", { mode: "training" });
+    place(s.a, 0, 12);
+    for (let i = 0; i < floorTiles.length; i++) if (Math.hypot(floorTiles[i]!.x, floorTiles[i]!.z - 12) < 3) s.state.floor.hp[i] = 0;
+    const ev = s.run(training.respawn + 0.2);
+    expect(of(ev, "fall")).toHaveLength(1);
+    expect(of(ev, "respawn")).toHaveLength(1);
+    expect(s.a.dead).toBe(false);
+    expect(solidAt(s.state, s.a.x, s.a.z)).toBe(true);
+    s.run(1);
+    expect(s.a.dead).toBe(false);
+    trainingCommand(s.state, { t: "resetArena" });
+    expect(s.state.floor.hp.every((hp) => hp === arena.floor.hp)).toBe(true);
   });
 
   it("does not start sudden death on its own, but the range can toggle it", () => {

@@ -20,6 +20,7 @@ Every branch gets a stable preview alias that follows its latest push. Short bra
 
 **Status:** M1 done; **M2 online 1v1 prototype (WebRTC P2P)** is playable in the browser (create/join `/r/CODE`, host-authoritative 60 Hz sim + 20 Hz snapshots + Guest prediction/reconciliation, rematch, ping). See [`docs/adr/0003-webrtc-p2p-prototype.md`](docs/adr/0003-webrtc-p2p-prototype.md).
 Next: full **M2** dedicated server (`apps/server`) / binary protocol if needed.
+Also in: the **destructible arena** (floor tiles, wall sections, pillars; a fall into the abyss under the arena is death): [`docs/GAME_DESIGN.md`](docs/GAME_DESIGN.md) §2.4, [`docs/adr/0004-destructible-arena.md`](docs/adr/0004-destructible-arena.md).
 
 ## Quick start
 

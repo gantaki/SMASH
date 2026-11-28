@@ -1,6 +1,6 @@
 # Sound effects
 
-47 short one-shots, served at `/sfx/<id>.mp3`. Mix settings (volume, pitch variance, throttle) are in
+53 short one-shots, served at `/sfx/<id>.mp3`. Mix settings (volume, pitch variance, throttle) are in
 `apps/client/src/audio/manifest.ts`; playback is `apps/client/src/audio/AudioEngine.ts`.
 
 ## Where they come from
@@ -57,6 +57,12 @@ Post-processing (ffmpeg): leading/trailing silence trimmed at −42 dB, gain set
 | | `rift_open` | floor cracks open |
 | | `rift_warn` | geyser pressure building |
 | | `rift_erupt` | geyser erupts |
+| | `stone_hit` | pillar or arena wall hit |
+| | `stone_break` | pillar or wall section shatters |
+| | `floor_crack` | floor tile cracks under a ground strike |
+| | `floor_crumble` | broken tiles shaking before they drop (about 1.5 s) |
+| | `floor_collapse` | tiles (or a pillar) dropping into the abyss |
+| | `abyss_fall` | someone falls into the abyss |
 | Flow / UI | `countdown_tick` | countdown tick |
 | | `round_start` | fight! |
 | | `round_win` | round won |

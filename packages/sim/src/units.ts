@@ -2,8 +2,9 @@
 
 import { ABILITY_SLOTS, arena, getChampion, rules } from "@smash/content";
 import { abilityOf, fire } from "./abilities.ts";
-import { applyOnHit, damageObstaclesInArea, hittables, hurt, moveForced, pushCrates, slowFactor, targetPos } from "./combat.ts";
+import { applyOnHit, damageFloor, damageStructuresInArea, hittables, hurt, moveForced, pushCrates, slowFactor, targetPos } from "./combat.ts";
 import type { Ctx } from "./context.ts";
+import { rimPenetration, solidAt } from "./floor.ts";
 import { obstaclePenetration } from "./geometry.ts";
 import { angleDiff } from "./math.ts";
 import { unitById, type ChampionUnit, type Unit } from "./state.ts";
@@ -54,12 +55,15 @@ function walk(ctx: Ctx, u: ChampionUnit): void {
 function land(ctx: Ctx, u: ChampionUnit, slot: NonNullable<ChampionUnit["leap"]>["slot"]): void {
   const a = abilityOf(u, slot);
   if (a?.kind !== "leap") return;
-  const { radius, onHit, cratePush } = a.landing;
+  // Coming down where the floor is gone: there is nothing to land on (terrain.ts takes it from here).
+  if (!solidAt(ctx.state, u.x, u.z)) return;
+  const { radius, onHit, floorDamage, cratePush } = a.landing;
   for (const t of hittables(ctx, u.team)) {
     const pos = targetPos(ctx, t);
     if (Math.hypot(pos.x - u.x, pos.z - u.z) < radius + pos.radius * rules.areaBodyFactor) applyOnHit(ctx, t, onHit, u, u.x, u.z);
   }
-  damageObstaclesInArea(ctx, u.x, u.z, radius, onHit.damage);
+  damageStructuresInArea(ctx, u.x, u.z, radius, onHit.damage);
+  damageFloor(ctx, u.x, u.z, radius, floorDamage);
   if (cratePush) pushCrates(ctx, u.x, u.z, radius, cratePush, u);
   ctx.events.push({ t: "leapLand", unit: u.id, x: u.x, z: u.z, radius, abilityId: a.id });
 }
@@ -140,7 +144,7 @@ export function updateChampion(ctx: Ctx, u: ChampionUnit): void {
           const pos = targetPos(ctx, t);
           if (Math.hypot(pos.x - u.x, pos.z - u.z) < a.radius + pos.radius * rules.areaBodyFactor) applyOnHit(ctx, t, a.onTick, u, u.x, u.z);
         }
-        damageObstaclesInArea(ctx, u.x, u.z, a.radius, a.onTick.damage);
+        damageStructuresInArea(ctx, u.x, u.z, a.radius, a.onTick.damage);
         ctx.events.push({ t: "channelTick", unit: u.id, x: u.x, z: u.z, radius: a.radius, abilityId: a.id });
       }
       if (c.time <= 0) {
@@ -160,7 +164,7 @@ export function updateChampion(ctx: Ctx, u: ChampionUnit): void {
   }
 }
 
-/** Pushes a unit out of obstacles, the orb and the arena wall. */
+/** Pushes a unit out of obstacles, the orb and the arena wall (where the wall still stands). */
 export function pushOut(ctx: Ctx, t: Unit): void {
   const { state } = ctx;
   for (const o of state.obstacles) {
@@ -181,11 +185,10 @@ export function pushOut(ctx: Ctx, t: Unit): void {
       t.z = orb.z + (d > 1e-4 ? dz / d : 0) * m;
     }
   }
-  const d = Math.hypot(t.x, t.z);
-  const R = arena.radius - arena.wallMargin;
-  if (d > R) {
-    t.x *= R / d;
-    t.z *= R / d;
+  const wall = rimPenetration(state, t.x, t.z, arena.wallMargin);
+  if (wall) {
+    t.x += wall.nx * wall.depth;
+    t.z += wall.nz * wall.depth;
   }
 }
 

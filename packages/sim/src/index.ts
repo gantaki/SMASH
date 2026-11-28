@@ -10,4 +10,5 @@ export { step, trainingCommand, type TrainingCommand } from "./match.ts";
 export { abilityOf, canAct, isReady } from "./abilities.ts";
 export { currentSlow, isUnstoppable } from "./combat.ts";
 export { blocker, clearLine, obstacleDistance, obstaclePenetration, polylineDistance, reach } from "./geometry.ts";
+export { floorTiles, rimArc, rimSegmentAt, safeAt, solidAt, tileAt, tileSolid, type FloorTile } from "./floor.ts";
 export { runBotMatch, type BotMatchOptions, type MatchResult } from "./headless.ts";

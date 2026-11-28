@@ -80,6 +80,17 @@ describe("kill cam framing", () => {
     expect(blocker(s, cam, victim, 0.15)).toBeNull();
   });
 
+  it("watches a fall into the abyss from above, looking down into the hole", () => {
+    const { s, killer, victim } = setup((s) => {
+      Object.assign(championOfTeam(s, 0), { x: -3, z: 12 });
+      Object.assign(championOfTeam(s, 1), { x: -3, z: 10 });
+    });
+    const shot = frameKill(s, victim, killer, true);
+    expect(shot.height).toBe(KILL_CAM.fall.height);
+    expect(shot.lookHeight).toBeLessThan(0);
+    expect(frameKill(s, victim, killer).lookHeight).toBe(KILL_CAM.lookHeight);
+  });
+
   it("stays on the victim when the killer is far away", () => {
     const { s, killer, victim } = setup((s) => {
       Object.assign(championOfTeam(s, 0), { x: -4, z: 12 });

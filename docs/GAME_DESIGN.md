@@ -42,11 +42,12 @@ Modes: **1v1 duel with AI companions** is developed and tested first; 2v2 / 3v3 
 
 **Training range**: no countdown and no round end. The opponent is a **dummy** (300 HP, heals to full 3 s after the last hit, can be told to strafe). A side panel shows damage per second and exposes range commands (keys 1–5: reset cooldowns, fill energy, dummy moves, sudden death on/off, reset arena) and **live feel tuning**: multipliers for move speed, acceleration, projectile speed, wind-up time and cooldowns. The sliders only affect that session; values that feel right are written back into `packages/content`.
 
-Direction: keep Battlerite's skill-shot core, but add **companions** (each champion has a unique one) and **interactive obstacles** (§2.1, §2.2).
+Direction: keep Battlerite's skill-shot core, but add **companions** (each champion has a unique one), **interactive obstacles** and an **arena that comes apart under the fight**, over an abyss (§2.1, §2.2, §2.4).
 
 ### Arena
 
 - Circular arena, **radius 18 m** (36 m across; 20 m felt too roomy for a duel). Spawns at `z = ±10`.
+- The arena is a **slab floor over an abyss**, with a low wall around it. The floor is **469 tiles** and the wall **36 sections**; all of it can be destroyed, and a fall into the abyss is death (§2.4).
 - **4 pillars** at `(±7.5, ±7.5)`, radius 1.3 m. Block movement and projectiles.
 - **Orb** (center): spawns at **15 s**, 40 HP, blocks movement and projectiles. The **last hitter** gets **+20 HP and +25 energy**. Respawns 20 s after being broken.
 - **Sudden death** from **30 s** (ends rounds that drag on; see below).
@@ -109,10 +110,10 @@ Rules that follow from this:
 
 | Type | Example | Notes |
 |---|---|---|
-| Projectile skill-shot | Fire Bolt, Fireball, Harpoon | Line telegraph during the wind-up (its width is the projectile's hitbox). Movement slowed while winding up. Blocked by pillars and the orb. |
-| Delayed ground AoE | Ring of Fire, Meteor | Circle telegraph that fills over the delay, with a ring closing in on its edge: when it touches, it explodes. Leaves a scorch mark. |
-| Melee cone | Cleave, Shield Bash | Short wind-up with a cone telegraph, then a cone flash. |
-| Mobility | Blink, Leap | Teleport or arc movement. |
+| Projectile skill-shot | Fire Bolt, Fireball, Harpoon | Line telegraph during the wind-up (its width is the projectile's hitbox). Movement slowed while winding up. Blocked by pillars, walls, the arena wall and the orb, and damages what blocks it. Flies above the ground: never hurts the floor. |
+| Delayed ground AoE | Ring of Fire, Meteor | Circle telegraph that fills over the delay, with a ring closing in on its edge: when it touches, it explodes. **Strikes the ground**: damages the floor tiles under it as well as walls (§2.4). |
+| Melee cone | Cleave, Shield Bash | Short wind-up with a cone telegraph, then a cone flash. Above the ground: hurts walls, not the floor. |
+| Mobility | Blink, Leap | Teleport or arc movement. A leap is airborne (holes do not matter until it lands) and its landing strikes the ground. |
 | Stance / self-buff | Counter, Flame Shield | Timed windows. |
 | Channel | Whirlwind | Unstoppable, damage pulses. |
 
@@ -143,11 +144,13 @@ Material tells the rule at a glance:
 
 | Material | Behaviour |
 |---|---|
-| **Stone** pillars | Indestructible. Block movement, projectiles and line of sight. |
-| **Wood** walls (60 HP) | Take damage from projectiles, AoEs, melee, slams and flying crates; look damaged as HP drops; break, then **rebuild after 20 s** (only if nothing stands in the spot). |
-| **Crates** | Movable. Pushed by knockback abilities, pulled by Harpoon. A crate moving faster than 3.5 m/s hits an enemy for 12 dmg and knocks them back 2.5 m (which can chain into a slam). |
+| **Stone** pillars (120 HP) | Block movement, projectiles and line of sight. Take damage like wood, darken as HP drops, and break **for the rest of the round**. |
+| **Wood** walls (60 HP) | Take damage from projectiles, AoEs, melee, slams and flying crates; look damaged as HP drops; break, then **rebuild after 20 s** (only if nothing stands in the spot and the floor under it is still there). |
+| **Crates** | Movable, not breakable. Pushed by knockback abilities, pulled by Harpoon. A crate moving faster than 3.5 m/s hits an enemy for 12 dmg and knocks them back 2.5 m (which can chain into a slam). |
 
-**Slam rule:** any knockback that drives a target into an obstacle or the arena wall stuns for **0.6 s** and deals **10 dmg** (abilities can raise both). Pulls do not slam.
+Every obstacle **drops into the abyss when the floor tile under its centre goes** (§2.4): a pillar can be removed by breaking the floor it stands on, a crate that slides over a hole or out through a gap in the wall is gone.
+
+**Slam rule:** any knockback that drives a target into an obstacle or the arena wall stuns for **0.6 s** and deals **10 dmg** (abilities can raise both). The body also deals **20 damage to what it was thrown into** (wall, pillar or section of the arena wall). Pulls do not slam.
 
 Prototype layout: 4 stone pillars at `(±7.5, ±7.5)`; wood walls 4 × 0.7 m at `(0, ±5)` and `(±12, 0)` (rotated 90°); crates at `(±3.5, 0)` and `(−12, 7)`, `(12, −7)`. Point-symmetric for fairness.
 
@@ -159,11 +162,11 @@ What a knockback or a pull can do with the arena:
 
 | Push the enemy into… | Result | State |
 |---|---|---|
-| A wall, pillar, wood wall or crate | **Slam**: stun 0.6 s + 10 dmg, more for abilities that say so (§2.2) | in the game |
+| A wall, pillar, wood wall or crate | **Slam**: stun 0.6 s + 10 dmg, more for abilities that say so (§2.2). The wall takes 20 dmg: the third slam into the same section of the arena wall goes through it | in the game |
 | An erupting **rift** | Rift damage every 0.3 s while they stand on it | in the game |
 | Outside the **sudden-death zone** | Zone damage every 0.5 s until they walk back | in the game |
 | Their own or your delayed AoE | They eat the explosion they were dodging | in the game |
-| Over the **arena edge or into a pit** (ring-out) | Out for the round | **planned**: needs arenas with open edges; rules open (§8) |
+| Over a **hole in the floor**, or out through a **gap in the arena wall** (ring-out) | A fall into the abyss: **dead on the spot**, whatever their health or shield (§2.4) | in the game |
 
 Rules that keep it fair:
 
@@ -173,6 +176,39 @@ Rules that keep it fair:
 - Forced movement cancels a cast in progress, so a shove is also an interrupt.
 - Typical distance is 3–5 m: enough to cross one hazard line, not enough to cross the arena.
 - Arenas are built for it: something to be pushed into should be within about 6 m of any spot where fights happen (pillars, walls, later edges and pits).
+
+### 2.4 The arena comes apart: floor, wall, abyss
+
+The second half of the signature mechanic: knockback decides *where* a champion ends up, destruction decides *what is left to stand on*. Everything in the arena can be destroyed, and under it is an abyss.
+
+**What damages what.** One rule, readable from the animation:
+
+| The attack… | Examples | Damages |
+|---|---|---|
+| **strikes the ground** | Ring of Fire, Meteor, the landing of a Leap | the **floor** tiles under it, and walls, pillars and the arena wall in its area |
+| **travels above the ground** | projectiles (Fire Bolt, Fireball, Harpoon, companion shots), melee arcs (Cleave, Shield Bash), novas (Flame Shield), channels (Whirlwind) | **only** walls, pillars and the arena wall |
+
+Walls take the ability's damage number. The floor takes the ability's own `floorDamage` (data, per ability), because the damage that suits a champion's health does not suit a tile.
+
+**The floor.** A round slab in the middle (r 1.5 m) and **12 rings** of tiles around it, ring *i* has 6 × *i* tiles: 469 tiles, each 1.4 m deep and 1.5–2.3 m wide, point-symmetric. A tile has **100 HP**.
+
+- A damaged tile shows cracks (three stages) and still holds.
+- A tile at 0 HP **crumbles for 1.5 s**: it sags, shakes and glows, faster and brighter until it goes. It is still solid ground. This is the telegraph, and it is long enough to walk off the biggest blast even after that blast's stun (`content.test.ts` checks it).
+- Then it **drops**. The hole stays for the rest of the round.
+- Starting values: Ring of Fire 50 (two on the same spot make a hole), Leap landing 34 (three), Meteor 100 (the whole crater goes at once).
+
+**The arena wall.** 36 sections of 60 HP, each standing on two tiles of the outer ring. A section is damaged by anything that hits it: a projectile that reaches the wall, a melee arc, a blast, a body slammed into it (20). A broken section is a **gap** for the rest of the round. A section also goes when both tiles under it have dropped.
+
+**The abyss.** Whatever has no floor under its centre falls, and a fall is **death on the spot**: no health, shield or counter matters. (Instant death is the rule *for now*; alternatives are in §8.)
+
+- Walking, blinking or landing a leap onto a hole or out through a gap: a fall.
+- A **knockback or a pull across a hole**, or out through a gap: a fall, credited to whoever did it. Where the wall section still stands, the same shove is a slam.
+- A champion **in the air during a leap** is not falling: holes only matter where it lands. Landing on a hole is a fall, without the landing blow.
+- **Flying companions** (the Wisp) ignore holes. Walking ones (the Hound) fall when thrown or when the floor goes from under them, and come back after the usual 15 s on the nearest floor; on their own they walk along the edge of a hole, never into it.
+- Pillars, walls and crates fall with the tile under their centre (§2.2). The orb hovers and does not care.
+- Everything is whole again when the next round starts. On the training range, "reset arena" (5) mends it, and a champion that fell stands back up on the nearest floor.
+
+Design intent: fights wear the arena down where they happen. The first exchanges crack the floor, the next ones open holes, and every hole and gap turns a 3 m shove into a kill. Destroying cover and the wall is a choice that costs time not spent on the enemy.
 
 ### Readability rules
 
@@ -222,9 +258,9 @@ HP 170 · speed 6.0 m/s · weight 0.9 (light: shoved 11% further). Kites, applie
 | RMB | Fireball | Heavy projectile | Wind-up 0.6 s (move ×0.4), 14.5 m/s, range 15 m, 20 dmg + burn 4/s for 3 s, cd 4.4 s. Splits into 3 when passing through the Wisp |
 | Space | Blink | Teleport to cursor | Up to 7 m, cd 7 s |
 | Q | Flame Shield | Knockback + shield | Enemies within 3.4 m: 6 dmg, knocked back 5 m (slam); pushes crates; shield 25 for 2.5 s, cd 9.5 s |
-| E | Ring of Fire | Delayed AoE at cursor | Wind-up 0.2 s, max range 11 m, r 2.6 m, delay 0.85 s, 18 dmg + stun 0.8 s, cd 8 s |
+| E | Ring of Fire | Delayed AoE at cursor | Wind-up 0.2 s, max range 11 m, r 2.6 m, delay 0.85 s, 18 dmg + stun 0.8 s, **floor 50**, cd 8 s |
 | R | Wisp | Companion command | See §2.1 |
-| X | Meteor | Big delayed AoE | 100 energy, wind-up 0.3 s, max range 13 m, r 3.6 m, delay 1.2 s, 45 dmg + stun 0.5 s |
+| X | Meteor | Big delayed AoE | 100 energy, wind-up 0.3 s, max range 13 m, r 3.6 m, delay 1.2 s, 45 dmg + stun 0.5 s, **floor 100** (the crater drops) |
 
 ### Fang (Клык) — Warrior, melee
 
@@ -234,7 +270,7 @@ HP 220 · speed 6.4 m/s · weight 1.2 (heavy: shoved 17% less). Closes distance,
 |---|---|---|---|
 | LMB | Cleave | Melee cone | Wind-up 0.28 s (move ×0.8), range 2.9 m, ±60°, 14 dmg + fading snare 25% over 0.6 s, cd 0.37 s. Empowered: 26 dmg + slow 50% 1.5 s. On-hit VFX: **Ink Blade Hit** (Spine) |
 | RMB | Harpoon | Hook | Wind-up 0.35 s (move ×0.4), 17.4 m/s, range 11 m, 10 dmg, pulls target to 1.5 m, cd 6 s. Pulls crates; hitting the Hound pulls Fang to it |
-| Space | Leap | Arc jump | Up to 8 m in 0.55 s, landing marker shown. Landing r 2.4 m: 14 dmg + slow 40% 1.5 s, cd 7 s |
+| Space | Leap | Arc jump | Up to 8 m in 0.55 s, landing marker shown. Landing r 2.4 m: 14 dmg + slow 40% 1.5 s, **floor 34**, cd 7 s |
 | Q | Counter | Stance | 1 s, move ×0.5. Negates a hit; attacker within 8 m: stun 1 s + 12 dmg; empowers next LMB for 3 s, cd 9.5 s |
 | E | Shield Bash | Melee cone | Wind-up 0.25 s, range 3.1 m, ±52°, 10 dmg + stun 0.5 s, knockback 3 m; **slam: stun 1.2 s, +10 dmg**; pushes crates, cd 8 s |
 | R | Hound | Companion command | See §2.1 |
@@ -251,7 +287,8 @@ Rules for inventing a champion. How one is drawn (line, palettes, portraits, ico
 - **Anyone can be a champion.** Humans are not the default: beasts, constructs, spirits, undead, things with too many arms are all welcome, as long as the silhouette reads from the top-down camera and the kit fills the seven slots. (Ember and Fang happen to be human and stay human.)
 - **Start from one sentence**: what this champion does to the enemy's position. "Keeps them away and punishes where they stand" (Ember), "drags them in and doesn't let go" (Fang). The kit, the companion and the look follow from it.
 - **Fill the slots by their roles** (table above): LMB and RMB attack, Space escapes, Q defends, E strikes or controls. A new champion should feel familiar under the fingers in the first ten seconds.
-- **Give the kit a way to move an enemy** and decide what it combines with: a wall (slam), a rift, the zone, a delayed AoE, the companion (§2.3). A knockback with nothing to push into is a wasted button.
+- **Give the kit a way to move an enemy** and decide what it combines with: a wall (slam), a hole or a gap in the wall (ring-out), a rift, the zone, a delayed AoE, the companion (§2.3). A knockback with nothing to push into is a wasted button.
+- **Decide how the kit takes the arena apart** (§2.4): which abilities strike the ground and how hard (`floorDamage`), and which only break walls. A kit with no ground strike cannot make holes and has to use the ones the enemy makes.
 - **One hard defensive tool, not two.** A kit with a counter and a shield and an escape has no weakness to play around.
 - **The companion extends the kit** (§2.1); it never covers the kit's weakness for free.
 - **Pick a palette nobody else owns** before any art is made; it also sets the signature `color` in content (telegraphs, VFX, UI).
@@ -260,7 +297,7 @@ Rules for inventing a champion. How one is drawn (line, palettes, portraits, ico
 ### Adding content
 
 - **New champion from existing mechanics**: add `packages/content/src/champions/<id>.ts` (stats, seven abilities, optional companion, bot profile), register it in `packages/content/src/index.ts`, add a model in `apps/client/src/game/render/Units.ts` and an emblem and line icons in `ui/icons.ts`. Painted art is optional and comes later: a portrait, a select tile and ability icons in `assets/art/`, registered in `ui/art.ts` (the menu and the HUD fall back to the line icons without it). Decide the champion's palette first (`ART_STYLE.md`), then follow `assets/art/README.md`. The sim, the bot (it decides per ability *kind*), the HUD, telegraphs and the menu pick it up from the data. `content.test.ts` checks the kit is complete and dodgeable.
-- **New mechanic**: add a `kind` to the `Ability` union in `types.ts` and one function to `behaviors` in `packages/sim/src/abilities.ts` (TypeScript refuses to compile until every kind has one). Add a scenario test, a bot rule in `bot.ts` if bots should use it, and a telegraph in `Fx.ts` if it has a wind-up shape of its own.
+- **New mechanic**: add a `kind` to the `Ability` union in `types.ts` and one function to `behaviors` in `packages/sim/src/abilities.ts` (TypeScript refuses to compile until every kind has one). Add a scenario test, a bot rule in `bot.ts` if bots should use it, and a telegraph in `Fx.ts` if it has a wind-up shape of its own. Decide which side of the §2.4 rule it is on: if it strikes the ground it takes a `floorDamage` number and calls `damageFloor`; either way it calls `damageStructuresInArea` (or `damageObstacle` / `damageRim`) for what it hits.
 - **New on-hit effect**: add a field to `OnHit` and handle it in `applyOnHit` (`combat.ts`).
 - **New companion**: a `CompanionDef` in `companions.ts` (attack: ranged / melee; command: sentry / pounce).
 - **New sound**: drop `assets/sfx/<id>.mp3`, add it to `apps/client/src/audio/manifest.ts`, reference the id from the ability's `sfx`.
@@ -268,6 +305,8 @@ Rules for inventing a champion. How one is drawn (line, palettes, portraits, ico
 ### Bots
 
 Same rules as players, no cheating: a bot produces the same per-tick input a human does (move, aim, pressed slots) and waits out the same wind-ups. Ability usage is decided per ability kind, so a champion built from existing kinds gets a working bot. Difficulty scales reaction time, aim error, target leading, dodge chance and ability use rate. Behaviours: keep preferred range, strafe, dodge projectiles and AoEs, use mobility/counter defensively, contest the orb, avoid the zone and erupting rifts, command the companion, attack the player's companion when it is close, shoot through breakable wood cover, look for slams (Shield Bash / Flame Shield with a wall behind the target). Fang bot combos *Hound pins → Harpoon to the Hound*.
+
+Bots and the abyss (§2.4): a bot predicts its own path a third of a second ahead (with its momentum) and steers around holes, crumbling tiles and gaps in the wall; walks off a crumbling tile by the shortest way and jumps off if walking is too slow; never blinks or leaps onto a hole. It looks for ring-outs: it shoves when the enemy has a hole or a gap behind them, and throws the Harpoon when there is a hole between the two of them.
 
 ---
 
@@ -300,8 +339,8 @@ Same rules as players, no cheating: a bot produces the same per-tick input a hum
 - Pure TypeScript. **No Three.js, no DOM, no `Date.now()`, no `Math.random()`** (seeded RNG only).
 - **Fixed tick, 60 Hz** (`rules.tickRate`). `createMatch(config) → state`, `step(state, inputs) → events` (mutates the state in place).
 - The state is **plain serializable data**: no classes, no functions, entities refer to each other by id. `JSON.parse(JSON.stringify(state))` continues identically (tested), which is what snapshots and rollback need in M2.
-- Owns all gameplay: movement, collisions (circles vs circles and the arena edge), abilities, projectiles, ground effects, statuses, orb, zone, rounds.
-- Emits **gameplay events**: `AbilityCast`, `ProjectileSpawned`, `Hit`, `StatusApplied`, `Died`, `OrbBroken`, `RoundEnded`, …
+- Owns all gameplay: movement, collisions (circles vs circles and the arena edge), abilities, projectiles, ground effects, statuses, orb, zone, the floor and the wall coming apart, rounds.
+- Emits **gameplay events**: `AbilityCast`, `ProjectileSpawned`, `Hit`, `StatusApplied`, `Died`, `OrbBroken`, `FloorCrumble`, `Fall`, `RoundEnded`, …
 - Runs identically on the server (authoritative) and on the client (prediction, bots, offline practice).
 
 | Module | Owns |
@@ -309,11 +348,13 @@ Same rules as players, no cheating: a bot produces the same per-tick input a hum
 | `state.ts` | State types, `createMatch`, round reset |
 | `match.ts` | `step`: phases, input, system order, round/match flow, training commands |
 | `abilities.ts` | `tryCast → wind-up → fire`, one behaviour per ability kind |
-| `combat.ts` | `hurt`, statuses, knockback/pull, slams, `applyOnHit` |
+| `combat.ts` | `hurt`, statuses, knockback/pull, slams, `applyOnHit`; damage to walls, pillars, the arena wall and the floor |
 | `units.ts` | Champion timers, movement, casting, channelling, collisions |
 | `projectiles.ts` | Projectiles, delayed ground effects |
 | `companions.ts` | Companion AI |
 | `obstacles.ts` | Wood walls rebuilding, crates |
+| `floor.ts` | Floor layout (tiles) and wall sections from content; "is there floor here" queries |
+| `terrain.ts` | Crumbling tiles dropping; obstacles, wall sections and units falling into the abyss |
 | `hazards.ts` | Orb, sudden death (zone, rifts) |
 | `bot.ts` | Bot AI |
 | `headless.ts` | `runBotMatch` for batches and tests |
@@ -338,12 +379,13 @@ Same rules as players, no cheating: a bot produces the same per-tick input a hum
 ### 5.4 Client (`apps/client`)
 
 - Reads sim state, interpolates and drives meshes, animations, VFX, audio and HUD. **Never mutates sim state.**
-- `game/Game.ts` runs the loop (fixed ticks + render interpolation) and input; `game/render/GameView.ts` owns the scene and maps events to effects and sounds; `render/Fx.ts` draws telegraphs, `render/Hazards.ts` the zone and rifts, `render/Overlay.ts` health and cast bars; `game/Hud.ts` the HUD; `ui/` the React menu and training panel.
+- `game/Game.ts` runs the loop (fixed ticks + render interpolation) and input; `game/render/GameView.ts` owns the scene and maps events to effects and sounds; `render/Fx.ts` draws telegraphs, `render/Hazards.ts` the zone and rifts, `render/Floor.ts` the floor tiles and the arena wall, `render/Overlay.ts` health and cast bars; `game/Hud.ts` the HUD; `ui/` the React menu and training panel.
+- **The floor** (`render/Floor.ts`) is drawn from sim state, not from events, so a kill cam rewind or a snapshot that skips ahead always shows what the sim has. All standing tiles are one mesh sharing one painted texture (the seams in the picture are the tile edges; cracks are painted onto it as tiles lose health). A crumbling or dropping tile is taken out of that mesh and becomes a mesh of its own for as long as it shakes and falls.
 - The main menu (`ui/Menu.tsx`) has no panel over the scene: the bot-vs-bot demo fight is the backdrop and stays visible in the middle. Left: the champion picker (a row of portrait tiles that wraps as the roster grows) and the picked champion (name, role, the three stats, the kit as an icon row that mirrors the HUD slots). Right: the champion's portrait. Bottom centre: the play bar (mode, bot difficulty or the online lobby, the start button), drawn in the ink style. Switching champions is never a cut: the portrait and the text cross-fade, the outgoing portrait leaves first and the new one follows, and the demo fight cross-fades: the old fight keeps playing above the restarted one while it fades away, so the screen never goes dark and never freezes. Reference text never goes on the front page: ability descriptions show one at a time under the icon row, controls and arena rules live in the "Как играть" dialog (`ui/HowToPlay.tsx`).
 - Maps gameplay events to presentation through data, e.g. `fang.cleave.onHit → vfx: "ink_blade_hit"`.
 - Camera: perspective, FOV 45°, height ~26 m, ~12.5 m back, follows the player with look-ahead toward the cursor (28%, clamped to 6 m).
 - **Kill cam** (`game/killcam.ts`): when a round is decided the client rewinds 0.6 s and **re-simulates** the final blow (the sim is deterministic and its state is plain data, so a short history of state + input is enough; in dev builds the replay is compared with the live state and a mismatch is logged). It is shown from a low side camera (1.9 m high, 8.5–13 m away, perpendicular to the line of the blow, on the side with a clear view), time eases from 0.5× down to 0.1× at the hit and back to normal, sounds are pitched down, the HUD gives way to letterbox bars. Space skips it; it is disabled with `prefers-reduced-motion`. Online (P2P): the host records the replay, sends it to the guest when the round is decided and holds the match for the kill cam's real-time length (about 6 s) while both players watch; the guest stops predicting until the host moves on.
-- **Ragdolls** (`render/Ragdoll.ts`): a champion that dies is thrown by the killing blow (speed grows with the blow's damage: a Cleave tosses the body a few meters, a Meteor across the arena), folds at the hips and neck, tumbles, bounces off the floor and slams into walls, pillars and crates; weapon and shield fly off on their own. The body flies away from where the hit physically came from (the attacker or its companion, a projectile's path, the centre of a blast), which the damage event reports separately from who gets the credit. Only a blow that landed within the last 0.4 s throws the body (the hit itself, or the wall slam right after it); when burn, the zone or a rift finishes the job later, the body just crumples. It is a four-point chain solved with position-based dynamics on the client: cosmetic only, the sim knows nothing about it. The kill cam stays in slow motion for the flight and follows the body. The model is put back together when the champion is alive again.
+- **Ragdolls** (`render/Ragdoll.ts`): a champion that dies is thrown by the killing blow (speed grows with the blow's damage: a Cleave tosses the body a few meters, a Meteor across the arena), folds at the hips and neck, tumbles, bounces off the floor and slams into walls, pillars and crates; weapon and shield fly off on their own. The body flies away from where the hit physically came from (the attacker or its companion, a projectile's path, the centre of a blast), which the damage event reports separately from who gets the credit. Only a blow that landed within the last 0.4 s throws the body (the hit itself, or the wall slam right after it); when burn, the zone or a rift finishes the job later, the body just crumples. It is a four-point chain solved with position-based dynamics on the client: cosmetic only, the sim knows nothing about it. A body thrown over a hole or over the wall drops into the abyss; a champion that *fell* (the sim says so) is not thrown at all: the body tips in with the speed it had, and the kill cam watches from above, looking down into the hole. The kill cam stays in slow motion for the flight and follows the body. The model is put back together when the champion is alive again.
 
 ### 5.5 Server (`apps/server`)
 
@@ -383,7 +425,7 @@ tests/           repo-wide guards (architecture rules)
 - **Camera-first design**: everything must read from ~60° pitch at gameplay zoom.
 - Character look, palettes, portraits and ability icons: [`ART_STYLE.md`](ART_STYLE.md).
 - Stylized 3D characters with strong silhouettes from above. Team-colored ring under the feet and a facing arrow.
-- Arena look (prototype): sun-baked sandstone, warm dusk light, stone pillars with braziers.
+- Arena look (prototype): sun-baked sandstone, warm dusk light, stone pillars with braziers. The arena is the top of a hollow rock shaft; the stands are across a chasm, and far below something glows. A hole reads as darkness with a dim red depth, never as a bright colour: bright orange on the floor is reserved for danger about to happen (crumbling tiles, rift warnings, telegraphs).
 - **VFX pipeline**: BoneGyre → Spine 4.2 export → `spine-threejs`. Effects are camera-facing billboards, mirrored to the hit direction, drawn on top of characters.
   - Prototype scale: **175 Spine px = 1 m**. Ink Blade Hit spawns 0.35 m in front of the target, 1.25 m high, ×1.3 for empowered hits.
   - Always export the **`.atlas`** together with the PNG. (The Ink Blade Hit atlas in `assets/vfx/` is reconstructed from the PNG; replace it with the real export.)
@@ -416,8 +458,13 @@ tests/           repo-wide guards (architecture rules)
 - 3D character pipeline: who makes models and animations (Mixamo, AI-generated, outsourced)?
 - Companion damage share and command cooldowns: does the companion feel useful without stealing the duel?
 - Slam frequency: with this obstacle density, are slams too common?
-- Ring-outs (§2.3): open arena edges and pits. Is a ring-out an instant round loss, heavy damage plus a respawn at the edge, or only possible below some health? How much of the edge is open?
-- `weight` is now per champion (0.9 / 1.2). Is the spread felt before ring-outs exist, and should `radius` follow it (bigger and heavier, smaller and lighter)?
+- **A fall is instant death** (§2.4), by decision, for now. With it a round can end at full health from one shove, and Harpoon across a hole is a kill at 11 m. Alternatives if that proves too swingy: heavy damage plus a respawn at the edge, or a fall only being lethal below some health.
+- Destruction pacing: tile 100 HP, Ring of Fire 50, Leap 34, Meteor 100, crumble 1.5 s. In bot batches Ember loses 13–37 tiles a round, Fang mirrors lose none (they end in 10 s, and Fang needs three landings on one spot). Should every kit have a faster way to open the floor? Should basic attacks chip it?
+- Wood walls still rebuild after 20 s while everything else stays broken for the round. Keep the rebuild, or make all destruction permanent?
+- Sudden death and destruction overlap: the message already says "the arena is collapsing", but the zone only deals damage and rifts only burn. Should sudden death drop the outer rings instead of shrinking a damage zone, and should a rift's eruption crack the tiles along it?
+- The arena wall: 36 sections of 60 HP, three slams or six Fire Bolts each. Is a gap too cheap to open, or too rare to matter (0.4–0.9 sections a round in bot batches)?
+- Should the first arenas start with holes or open edges already in them (pits as level design), not only the ones the fight makes?
+- `weight` is per champion (0.9 / 1.2) and now decides who reaches a hole from a shove. Is the spread right with ring-outs in the game, and should `radius` follow it (bigger and heavier, smaller and lighter)?
 - Companion commands cost 25 energy, and a round starts at 0: the first command comes only after the first exchanges. Start rounds with one quarter filled? In bot batches the cost hurt Fang (his Hound opener) more than Ember.
 - More companions per champion: chosen before the match, or swapped mid-match?
 - Team sizes to prioritise after 1v1.

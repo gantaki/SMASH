@@ -1,8 +1,9 @@
 // Wood walls rebuilding and crates sliding around.
 
-import { arena, rules } from "@smash/content";
+import { rules } from "@smash/content";
 import { applyOnHit, damageObstacle } from "./combat.ts";
 import type { Ctx } from "./context.ts";
+import { rimPenetration, solidAt } from "./floor.ts";
 import { obstaclePenetration } from "./geometry.ts";
 import { unitById } from "./state.ts";
 
@@ -15,12 +16,13 @@ export function updateObstacles(ctx: Ctx): void {
   const cfg = rules.obstacles;
   for (const o of state.obstacles) {
     if (o.kind === "wood") {
-      if (o.alive || !fight) continue;
+      if (o.alive || o.fallen || !fight) continue;
       o.respawn -= dt;
       if (o.respawn > 0) continue;
-      // Rebuild only if nothing stands in the spot.
+      // Rebuild only if nothing stands in the spot, and only on floor that is still there.
       o.alive = true;
       const occupied =
+        !solidAt(state, o.x, o.z) ||
         state.units.some((u) => !u.dead && obstaclePenetration(o, u.x, u.z, u.radius)) ||
         state.obstacles.some((c) => c.kind === "crate" && obstaclePenetration(o, c.x, c.z, c.radius));
       if (occupied) {
@@ -32,7 +34,7 @@ export function updateObstacles(ctx: Ctx): void {
       }
       continue;
     }
-    if (o.kind !== "crate") continue;
+    if (o.kind !== "crate" || !o.alive) continue;
     const speed = Math.hypot(o.vx, o.vz);
     if (speed <= CRATE_REST_SPEED) {
       o.vx = o.vz = 0;
@@ -69,11 +71,11 @@ export function updateObstacles(ctx: Ctx): void {
       }
       ctx.events.push({ t: "crateBump", id: o.id, x: o.x, z: o.z });
     }
-    const d = Math.hypot(o.x, o.z);
-    const R = arena.radius - cfg.crateWallMargin;
-    if (d > R) {
-      o.x *= R / d;
-      o.z *= R / d;
+    // Bounces off the arena wall; through a gap it slides out and drops (terrain.ts).
+    const wall = rimPenetration(state, o.x, o.z, cfg.crateWallMargin);
+    if (wall) {
+      o.x += wall.nx * wall.depth;
+      o.z += wall.nz * wall.depth;
       o.vx *= -cfg.crateWallBounce;
       o.vz *= -cfg.crateWallBounce;
     }

@@ -62,6 +62,13 @@ export const SOUNDS: Record<string, SoundDef> = {
   wood_hit: s("wood_hit", 0.45, 0.1, 60),
   wood_break: s("wood_break", 0.8, 0.05),
   crate_bump: s("crate_bump", 0.45, 0.1, 120),
+  // The arena coming apart
+  stone_hit: s("stone_hit", 0.45, 0.1, 60),
+  stone_break: s("stone_break", 0.85, 0.05, 80),
+  floor_crack: s("floor_crack", 0.55, 0.08, 120),
+  floor_crumble: s("floor_crumble", 0.7, 0.05, 150),
+  floor_collapse: s("floor_collapse", 0.85, 0.06, 120),
+  abyss_fall: s("abyss_fall", 0.8, 0.04),
   orb_spawn: s("orb_spawn", 0.7),
   orb_break: s("orb_break", 0.85),
   countdown_tick: s("countdown_tick", 0.6),

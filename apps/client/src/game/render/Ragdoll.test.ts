@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
-import { RAGDOLL, Ragdoll, blowOf, collapse, impulseFor, launchFor, type RagdollWorld } from "./Ragdoll.ts";
+import { RAGDOLL, Ragdoll, blowOf, collapse, fallImpulse, impulseFor, launchFor, type RagdollWorld } from "./Ragdoll.ts";
 
 /** A model like the real ones: parts at different heights, one prop, one marker to hide. */
 function model() {
@@ -54,6 +54,22 @@ describe("ragdoll", () => {
     expect(slams).toContain("wall");
     expect(r.center.x).toBeLessThan(WALL_X);
     expect(m.weapon.position.x).toBeLessThan(WALL_X);
+  });
+
+  it("lies on the floor, but drops into the abyss over a hole, and always when the champion fell", () => {
+    const lowest = (m: ReturnType<typeof model>) => Math.max(...m.parts.map((p) => p.getWorldPosition(new THREE.Vector3()).y));
+    // A hole from x = 2 on: the body is thrown toward it and goes down.
+    const hole = model();
+    const overHole = new Ragdoll(hole.scene, hole.body, [hole.weapon], [hole.arrow], launchFor(30, 1, 0), { ...world(), ground: (x) => x < 2 });
+    settle(overHole, 3);
+    expect(lowest(hole)).toBeLessThan(-5);
+
+    // The sim says the champion fell: nothing catches the body, floor or not.
+    const fell = model();
+    const dropping = new Ragdoll(fell.scene, fell.body, [fell.weapon], [fell.arrow], fallImpulse(6, 0), world(), true);
+    settle(dropping, 3);
+    expect(lowest(fell)).toBeLessThan(-5);
+    expect(fell.weapon.getWorldPosition(new THREE.Vector3()).y).toBeLessThan(-5);
   });
 
   it("flies further for a harder blow, and only crumples without one", () => {

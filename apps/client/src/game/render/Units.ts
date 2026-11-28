@@ -15,6 +15,8 @@ export interface Pose {
 }
 
 const FLASH_TIME = 0.12;
+const COMPANION_FALL_TIME = 1.4;
+const COMPANION_FALL_GRAVITY = 24;
 const SWING_TIME = 0.22;
 const SLOW_A = rgb("#80ccff");
 const SLOW_B = rgb("#1a3380");
@@ -218,14 +220,15 @@ export class ChampionView {
    * The champion died: hand the model over to the ragdoll, launched by the killing blow.
    * `at` is where it died. The model is moved there first: it may not have been drawn for a while
    * (several ticks in one frame, or a skipped kill cam replay), and the body must fall where the death happened.
+   * `dropping`: it went into the abyss, so nothing catches the body on its way down.
    */
-  startRagdoll(scene: THREE.Object3D, impulse: Impulse, world: RagdollWorld, at: Pose): void {
+  startRagdoll(scene: THREE.Object3D, impulse: Impulse, world: RagdollWorld, at: Pose, dropping = false): void {
     if (this.ragdoll) return;
     this.root.position.set(at.x, Math.max(0, this.root.position.y), at.z);
     this.body.rotation.set(0, at.face, 0);
     this.body.position.y = 0;
     const props = [this.rig.arm, ...(this.rig.shield ? [this.rig.shield] : [])];
-    this.ragdoll = new Ragdoll(scene, this.body, props, [this.arrow], impulse, world);
+    this.ragdoll = new Ragdoll(scene, this.body, props, [this.arrow], impulse, world, dropping);
     this.ring.visible = false;
   }
 
@@ -358,6 +361,8 @@ export class CompanionView {
   private flashT = 0;
   private flashOn = false;
   private bite = 0;
+  /** Seconds since it went into the abyss, or -1: the model is shown dropping for a moment after it dies. */
+  private fallT = -1;
   private readonly seed: number;
 
   constructor(c: CompanionUnit, ally: boolean, flying: boolean, private readonly particles: Particles) {
@@ -427,9 +432,26 @@ export class CompanionView {
     this.bite = 0.18;
   }
 
+  /** It went into the abyss at (x, z): show it going down instead of vanishing. */
+  fall(x: number, z: number): void {
+    this.fallT = 0;
+    this.root.position.set(x, 0, z);
+  }
+
   update(c: CompanionUnit, pose: Pose, time: number, dt: number): void {
+    if (c.dead && this.fallT >= 0 && this.fallT < COMPANION_FALL_TIME) {
+      this.fallT += dt;
+      this.root.visible = true;
+      this.root.position.y = -0.5 * COMPANION_FALL_GRAVITY * this.fallT * this.fallT;
+      this.body.rotation.x += dt * 5;
+      return;
+    }
     this.root.visible = !c.dead;
     if (c.dead) return;
+    if (this.fallT >= 0) {
+      this.fallT = -1;
+      this.body.rotation.x = 0;
+    }
     this.flashT = Math.max(0, this.flashT - dt);
     this.bite = Math.max(0, this.bite - dt);
     this.root.position.set(pose.x, 0, pose.z);

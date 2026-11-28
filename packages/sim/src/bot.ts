@@ -13,18 +13,24 @@ import {
 } from "@smash/content";
 import { abilityOf, canAct, isReady } from "./abilities.ts";
 import type { Ctx } from "./context.ts";
-import { blocker, clearLine, obstaclePenetration, polylineDistance, wallBehind } from "./geometry.ts";
+import { dropTimeAt, nearestSafe, pathSolid, safeAt, voidAlong } from "./floor.ts";
+import { blocker, clearLine, obstaclePenetration, polylineDistance, reach, wallBehind } from "./geometry.ts";
 import type { Vec2 } from "./math.ts";
-import { championOfTeam, companionOf, emptyInput, type BotState, type ChampionUnit, type PlayerInput } from "./state.ts";
+import { championOfTeam, companionOf, emptyInput, type BotState, type ChampionUnit, type MatchState, type PlayerInput } from "./state.ts";
 
 const EDGE_MARGIN = 3.5;
 const OBSTACLE_MARGIN = 1.1;
 const RIFT_MARGIN = 1.3;
 const AIM_ERROR_SCALE = 0.22;
+const DEG = Math.PI / 180;
 const CANCEL_SLACK = 0.6;
 const CANCEL_RATE = 12;
 /** Energy above which a bot stops paying for companion commands and saves for the ultimate. */
 const COMMAND_ENERGY_CAP = 60;
+/** The turns (degrees) a bot tries, in this order, when the way it wants to go is not safe floor. */
+const FLOOR_TURNS = [0, 35, -35, 70, -70, 110, -110, 150, -150, 180];
+/** Standing on a tile that drops sooner than the bot can walk off it plus this margin: jump off. */
+const FLOOR_PANIC = 0.25;
 /** Slots tried for offence, most valuable first. */
 const OFFENCE_ORDER: readonly AbilitySlot[] = ["ultimate", "e", "q", "secondary", "mobility", "primary"];
 
@@ -70,6 +76,80 @@ function timeToHit(a: Ability, dist: number, castScale: number, speedScale: numb
   }
 }
 
+/** Seconds the path is predicted for, in steps of FLOOR_STEP. */
+const FLOOR_HORIZON = 0.35;
+const FLOOR_STEP = 0.05;
+/** Half-width of the strip of floor a bot wants under its path: it does not cut the corner of a missing tile. */
+const FLOOR_CLEARANCE = 0.45;
+
+/**
+ * How long (seconds, up to FLOOR_HORIZON) a bot stays on safe floor if it steers along `dir` from now on.
+ * Follows the same acceleration model as walking (units.ts), so momentum toward a hole is taken into account.
+ */
+function safeTime(state: MatchState, b: ChampionUnit, dir: Vec2, top: number): number {
+  const accel = state.tuning.accelTime > 0 ? top / state.tuning.accelTime : Infinity;
+  let x = b.x;
+  let z = b.z;
+  let vx = b.mvx;
+  let vz = b.mvz;
+  for (let t = FLOOR_STEP; t <= FLOOR_HORIZON + 1e-9; t += FLOOR_STEP) {
+    const dx = dir.x * top - vx;
+    const dz = dir.z * top - vz;
+    const dv = Math.hypot(dx, dz);
+    const max = (dx * vx + dz * vz < 0 ? 2 : 1) * accel * FLOOR_STEP;
+    const k = dv <= max ? 1 : max / dv;
+    vx += dx * k;
+    vz += dz * k;
+    x += vx * FLOOR_STEP;
+    z += vz * FLOOR_STEP;
+    const v = Math.hypot(vx, vz);
+    // The strip is as wide across the heading as it is ahead of it.
+    const hx = v > 0.1 ? vx / v : dir.x;
+    const hz = v > 0.1 ? vz / v : dir.z;
+    const c = FLOOR_CLEARANCE;
+    const ok =
+      safeAt(state, x, z) && safeAt(state, x + hx * c, z + hz * c) && safeAt(state, x - hz * c, z + hx * c) && safeAt(state, x + hz * c, z - hx * c);
+    if (!ok) return t - FLOOR_STEP;
+  }
+  return FLOOR_HORIZON;
+}
+
+/**
+ * Keeps a bot on the floor: turns the wanted direction away from holes, crumbling tiles and gaps in the wall,
+ * and walks off a crumbling tile by the shortest way. `side` picks which way it turns first.
+ */
+function steerOnFloor(state: MatchState, b: ChampionUnit, move: Vec2, side: 1 | -1): Vec2 {
+  if (!safeAt(state, b.x, b.z)) {
+    // The tile under the bot is going: head for the nearest floor that is not.
+    const t = nearestSafe(state, b.x, b.z, true);
+    if (!t) return move;
+    const d = Math.hypot(t.x - b.x, t.z - b.z) || 1;
+    return { x: (t.x - b.x) / d, z: (t.z - b.z) / d };
+  }
+  const top = getChampion(b.champion).stats.moveSpeed * state.tuning.moveSpeed;
+  const l = Math.hypot(move.x, move.z);
+  const stop = { x: 0, z: 0 };
+  if (l < 0.05) {
+    // Standing still, or drifting to a stop: fine unless the drift ends in a hole.
+    if (safeTime(state, b, stop, top) >= FLOOR_HORIZON) return move;
+  }
+  const base = l < 0.05 ? Math.atan2(-b.mvx, -b.mvz) : Math.atan2(move.x, move.z);
+  let best = stop;
+  let bestTime = l < 0.05 ? -1 : safeTime(state, b, stop, top) - 1e-6;
+  for (const turn of FLOOR_TURNS) {
+    const a = base + turn * DEG * side;
+    const dir = { x: Math.sin(a), z: Math.cos(a) };
+    const time = safeTime(state, b, dir, top);
+    if (time >= FLOOR_HORIZON) return dir;
+    if (time > bestTime) {
+      bestTime = time;
+      best = dir;
+    }
+  }
+  // Nothing is safe for long: take whatever keeps the bot on the floor longest.
+  return best;
+}
+
 export function botInput(ctx: Ctx, b: ChampionUnit): PlayerInput {
   const { state, rng, dt } = ctx;
   const input = emptyInput();
@@ -88,6 +168,15 @@ export function botInput(ctx: Ctx, b: ChampionUnit): PlayerInput {
     input.aim = aim;
     return input;
   };
+  /** A blink or a leap toward `aim`, unless it would come down on a hole or on a tile that is about to drop. */
+  const jump = (slot: AbilitySlot, aim: Vec2): PlayerInput | null => {
+    const a = abilityOf(b, slot);
+    if (a?.kind !== "blink" && a?.kind !== "leap") return null;
+    const land = reach(b, aim, a.maxRange);
+    return safeAt(state, land.x, land.z) ? press(slot, aim) : null;
+  };
+  /** The way the enemy would be shoved from here leads into the abyss: over a hole, or out through a gap in the wall. */
+  const ringOut = (dist: number): boolean => voidAlong(state, p.x, p.z, nx, nz, dist);
 
   const dx = p.x - b.x;
   const dz = p.z - b.z;
@@ -199,7 +288,8 @@ export function botInput(ctx: Ctx, b: ChampionUnit): PlayerInput {
       if (counterSlot && rng.next() < 0.6) return press(counterSlot, p);
       if (mobilitySlot && rng.next() < 0.45) {
         const k = ranged ? -1 : 2;
-        return press(mobilitySlot, { x: b.x + px * 6 + nx * k, z: b.z + pz * 6 + nz * k });
+        const away = jump(mobilitySlot, { x: b.x + px * 6 + nx * k, z: b.z + pz * 6 + nz * k });
+        if (away) return away;
       }
     }
   }
@@ -232,7 +322,8 @@ export function botInput(ctx: Ctx, b: ChampionUnit): PlayerInput {
     fx += ex * 3;
     fz += ez * 3;
     if (acting && mobilitySlot && g.delay - g.t < 0.35 && rng.next() < D.dodge * 0.15) {
-      return press(mobilitySlot, { x: b.x + ex * 6, z: b.z + ez * 6 });
+      const away = jump(mobilitySlot, { x: b.x + ex * 6, z: b.z + ez * 6 });
+      if (away) return away;
     }
   }
 
@@ -241,12 +332,14 @@ export function botInput(ctx: Ctx, b: ChampionUnit): PlayerInput {
     if (novaSlot) {
       const a = abilityOf(b, novaSlot)!;
       const reachK = a.kind === "nova" && a.onHit.knockback ? a.onHit.knockback.distance / shoveWeight : 0;
-      if (rng.next() < D.dodge * dt * (wallBehind(state, b, p, reachK) ? 16 : 8)) return press(novaSlot, p);
+      const rate = ringOut(reachK) ? 30 : wallBehind(state, b, p, reachK) ? 16 : 8;
+      if (rng.next() < D.dodge * dt * rate) return press(novaSlot, p);
     } else if (mobilitySlot && rng.next() < D.dodge * dt * 4) {
       const tx = b.x - nx * 7;
       const tz = b.z - nz * 7;
       const inside = Math.hypot(tx, tz) < arena.radius - 2;
-      return press(mobilitySlot, inside ? { x: tx, z: tz } : { x: b.x - nz * 7 * ai.strafe, z: b.z + nx * 7 * ai.strafe });
+      const away = jump(mobilitySlot, inside ? { x: tx, z: tz } : { x: b.x - nz * 7 * ai.strafe, z: b.z + nx * 7 * ai.strafe });
+      if (away) return away;
     }
   }
 
@@ -257,6 +350,19 @@ export function botInput(ctx: Ctx, b: ChampionUnit): PlayerInput {
   }
   const fl = Math.hypot(fx, fz);
   if (fl > 0.05) input.move = { x: fx / fl, z: fz / fl };
+
+  // ---------- stay on the floor ----------
+  input.move = steerOnFloor(state, b, input.move, ai.strafe);
+  const dropIn = dropTimeAt(state, b.x, b.z);
+  if (dropIn < Infinity && acting && mobilitySlot) {
+    // The tile underfoot is crumbling and walking will not make it: jump to the nearest floor.
+    const t = nearestSafe(state, b.x, b.z);
+    const speed = getChampion(b.champion).stats.moveSpeed * state.tuning.moveSpeed;
+    if (t && (Math.hypot(t.x - b.x, t.z - b.z) / speed > dropIn - FLOOR_PANIC || !pathSolid(state, b.x, b.z, t.x, t.z))) {
+      const away = jump(mobilitySlot, t);
+      if (away) return away;
+    }
+  }
 
   // ---------- pick a target ----------
   let tgt: Target = p;
@@ -304,7 +410,8 @@ export function botInput(ctx: Ctx, b: ChampionUnit): PlayerInput {
     }
     // Hook to the companion while it holds the enemy.
     const hookSlot = findSlot(b, (a) => a.kind === "projectile" && a.throughCompanion?.kind === "pullCaster");
-    if (hookSlot && acting && pet.mode === "engage" && pet.target === p.id && d > 6 && clearLine(state, b, pet) && rng.next() < dt * 2.5) {
+    const dry = pathSolid(state, b.x, b.z, pet.x, pet.z);
+    if (hookSlot && acting && pet.mode === "engage" && pet.target === p.id && d > 6 && dry && clearLine(state, b, pet) && rng.next() < dt * 2.5) {
       return press(hookSlot, { x: pet.x, z: pet.z });
     }
   }
@@ -331,7 +438,9 @@ export function botInput(ctx: Ctx, b: ChampionUnit): PlayerInput {
         if (slot === "primary") {
           if ((clear || breakable) && td < a.range + 0.5) return press(slot, lead(td));
         } else if (a.onHit.pull) {
-          if (targetIsEnemy && clear && d > 3.5 && d < a.range - 0.5 && rng.next() < dt * 1.1 * D.rate) return press(slot, lead(d));
+          // A hole between the two of them: the drag ends in it.
+          const pit = targetIsEnemy && !pathSolid(state, p.x, p.z, b.x + nx * a.onHit.pull.stopDistance, b.z + nz * a.onHit.pull.stopDistance);
+          if (targetIsEnemy && clear && d > 3.5 && d < a.range - 0.5 && rng.next() < dt * (pit ? 5 : 1.1) * D.rate) return press(slot, lead(d));
         } else if (clear && td < a.range - 1 && rng.next() < dt * 1.2 * D.rate) return press(slot, lead(td));
         break;
       }
@@ -340,14 +449,18 @@ export function botInput(ctx: Ctx, b: ChampionUnit): PlayerInput {
         if (slot === "primary") return press(slot, { x: tgt.x, z: tgt.z });
         if (!targetIsEnemy) break;
         const kb = a.onHit.knockback;
-        const slamChance = kb && wallBehind(state, b, p, kb.distance / shoveWeight) && rng.next() < dt * 6;
+        const shove = kb ? kb.distance / shoveWeight : 0;
+        const slamChance = kb && (ringOut(shove) ? rng.next() < dt * 25 : wallBehind(state, b, p, shove) && rng.next() < dt * 6);
         if (p.cast || slamChance || rng.next() < dt * 1.2 * D.rate) return press(slot, { x: p.x, z: p.z });
         break;
       }
       case "leap": {
         // Gap closer for melee; ranged champions keep it for escapes.
         if (ranged || !targetIsEnemy || b.root > 0) break;
-        if (d > 4.5 && d < a.maxRange + 0.5 && rng.next() < dt * 1.5 * D.rate) return press(slot, lead(d));
+        if (d > 4.5 && d < a.maxRange + 0.5 && rng.next() < dt * 1.5 * D.rate) {
+          const onto = jump(slot, lead(d));
+          if (onto) return onto;
+        }
         break;
       }
       case "channel": {

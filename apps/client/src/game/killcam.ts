@@ -31,6 +31,8 @@ export const KILL_CAM = {
   distance: { min: 8.5, max: 13, base: 7.5, perMeterApart: 0.9 },
   /** Height the camera looks at: chest level. */
   lookHeight: 1.3,
+  /** A fall into the abyss is watched from above, looking down at the hole the body goes into. */
+  fall: { height: 6.5, lookHeight: -1.5 },
   /** Killer and victim are framed together when this close; otherwise the camera stays on the victim. */
   pairRange: 6.5,
   /** Slow push-in and drift around the scene while it plays. */
@@ -51,12 +53,16 @@ export interface KillShot {
   side: { x: number; z: number };
   distance: number;
   height: number;
+  /** Height of the point the camera looks at. */
+  lookHeight: number;
 }
 
 const clamp = (v: number, lo: number, hi: number): number => (v < lo ? lo : v > hi ? hi : v);
 
-/** Picks a side-on camera position with a clear view of the victim. */
-export function frameKill(state: MatchState, victim: Unit, killer: Unit | undefined): KillShot {
+/** Picks a side-on camera position with a clear view of the victim. `fell`: the victim went into the abyss. */
+export function frameKill(state: MatchState, victim: Unit, killer: Unit | undefined, fell = false): KillShot {
+  const height = fell ? KILL_CAM.fall.height : KILL_CAM.height;
+  const lookHeight = fell ? KILL_CAM.fall.lookHeight : KILL_CAM.lookHeight;
   let dx = Math.sin(victim.face);
   let dz = Math.cos(victim.face);
   let span = 2.5;
@@ -92,11 +98,11 @@ export function frameKill(state: MatchState, victim: Unit, killer: Unit | undefi
     if (d < KILL_CAM.distance.min * 0.75) continue; // squeezed against the wall
     const cam = { x: cx, z: cz };
     if (blocker(state, cam, victim, 0.15) || (paired && killer && blocker(state, cam, killer, 0.15))) continue;
-    return { victim: victim.id, killer: paired && killer ? killer.id : -1, focus, side: { x: (cx - focus.x) / d, z: (cz - focus.z) / d }, distance: d, height: KILL_CAM.height };
+    return { victim: victim.id, killer: paired && killer ? killer.id : -1, focus, side: { x: (cx - focus.x) / d, z: (cz - focus.z) / d }, distance: d, height, lookHeight };
   }
   // Every low angle is blocked or cramped: look down over the obstacles instead.
   const side = sides[0]!;
-  return { victim: victim.id, killer: paired && killer ? killer.id : -1, focus, side, distance: KILL_CAM.distance.min, height: KILL_CAM.blockedHeight };
+  return { victim: victim.id, killer: paired && killer ? killer.id : -1, focus, side, distance: KILL_CAM.distance.min, height: Math.max(height, KILL_CAM.blockedHeight), lookHeight };
 }
 
 /** How fast sim time runs `s` sim seconds into a kill cam whose replay is `length` sim seconds long. */
@@ -182,15 +188,21 @@ export function planKillCam(replay: Replay): KillCam | null {
   if (replay.inputs.length < 2) return null;
   const end = structuredClone(replay.start);
   const lastHitBy = new Map<number, number>();
+  const fell = new Set<number>();
   let victimId = -1;
   for (const inputs of replay.inputs) {
     for (const e of step(end, inputs)) {
       if (e.t === "damage" && e.targetKind === "champion") lastHitBy.set(e.target, e.source);
+      if (e.t === "fall") {
+        fell.add(e.unit);
+        // Whoever shoved or dragged the victim in is the killer, even if the hit itself landed before the replay starts.
+        if (e.by >= 0) lastHitBy.set(e.unit, e.by);
+      }
       if (e.t === "death" && victimId < 0) victimId = e.unit;
     }
   }
   const victim = end.units.find((u) => u.id === victimId);
   if (!victim) return null;
   const killer = end.units.find((u) => u.id === lastHitBy.get(victimId));
-  return new KillCam(replay, frameKill(end, victim, killer));
+  return new KillCam(replay, frameKill(end, victim, killer, fell.has(victimId)));
 }

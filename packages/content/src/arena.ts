@@ -3,16 +3,19 @@ import type { ArenaConfig, MatchRules, Tuning } from "./types.ts";
 export const arena: ArenaConfig = {
   radius: 18,
   wallMargin: 0.75,
+  // 1 + 6 × (1 + … + 12) = 469 tiles, 1.375 m deep and 1.5–2.3 m wide. The outer ring has 72: two under each rim section.
+  floor: { centerRadius: 1.5, rings: 12, tilesPerRing: 6, hp: 100, crumbleTime: 1.5 },
+  rim: { segments: 36, hp: 60 },
   spawns: [
     { x: 0, z: 10 },
     { x: 0, z: -10 },
   ],
   // Point-symmetric for fairness.
   obstacles: [
-    { kind: "stone", x: 7.5, z: 7.5, radius: 1.3 },
-    { kind: "stone", x: -7.5, z: 7.5, radius: 1.3 },
-    { kind: "stone", x: 7.5, z: -7.5, radius: 1.3 },
-    { kind: "stone", x: -7.5, z: -7.5, radius: 1.3 },
+    { kind: "stone", x: 7.5, z: 7.5, radius: 1.3, hp: 120 },
+    { kind: "stone", x: -7.5, z: 7.5, radius: 1.3, hp: 120 },
+    { kind: "stone", x: 7.5, z: -7.5, radius: 1.3, hp: 120 },
+    { kind: "stone", x: -7.5, z: -7.5, radius: 1.3, hp: 120 },
     { kind: "wood", x: 0, z: 5, halfWidth: 2, halfDepth: 0.35, rotDeg: 0, hp: 60 },
     { kind: "wood", x: 0, z: -5, halfWidth: 2, halfDepth: 0.35, rotDeg: 0, hp: 60 },
     { kind: "wood", x: 12, z: 0, halfWidth: 2, halfDepth: 0.35, rotDeg: 90, hp: 60 },
@@ -73,7 +76,7 @@ export const rules: MatchRules = {
     castTurnRate: 30,
   },
   energy: { max: 100, commandCost: 25, perDamage: 0.55, perCompanionDamage: 0.3, passivePerSecond: 1.2 },
-  slam: { stun: 0.6, damage: 10, woodDamage: 20, crateImpulse: 4 },
+  slam: { stun: 0.6, damage: 10, structureDamage: 20, crateImpulse: 4 },
   burn: { tickInterval: 0.5 },
   areaBodyFactor: 0.5,
   projectile: {

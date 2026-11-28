@@ -21,6 +21,10 @@ for (let i = 0; i < ids.length; i++) {
     let sdRounds = 0;
     const times: number[] = [];
     const dmg = [0, 0, 0];
+    let pushed = 0;
+    let unforced = 0;
+    let tiles = 0;
+    let rim = 0;
     for (let m = 0; m < matches; m++) {
       // Alternate sides so spawn position does not bias the result.
       const flip = m % 2 === 1;
@@ -33,6 +37,10 @@ for (let i = 0; i < ids.length; i++) {
       dmg[0] += r.damage[flip ? 1 : 0];
       dmg[1] += r.damage[flip ? 0 : 1];
       dmg[2] += r.damage[2];
+      pushed += r.falls.pushed;
+      unforced += r.falls.unforced;
+      tiles += r.tilesDropped;
+      rim += r.rimBroken;
     }
     const sorted = [...times].sort((x, y) => x - y);
     rows.push({
@@ -44,6 +52,11 @@ for (let i = 0; i < ids.length; i++) {
       "dmg/round A": Math.round(dmg[0] / rounds),
       "dmg/round B": Math.round(dmg[1] / rounds),
       "env dmg/round": Math.round(dmg[2] / rounds),
+      // Rounds that ended in the abyss: shoved there by the enemy / fell on their own.
+      "ring-out": pct(pushed, rounds),
+      "fell alone": pct(unforced, rounds),
+      "tiles lost/round": (tiles / rounds).toFixed(1),
+      "rim lost/round": (rim / rounds).toFixed(1),
       unfinished,
     });
   }
