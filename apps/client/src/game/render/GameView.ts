@@ -125,7 +125,7 @@ export class GameView {
         this.champs.set(u.id, view);
         scene.add(view.root);
         const bot = u.controller === "bot" ? " · бот" : "";
-        this.overlay.addChampion(u, view.champion.nameRu + bot, ally);
+        this.overlay.addChampion(u, view.champion.name + bot, ally);
       } else {
         const owner = state.units.find((o) => o.id === u.owner) as ChampionUnit;
         const def = getChampion(owner.champion).companion!;

@@ -47,9 +47,9 @@ export class Hud {
       : "C — отменить замах · Esc или P — пауза · M — звук";
     root.innerHTML = `
       <div class="top">
-        <div class="side me"><b>${sides ? sides[0] : champ.nameRu}</b><span class="pips" data-team="${me.team}"></span></div>
+        <div class="side me"><b>${sides ? sides[0] : champ.name}</b><span class="pips" data-team="${me.team}"></span></div>
         <div class="mid"><div class="rnd"></div><div class="clock">0:00</div></div>
-        <div class="side foe"><span class="pips" data-team="${enemy.team}"></span><b>${sides ? sides[1] : foe.nameRu + (enemy.controller === "bot" ? " · бот" : "")}</b></div>
+        <div class="side foe"><span class="pips" data-team="${enemy.team}"></span><b>${sides ? sides[1] : foe.name + (enemy.controller === "bot" ? " · бот" : "")}</b></div>
       </div>
       <div class="msg"></div>
       <div class="dock">

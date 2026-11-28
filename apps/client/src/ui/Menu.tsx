@@ -93,7 +93,7 @@ export function Menu(p: Props) {
                       <svg viewBox="0 0 48 48" aria-hidden="true" dangerouslySetInnerHTML={{ __html: CHAMPION_EMBLEMS[ch.id] ?? "" }} />
                     )}
                   </span>
-                  {ch.nameRu}
+                  {ch.name}
                 </button>
               );
             })}
@@ -103,7 +103,7 @@ export function Menu(p: Props) {
           <div className="hero-info" key={c.id}>
             <div>
               <div className="eyebrow">{c.roleRu}</div>
-              <h1 className="hero-name">{c.nameRu}</h1>
+              <h1 className="hero-name">{c.name}</h1>
             </div>
 
             <p className="hero-blurb">{c.blurbRu}</p>

@@ -6,7 +6,6 @@ const GOLD = "#ffc93c";
 export const fang: Champion = {
   id: "fang",
   name: "Fang",
-  nameRu: "Клык",
   roleRu: "Воин · ближний бой",
   blurbRu: "Сокращает дистанцию, ловит гарпуном и не отпускает. Много здоровья.",
   playable: true,

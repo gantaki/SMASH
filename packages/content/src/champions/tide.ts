@@ -7,7 +7,6 @@ const LILAC = "#b9a4ff";
 export const tide: Champion = {
   id: "tide",
   name: "Tide",
-  nameRu: "Прилив",
   roleRu: "Лунная жрица · манипулятор",
   blurbRu: "Почти не бьёт сама: двигает соперника, предметы и себя. Самая хрупкая.",
   playable: true,

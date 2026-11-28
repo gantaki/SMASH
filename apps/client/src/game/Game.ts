@@ -145,7 +145,7 @@ export class Game {
     const names = (team: 0 | 1) =>
       champions(this.state)
         .filter((u) => u.team === team)
-        .map((u) => getChampion(u.champion).nameRu)
+        .map((u) => getChampion(u.champion).name)
         .join(" + ");
     const sides: [string, string] | undefined = mode === "duel2" ? [names(this.viewerTeam), names(this.viewerTeam === 0 ? 1 : 0)] : undefined;
     this.hud = mode === "demo" ? null : new Hud(opts.hud, me, enemy, mode === "training", mode === "online", sides);

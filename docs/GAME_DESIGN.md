@@ -238,6 +238,8 @@ Design intent: fights wear the arena down where they happen. The first exchanges
 
 A champion is **four core stats plus a kit**. Data lives in `packages/content/src/champions/<id>.ts`.
 
+**Names.** A champion's name is an English proper noun and is shown as it is in the Russian interface (Ember, Fang, Rook, Tide): one short word, one or two syllables, that says what the champion does to the enemy or to the arena. Everything else the player reads (roles, ability names, descriptions, companions' names) is Russian.
+
 | Stat | Meaning | Reference range |
 |---|---|---|
 | `hp` | Health pool | 170 squishy · 195 average · 220 tank |
@@ -259,7 +261,7 @@ Every kit fills the same seven slots, and a slot means the same thing on every c
 
 Where the knockback sits is a choice: usually on E (Fang's Shield Bash), sometimes on the defensive Q as a "get off me" (Ember's Flame Shield pushes while it shields, so her E is free to be a stun). What matters is that the kit has one (§2.3).
 
-### Ember (Искра) — Fire Mage, ranged
+### Ember — Fire Mage, ranged
 
 HP 170 · speed 6.0 m/s · weight 0.9 (light: shoved 11% further). Kites, applies burn, punishes bad positioning.
 
@@ -273,7 +275,7 @@ HP 170 · speed 6.0 m/s · weight 0.9 (light: shoved 11% further). Kites, applie
 | R | Wisp | Companion command | See §2.1 |
 | X | Meteor | Big delayed AoE | 100 energy, wind-up 0.3 s, max range 13 m, r 3.6 m, delay 1.2 s, 45 dmg + stun 0.5 s, **floor 100** (the crater drops) |
 
-### Fang (Клык) — Warrior, melee
+### Fang — Warrior, melee
 
 HP 220 · speed 6.4 m/s · weight 1.2 (heavy: shoved 17% less). Closes distance, hooks, doesn't let go.
 
@@ -287,7 +289,7 @@ HP 220 · speed 6.4 m/s · weight 1.2 (heavy: shoved 17% less). Closes distance,
 | R | Hound | Companion command | See §2.1 |
 | X | Whirlwind | Channel | 100 energy, 2.4 s, move ×1.15, unstoppable, 7 dmg every 0.3 s in r 3.2 m |
 
-### Rook (Ладья) — Mason, melee
+### Rook — Mason, melee
 
 HP 225 · speed 5.9 m/s · weight 1.25 (the heaviest: shoved 20% less). Rebuilds the arena to suit him and drives the enemy into it. The toughest and the slowest; no stun of his own: his damage is in his maul and in slams.
 
@@ -301,7 +303,7 @@ HP 225 · speed 5.9 m/s · weight 1.25 (the heaviest: shoved 20% less). Rebuilds
 | R | Boulder | Companion command | See §2.1 |
 | X | Colosseum | Ring of walls | 100 energy, wind-up 0.4 s, up to 9 m away, r 4.5 m, ten pieces of 40 HP, 5 s. Inside, **slam damage ×2**, for everyone, Rook included. Pieces go up only where there is floor: at the edge the arena wall closes the ring, a hole leaves a gap |
 
-### Tide (Прилив) — Moon priestess, manipulator
+### Tide — Moon priestess, manipulator
 
 HP 170 · speed 6.5 m/s · weight 0.85 (the lightest: shoved 18% further). Barely hits by herself: she moves the enemy, the objects on the field and herself. Her kills are ring-outs and crates.
 

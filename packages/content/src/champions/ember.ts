@@ -6,7 +6,6 @@ const FIRE = "#ff7a2b";
 export const ember: Champion = {
   id: "ember",
   name: "Ember",
-  nameRu: "Искра",
   roleRu: "Маг огня · дальний бой",
   blurbRu: "Держит дистанцию, поджигает и наказывает за плохую позицию. Мало здоровья.",
   playable: true,

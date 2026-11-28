@@ -362,8 +362,8 @@ export interface BotProfile {
 
 export interface Champion {
   id: string;
+  /** The champion's name: a proper noun, shown in the interface as it is (heroes are named in English and not translated). */
   name: string;
-  nameRu: string;
   roleRu: string;
   blurbRu: string;
   /** Shown in the champion picker. Training targets are not. */

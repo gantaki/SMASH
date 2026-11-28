@@ -57,14 +57,14 @@ export function Lobby({ champion, online }: LobbyProps) {
           <ul className="players">
             <li className="ally">
               <span>
-                {online.me.name} · {getChampion(online.me.champion).nameRu}
+                {online.me.name} · {getChampion(online.me.champion).name}
               </span>
               <i className={online.me.ready ? "ready" : ""}>{online.me.ready ? "готов" : online.role === "host" ? "вы, хост" : "вы"}</i>
             </li>
             {online.opponent && (
               <li className="enemy">
                 <span>
-                  {online.opponent.name} · {getChampion(online.opponent.champion).nameRu}
+                  {online.opponent.name} · {getChampion(online.opponent.champion).name}
                 </span>
                 <i className={online.opponent.ready ? "ready" : ""}>{online.opponent.ready ? "готов" : online.role === "guest" ? "хост" : "выбирает"}</i>
               </li>

@@ -7,7 +7,6 @@ const MOSS = "#8fc46b";
 export const rook: Champion = {
   id: "rook",
   name: "Rook",
-  nameRu: "Ладья",
   roleRu: "Каменщик · ближний бой",
   blurbRu: "Перестраивает арену под себя и вбивает в неё соперника. Тяжёлый и медленный.",
   playable: true,
@@ -123,7 +122,7 @@ export const rook: Champion = {
       id: "rook.colosseum",
       name: "Colosseum",
       nameRu: "Колизей",
-      descriptionRu: "ульта: кольцо стен вокруг точки на 5 с. Внутри удар о стену бьёт вдвое сильнее — по всем, и по Ладье тоже",
+      descriptionRu: "ульта: кольцо стен вокруг точки на 5 с. Внутри удар о стену бьёт вдвое сильнее — по всем, и по Rook тоже",
       icon: "colosseum",
       cooldown: 0,
       energyCost: 100,

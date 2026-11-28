@@ -3,8 +3,8 @@ import type { Champion } from "../types.ts";
 /** Training target. No abilities; the sim heals it back up (see training config). */
 export const dummy: Champion = {
   id: "dummy",
-  name: "Dummy",
-  nameRu: "Манекен",
+  // Not a hero: a plain label in the interface's language, like everything else that is not a hero's name.
+  name: "Манекен",
   roleRu: "Тренировочная цель",
   blurbRu: "Стоит или ходит из стороны в сторону. Восстанавливает здоровье.",
   playable: false,
