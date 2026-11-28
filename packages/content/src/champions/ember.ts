@@ -80,7 +80,7 @@ export const ember: Champion = {
       color: FIRE,
       sfx: { fire: "blink" },
     },
-    q: {
+    e: {
       kind: "groundAoe",
       id: "ember.ringOfFire",
       name: "Ring of Fire",
@@ -97,7 +97,7 @@ export const ember: Champion = {
       color: FIRE,
       sfx: { cast: "windup_fire", fire: "aoe_mark", hit: "fire_explosion" },
     },
-    e: {
+    q: {
       kind: "nova",
       id: "ember.flameShield",
       name: "Flame Shield",

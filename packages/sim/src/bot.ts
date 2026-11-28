@@ -24,7 +24,7 @@ const AIM_ERROR_SCALE = 0.22;
 const CANCEL_SLACK = 0.6;
 const CANCEL_RATE = 12;
 /** Slots tried for offence, most valuable first. */
-const OFFENCE_ORDER: readonly AbilitySlot[] = ["ultimate", "q", "e", "secondary", "mobility", "primary"];
+const OFFENCE_ORDER: readonly AbilitySlot[] = ["ultimate", "e", "q", "secondary", "mobility", "primary"];
 
 interface Target {
   x: number;

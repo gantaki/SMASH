@@ -635,42 +635,66 @@ a,
 .champs {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
 }
 .champ {
-  display: inline-flex;
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 8px;
-  min-height: 48px;
-  padding: 0 18px 0 12px;
-  border-radius: 24px;
-  border: 1.5px solid var(--line);
-  background: rgba(20, 12, 8, 0.6);
+  gap: 6px;
+  width: 84px;
+  padding: 0;
+  border: 0;
+  background: none;
   color: var(--mut);
-  font: 600 15px Rubik, sans-serif;
+  font: 600 12px/1.2 Rubik, sans-serif;
   cursor: pointer;
+}
+.champ-face {
+  display: grid;
+  place-items: center;
+  width: 84px;
+  height: 84px;
+  border-radius: 16px;
+  border: 2px solid var(--line);
+  background: rgba(20, 12, 8, 0.8);
+  overflow: hidden;
   transition:
-    background 0.15s,
     border-color 0.15s,
-    color 0.15s;
+    box-shadow 0.15s,
+    transform 0.15s;
+}
+.champ-face img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: saturate(0.7) brightness(0.72);
+  transition: filter 0.15s;
+}
+.champ-face svg {
+  width: 40px;
+  height: 40px;
+  color: var(--c);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 .champ:hover {
   color: var(--ink);
 }
+.champ:hover .champ-face img,
+.champ[aria-pressed="true"] .champ-face img {
+  filter: none;
+}
 .champ[aria-pressed="true"] {
-  border-color: var(--c);
-  background: color-mix(in srgb, var(--c) 14%, rgba(20, 12, 8, 0.6));
   color: var(--ink);
 }
-.champ svg {
-  width: 26px;
-  height: 26px;
-  color: var(--c);
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2.6;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+.champ[aria-pressed="true"] .champ-face {
+  border-color: var(--c);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 28%, transparent);
+  transform: translateY(-2px);
 }
 .eyebrow {
   font-size: 13px;
@@ -1175,7 +1199,9 @@ a,
   .portrait {
     animation: none;
   }
-  .tile {
+  .tile,
+  .champ-face,
+  .champ-face img {
     transition: none;
   }
   .msg {

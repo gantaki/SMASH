@@ -11,3 +11,6 @@ export const ABILITY_ART: Record<string, string> = index("abilities", ABILITY_IC
 
 /** Champion id → waist-up cutout on a transparent background. */
 export const PORTRAITS: Record<string, string> = index("portraits", PORTRAIT_IDS);
+
+/** Champion id → square close-up for the champion-select tile. */
+export const TILES: Record<string, string> = index("tiles", PORTRAIT_IDS);

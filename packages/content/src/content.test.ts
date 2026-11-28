@@ -49,6 +49,19 @@ describe("champion content", () => {
         expect(c.companion).toBeDefined();
       });
 
+      it("follows the slot roles: Q protects the caster, E is a strike or an area hit (design guide, §3)", () => {
+        const q = c.abilities.q!;
+        const e = c.abilities.e!;
+        // New defensive or offensive ability kinds get added to these lists together with the kind.
+        expect(q.kind === "counter" || (q.kind === "nova" && q.shield !== undefined), q.id).toBe(true);
+        expect(e.kind === "cone" || e.kind === "groundAoe" || e.kind === "nova", e.id).toBe(true);
+      });
+
+      it("can move an enemy: at least one ability knocks back or pulls (knockback is the core mechanic, §2.3)", () => {
+        const moves = ABILITY_SLOTS.some((slot) => onHits(c.abilities[slot]!).some((h) => h.knockback !== undefined || h.pull !== undefined));
+        expect(moves, c.id).toBe(true);
+      });
+
       it("uses energy for the ultimate and cooldowns for the rest", () => {
         for (const slot of ABILITY_SLOTS) {
           const a = c.abilities[slot]!;
@@ -83,7 +96,7 @@ describe("champion content", () => {
       it("keeps every dangerous ability dodgeable (pillar: readable and dodgeable)", () => {
         // From the button press to the hit at mid range there must be time to react and step aside.
         const REACTION = 0.3;
-        for (const slot of ["secondary", "q", "ultimate"] as const) {
+        for (const slot of ["secondary", "e", "ultimate"] as const) {
           const a = c.abilities[slot]!;
           const cast = a.castTime ?? 0;
           if (a.kind === "projectile") expect(cast + a.range / 2 / a.speed, a.id).toBeGreaterThan(REACTION);

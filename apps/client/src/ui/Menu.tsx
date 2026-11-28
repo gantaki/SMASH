@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ABILITY_SLOTS, BOT_DIFFICULTIES, getChampion, playableChampions, rules, type AbilitySlot, type BotDifficulty, type ChampionId } from "@smash/content";
 import type { OnlineRoomHandle } from "../net/useOnlineRoom.ts";
-import { ABILITY_ART, PORTRAITS } from "./art.ts";
+import { ABILITY_ART, PORTRAITS, TILES } from "./art.ts";
 import { HowToPlay } from "./HowToPlay.tsx";
 import { ABILITY_ICONS, CHAMPION_EMBLEMS, KEY_LABELS } from "./icons.ts";
 import { Lobby } from "./Lobby.tsx";
@@ -58,12 +58,21 @@ export function Menu(p: Props) {
       <main className="menu-main">
         <section className="hero" aria-label="Чемпион">
           <div className="champs">
-            {playableChampions.map((ch) => (
-              <button key={ch.id} className="champ" aria-pressed={ch.id === p.champion} style={{ "--c": ch.color } as React.CSSProperties} onClick={() => p.onChampion(ch.id)}>
-                <svg viewBox="0 0 48 48" aria-hidden="true" dangerouslySetInnerHTML={{ __html: CHAMPION_EMBLEMS[ch.id] ?? "" }} />
-                {ch.nameRu}
-              </button>
-            ))}
+            {playableChampions.map((ch) => {
+              const tile = TILES[ch.id];
+              return (
+                <button key={ch.id} className="champ" aria-pressed={ch.id === p.champion} style={{ "--c": ch.color } as React.CSSProperties} onClick={() => p.onChampion(ch.id)}>
+                  <span className="champ-face">
+                    {tile ? (
+                      <img src={tile} alt="" draggable={false} />
+                    ) : (
+                      <svg viewBox="0 0 48 48" aria-hidden="true" dangerouslySetInnerHTML={{ __html: CHAMPION_EMBLEMS[ch.id] ?? "" }} />
+                    )}
+                  </span>
+                  {ch.nameRu}
+                </button>
+              );
+            })}
           </div>
 
           <div>

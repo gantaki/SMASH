@@ -68,7 +68,7 @@ export const fang: Champion = {
       color: GOLD,
       sfx: { fire: "leap", hit: "ground_slam" },
     },
-    q: {
+    e: {
       kind: "cone",
       id: "fang.shieldBash",
       name: "Shield Bash",
@@ -85,7 +85,7 @@ export const fang: Champion = {
       color: "#fff0b0",
       sfx: { cast: "windup_bash", fire: "shield_bash", hit: "heavy_hit" },
     },
-    e: {
+    q: {
       kind: "counter",
       id: "fang.counter",
       name: "Counter",
