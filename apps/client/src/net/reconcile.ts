@@ -4,8 +4,22 @@
 import type { AbilitySlot, ChampionId } from "@smash/content";
 import { NET_SNAPSHOT_EVERY_TICKS, sanitizeNetInput, type NetInput, type NetSnapshot } from "@smash/protocol";
 import { championOfTeam, createMatch, step, type MatchState, type PlayerInput, type SimEvent } from "@smash/sim";
+import { ReplayRecorder, isReplay, type Replay } from "./replay.ts";
 
 export type GameSnapshot = NetSnapshot<MatchState, SimEvent>;
+
+/**
+ * Sent by the host when a round is decided: the last moments of the fight, for the kill cam.
+ * `tick` is the tick that decided the round; the host holds the match there until it calls release().
+ */
+export interface KillCamPacket extends Replay {
+  tick: number;
+}
+
+/** Shape check for a kill cam packet that arrived from the other peer. */
+export function isKillCamPacket(raw: unknown): raw is KillCamPacket {
+  return isReplay(raw) && Number.isInteger((raw as { tick?: unknown }).tick);
+}
 
 export interface OnlineMatchConfig {
   seed: number;
@@ -60,6 +74,8 @@ export class HostSession {
   private ackSeq = 0;
   private lastGuestContinuous: PlayerInput;
   private readonly pendingEvents: SimEvent[] = [];
+  private readonly recorder = new ReplayRecorder();
+  private holding = false;
 
   constructor(cfg: OnlineMatchConfig) {
     this.state = buildOnlineMatch(cfg);
@@ -77,10 +93,22 @@ export class HostSession {
     const net = sanitizeNetInput(raw);
     if (!net || net.seq <= this.lastReceivedSeq) return;
     this.lastReceivedSeq = net.seq;
-    this.guestQueue.push(net);
+    // While the match is held for the kill cam the guest is watching a replay: nothing it sends counts.
+    if (!this.holding) this.guestQueue.push(net);
   }
 
-  stepTick(hostInput: PlayerInput): { events: SimEvent[]; snapshot: GameSnapshot | null } {
+  /** True between a round being decided and release(): the sim does not advance. */
+  get isHolding(): boolean {
+    return this.holding;
+  }
+
+  /** Both players have watched the kill cam: let the match go on. */
+  release(): void {
+    this.holding = false;
+  }
+
+  stepTick(hostInput: PlayerInput): { events: SimEvent[]; snapshot: GameSnapshot | null; replay: KillCamPacket | null } {
+    if (this.holding) return { events: [], snapshot: null, replay: null };
     if (this.guestQueue.length > MAX_GUEST_QUEUE) {
       const dropCount = this.guestQueue.length - TRIM_GUEST_QUEUE_TO;
       const head = this.guestQueue[dropCount]!;
@@ -118,21 +146,28 @@ export class HostSession {
       };
     }
 
+    if (this.state.phase === "fight") this.recorder.record(this.state, [hostInput, guestInput]);
     const events = step(this.state, [hostInput, guestInput]);
     this.pendingEvents.push(...events);
 
     const shouldSnap =
       this.state.tick % NET_SNAPSHOT_EVERY_TICKS === 0 || events.some((e) => CRITICAL_EVENTS.has(e.t));
 
-    if (!shouldSnap) return { events, snapshot: null };
+    const snapshot: GameSnapshot | null = shouldSnap
+      ? { tick: this.state.tick, ackSeq: this.ackSeq, state: structuredClone(this.state), events: this.pendingEvents.splice(0) }
+      : null;
 
-    const snapshot: GameSnapshot = {
-      tick: this.state.tick,
-      ackSeq: this.ackSeq,
-      state: structuredClone(this.state),
-      events: this.pendingEvents.splice(0),
-    };
-    return { events, snapshot };
+    // A round was decided: hand out the replay of its last moments and hold the match while it is watched.
+    let replay: KillCamPacket | null = null;
+    if (events.some((e) => e.t === "roundEnd")) {
+      const recorded = this.recorder.take();
+      if (recorded) {
+        replay = { tick: this.state.tick, ...recorded };
+        this.holding = true;
+        this.guestQueue.length = 0;
+      }
+    }
+    return { events, snapshot, replay };
   }
 }
 
@@ -143,9 +178,14 @@ export class GuestSession {
   private nextSeq = 1;
   private pendingInputs: NetInput[] = [];
   private remoteHold: PlayerInput;
+  /** The latest authoritative state, without any prediction on top. */
+  private lastAuth: MatchState;
+  /** While >= 0 the host is holding the match at this tick (kill cam): nothing is predicted. */
+  private frozenAt = -1;
 
   constructor(cfg: OnlineMatchConfig) {
     this.state = buildOnlineMatch(cfg);
+    this.lastAuth = structuredClone(this.state);
     const host = championOfTeam(this.state, 0);
     this.remoteHold = {
       move: { x: 0, z: 0 },
@@ -160,7 +200,23 @@ export class GuestSession {
     return this.pendingInputs.length;
   }
 
-  stepLocal(localInput: PlayerInput): NetInput {
+  get frozen(): boolean {
+    return this.frozenAt >= 0;
+  }
+
+  /**
+   * The host decided a round at `tick` and holds the match there. Stop predicting (the prediction would run on
+   * into the next round) until a snapshot from a later tick shows the host moving again.
+   */
+  freeze(tick: number): void {
+    this.frozenAt = Math.max(tick, this.lastSnapTick);
+    this.pendingInputs = [];
+    this.state = structuredClone(this.lastAuth);
+  }
+
+  /** Predicts one tick with the local input. Returns the input to send, or null while the match is held. */
+  stepLocal(localInput: PlayerInput): NetInput | null {
+    if (this.frozenAt >= 0) return null;
     const net = toNetInput(this.nextSeq++, localInput);
     this.pendingInputs.push(net);
     if (this.pendingInputs.length > MAX_PENDING_INPUTS) this.pendingInputs.shift();
@@ -173,6 +229,15 @@ export class GuestSession {
   applySnapshot(snap: GameSnapshot): { events: SimEvent[]; authState: MatchState } | null {
     if (snap.tick <= this.lastSnapTick) return null;
     this.lastSnapTick = snap.tick;
+    this.lastAuth = snap.state;
+    if (this.frozenAt >= 0) {
+      if (snap.tick <= this.frozenAt) {
+        // Still held: show exactly what the host has.
+        this.state = structuredClone(snap.state);
+        return { events: snap.events, authState: snap.state };
+      }
+      this.frozenAt = -1;
+    }
     this.pendingInputs = this.pendingInputs.filter((i) => i.seq > snap.ackSeq);
 
     const rebuilt = structuredClone(snap.state);

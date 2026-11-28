@@ -17,9 +17,10 @@ import {
 } from "@smash/sim";
 import type { AudioEngine } from "../audio/AudioEngine.ts";
 import type { P2PRoom } from "../net/p2p.ts";
-import { GuestSession, HostSession } from "../net/reconcile.ts";
+import { GuestSession, HostSession, isKillCamPacket } from "../net/reconcile.ts";
+import { ReplayRecorder, type Replay } from "../net/replay.ts";
 import { Hud } from "./Hud.ts";
-import { KILL_CAM, KillCam, frameKill, type Frame } from "./killcam.ts";
+import { killCamDuration, planKillCam, type KillCam } from "./killcam.ts";
 import { GameView } from "./render/GameView.ts";
 
 export type GameMode = "duel" | "training" | "demo" | "online";
@@ -69,7 +70,10 @@ const TRAINING_KEYS: Record<string, TrainingCommand> = {
 const DPS_WINDOW = 4;
 /** Body class while the kill cam plays: hides the HUD and shows letterbox bars (styles.css). */
 const KILLCAM_CLASS = "killcam";
-const HISTORY_TICKS = Math.round(KILL_CAM.rewind / TICK_DT) + 2;
+/** Online: the host holds the match this much longer than the kill cam lasts, so the guest's replay is over too. */
+const HOLD_MARGIN = 0.3;
+/** Online guest: how long to wait for the kill cam replay before showing the round's end without it. */
+const HELD_EVENTS_TIMEOUT = 0.6;
 
 export class Game {
   state: MatchState;
@@ -96,12 +100,14 @@ export class Game {
   private lastHit = 0;
   private statsTimer = 0;
   private readonly cleanup: (() => void)[] = [];
-  /** Recent ticks (state before the tick + input), for the kill cam replay. */
-  private history: Frame[] = [];
+  /** Offline: the last moments of the round, for the kill cam replay. Online the host session records them. */
+  private readonly recorder = new ReplayRecorder();
   private killcam: KillCam | null = null;
-  /** Who last damaged each champion: the kill cam frames that pair. */
-  private readonly lastHitBy = new Map<number, number>();
   private readonly killcamEnabled: boolean;
+  /** Online host: real seconds left before the match held for the kill cam is released. */
+  private hostHold = 0;
+  /** Online guest: events of the tick that decided a round, kept back for the kill cam replay to show. */
+  private held: { events: SimEvent[]; state: MatchState; age: number } | null = null;
 
   constructor(private readonly opts: GameOptions) {
     const { mode } = opts;
@@ -124,7 +130,7 @@ export class Game {
         ],
       });
     }
-    this.killcamEnabled = mode === "duel" && !matchMedia("(prefers-reduced-motion: reduce)").matches;
+    this.killcamEnabled = (mode === "duel" || mode === "online") && !matchMedia("(prefers-reduced-motion: reduce)").matches;
     const me = championOfTeam(this.state, this.viewerTeam);
     const enemy = championOfTeam(this.state, this.viewerTeam === 0 ? 1 : 0);
     this.hud = mode === "demo" ? null : new Hud(opts.hud, me, enemy, mode === "training", mode === "online");
@@ -152,7 +158,23 @@ export class Game {
           if (!res) return;
           this.state = this.guestSession!.state;
           this.track(res.events);
+          if (this.killcamEnabled && res.events.some((e) => e.t === "roundEnd")) {
+            // The tick that decides a round is shown by the kill cam replay, which the host sends next.
+            // (If the replay is already playing, it shows these events itself.)
+            if (!this.killcam) this.held = { events: res.events, state: res.authState, age: 0 };
+            return;
+          }
+          if (res.events.some((e) => e.t === "phase" && e.phase !== "roundEnd")) this.endKillcam();
           this.view.handle(res.events, res.authState);
+        }),
+        room.onKillCam((packet) => {
+          if (!isKillCamPacket(packet)) return;
+          // The host holds the match while both players watch: stop predicting until it moves again.
+          this.guestSession!.freeze(packet.tick);
+          this.state = this.guestSession!.state;
+          const started = this.killcamEnabled && this.startKillcam(packet);
+          if (!started) this.flushHeld();
+          this.held = null;
         }),
       );
     }
@@ -162,6 +184,13 @@ export class Game {
         if (msg.t === "leave") onOpponentLeft?.();
       }),
     );
+  }
+
+  /** Guest: show the round's end right away (no kill cam is coming, or it is switched off). */
+  private flushHeld(): void {
+    const held = this.held;
+    this.held = null;
+    if (held) this.view.handle(held.events, held.state);
   }
 
   setPing(ms: number | null): void {
@@ -279,7 +308,6 @@ export class Game {
     const dummy = championOfTeam(this.state, 1);
     for (const e of events) {
       if (e.t === "matchEnd") this.opts.onMatchEnd?.(e.winner === this.viewerTeam, e.score);
-      if (e.t === "damage" && e.targetKind === "champion") this.lastHitBy.set(e.target, e.source);
       if (this.opts.mode === "training" && e.t === "damage" && e.target === dummy.id) {
         this.hits.push({ t: this.time, amount: e.amount + e.absorbed });
         this.totalDamage += e.amount + e.absorbed;
@@ -304,17 +332,13 @@ export class Game {
   // ---------- kill cam ----------
 
   /** The round was just decided: rewind and replay the final blow from the side, in slow motion. */
-  private startKillcam(events: readonly SimEvent[]): boolean {
-    const death = events.find((e) => e.t === "death");
-    const victim = death?.t === "death" ? this.state.units.find((u) => u.id === death.unit) : undefined;
-    const frames = this.history.slice(-Math.round(KILL_CAM.rewind / TICK_DT));
-    this.history = [];
-    if (!victim || frames.length < 2) return false;
-    const killer = this.state.units.find((u) => u.id === this.lastHitBy.get(victim.id));
-    this.killcam = new KillCam(frames, frameKill(this.state, victim, killer));
-    // The kill tick's own events are not shown now: the replay produces them again at the dramatic moment.
+  private startKillcam(replay: Replay): boolean {
+    const cam = planKillCam(replay);
+    if (!cam) return false;
+    this.killcam = cam;
+    // The deciding tick's own events are not shown now: the replay produces them again at the dramatic moment.
     this.view.clearTransients();
-    this.view.setKillShot(this.killcam.shot);
+    this.view.setKillShot(cam.shot);
     document.body.classList.add(KILLCAM_CLASS);
     return true;
   }
@@ -351,23 +375,6 @@ export class Game {
     // Key presses are edges: they go into the first tick of the frame only.
     const input = ticks > 0 && this.opts.mode !== "demo" ? this.input() : null;
     for (let i = 0; i < ticks; i++) {
-      const tickInput = input && i > 0 ? { ...input, press: [], cancel: false } : input;
-      if (this.opts.mode === "online") {
-        if (this.hostSession) {
-          this.view.snapshot(this.state);
-          const { events, snapshot } = this.hostSession.stepTick(tickInput ?? emptyInput());
-          this.track(events);
-          this.view.handle(events, this.state);
-          if (snapshot) this.opts.online!.room.sendSnap(snapshot);
-        } else if (this.guestSession) {
-          if (this.state.phase === "matchEnd") continue;
-          this.view.snapshot(this.state);
-          const net = this.guestSession.stepLocal(tickInput ?? emptyInput());
-          this.state = this.guestSession.state;
-          this.opts.online!.room.sendInput(net);
-        }
-        continue;
-      }
       const cam = this.killcam;
       if (cam?.replaying) {
         this.view.snapshot(cam.state);
@@ -377,22 +384,58 @@ export class Game {
         }
         continue;
       }
-      this.view.snapshot(this.state);
-      if (this.killcamEnabled && this.state.phase === "fight") {
-        this.history.push({ state: structuredClone(this.state), input: tickInput });
-        if (this.history.length > HISTORY_TICKS) this.history.shift();
+      const tickInput = input && i > 0 ? { ...input, press: [], cancel: false } : input;
+      if (this.hostSession) {
+        this.view.snapshot(this.state);
+        const { events, snapshot, replay } = this.hostSession.stepTick(tickInput ?? emptyInput());
+        this.track(events);
+        const room = this.opts.online!.room;
+        if (snapshot) room.sendSnap(snapshot);
+        if (replay) {
+          // Round decided: the guest gets the replay, and the match waits until both have watched it.
+          room.sendKillCam(replay);
+          this.hostHold = killCamDuration(replay.inputs.length) + HOLD_MARGIN;
+          if (this.killcamEnabled && this.startKillcam(replay)) break;
+        }
+        if (events.some((e) => e.t === "phase" && e.phase !== "roundEnd")) this.endKillcam();
+        this.view.handle(events, this.state);
+        continue;
       }
+      if (this.guestSession) {
+        if (this.state.phase === "matchEnd") continue;
+        this.view.snapshot(this.state);
+        const net = this.guestSession.stepLocal(tickInput ?? emptyInput());
+        this.state = this.guestSession.state;
+        if (net) this.opts.online!.room.sendInput(net);
+        continue;
+      }
+      this.view.snapshot(this.state);
+      if (this.killcamEnabled && this.state.phase === "fight") this.recorder.record(this.state, [tickInput, null]);
       const events = step(this.state, [tickInput, null]);
       this.track(events);
       if (cam) {
-        cam.liveTick();
+        cam.advance(TICK_DT);
         if (cam.settled) this.view.normalSoundRate();
         // The next round (or the end screen) takes the camera back.
         if (events.some((e) => e.t === "phase" && e.phase !== "roundEnd")) this.endKillcam();
-      } else if (this.killcamEnabled && events.some((e) => e.t === "roundEnd") && this.startKillcam(events)) {
-        break;
+      } else if (this.killcamEnabled && events.some((e) => e.t === "roundEnd")) {
+        const replay = this.recorder.take();
+        if (replay && this.startKillcam(replay)) break;
       }
       this.view.handle(events, this.state);
+    }
+    if (this.opts.mode === "online") {
+      // The match is held during the kill cam, so its aftermath (the body flying) runs on the clock, not on ticks.
+      const cam = this.killcam;
+      if (cam && !cam.replaying) {
+        cam.advance(simDt);
+        if (cam.settled) this.view.normalSoundRate();
+      }
+      if (this.hostHold > 0) {
+        this.hostHold -= dt;
+        if (this.hostHold <= 0) this.hostSession?.release();
+      }
+      if (this.held && (this.held.age += dt) > HELD_EVENTS_TIMEOUT) this.flushHeld();
     }
     // The demo behind the menu loops forever.
     if (this.opts.mode === "demo" && this.state.phase === "matchEnd") {

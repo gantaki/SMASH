@@ -1,14 +1,16 @@
 // Kill cam: when a round is decided, rewind a moment and replay the final blow in slow motion from a low side camera.
-// It is a real replay, not a recording: the sim is deterministic and its state is plain data, so we keep a short
-// history of (state before the tick, input) and re-simulate it. Presentation only: nothing here feeds back into the match.
+// It is a real replay, not a recording: the sim is deterministic and its state is plain data, so a short record of
+// (state, then the inputs of each tick) is re-simulated (net/replay.ts). Presentation only: nothing here feeds back
+// into the match.
 
 import { arena } from "@smash/content";
-import { TICK_DT, blocker, step, type MatchState, type PlayerInput, type SimEvent, type Unit } from "@smash/sim";
+import { TICK_DT, blocker, step, type MatchState, type SimEvent, type Unit } from "@smash/sim";
+import { REPLAY_SECONDS, type Replay } from "../net/replay.ts";
 
 /** Presentation tuning. Times marked "sim" are simulated seconds; the rest is real time. */
 export const KILL_CAM = {
   /** Sim seconds replayed before the kill. */
-  rewind: 0.6,
+  rewind: REPLAY_SECONDS,
   /** Time scale when the replay starts, and around the blow. */
   scaleLead: 0.5,
   scaleImpact: 0.1,
@@ -30,19 +32,13 @@ export const KILL_CAM = {
   /** Height the camera looks at: chest level. */
   lookHeight: 1.3,
   /** Killer and victim are framed together when this close; otherwise the camera stays on the victim. */
-  pairRange: 9,
+  pairRange: 6.5,
   /** Slow push-in and drift around the scene while it plays. */
   dolly: 0.12,
   orbitDeg: 12,
   /** Playback rate of sounds during slow motion. */
   soundRate: 0.6,
 } as const;
-
-export interface Frame {
-  /** State before the tick. */
-  state: MatchState;
-  input: PlayerInput | null;
-}
 
 /** Where the camera stands for the replay. */
 export interface KillShot {
@@ -103,38 +99,53 @@ export function frameKill(state: MatchState, victim: Unit, killer: Unit | undefi
   return { victim: victim.id, killer: paired && killer ? killer.id : -1, focus, side, distance: KILL_CAM.distance.min, height: KILL_CAM.blockedHeight };
 }
 
+/** How fast sim time runs `s` sim seconds into a kill cam whose replay is `length` sim seconds long. */
+function timeScaleAt(s: number, length: number): number {
+  const { scaleLead, scaleImpact, scaleFlight, impactLead, impactHold, flightRamp, flight, recover } = KILL_CAM;
+  const slowFrom = length - impactLead;
+  if (s < slowFrom) {
+    const k = s / slowFrom;
+    return scaleLead + (scaleImpact - scaleLead) * k * k;
+  }
+  const after = s - length;
+  if (after < impactHold) return scaleImpact;
+  if (after < flight) return scaleImpact + (scaleFlight - scaleImpact) * Math.min(1, (after - impactHold) / flightRamp);
+  return scaleFlight + (1 - scaleFlight) * Math.min(1, (after - flight) / recover);
+}
+
+/**
+ * Real seconds a kill cam takes from the cut until time runs at normal speed again, for a replay of `ticks` ticks.
+ * Online, the host holds the match for this long while both players watch.
+ */
+export function killCamDuration(ticks: number): number {
+  const length = ticks * TICK_DT;
+  const end = length + KILL_CAM.flight + KILL_CAM.recover;
+  const ds = TICK_DT / 8;
+  let real = 0;
+  for (let s = 0; s < end; s += ds) real += ds / timeScaleAt(s, length);
+  return real;
+}
+
 export class KillCam {
   /** The state being replayed; identical to the live state once `replaying` turns false. */
   readonly state: MatchState;
   replaying = true;
-  /** Real seconds since the cut, for camera motion. */
-  realTime = 0;
   private index = 0;
   /** Sim seconds since the cut. */
   private simTime = 0;
   private readonly length: number;
 
   constructor(
-    private readonly frames: readonly Frame[],
+    private readonly replay: Replay,
     readonly shot: KillShot,
   ) {
-    this.state = structuredClone(frames[0]!.state);
-    this.length = frames.length * TICK_DT;
+    this.state = structuredClone(replay.start);
+    this.length = replay.inputs.length * TICK_DT;
   }
 
   /** How fast sim time runs right now: eases down into the blow, holds, then recovers. */
   timeScale(): number {
-    const { scaleLead, scaleImpact, scaleFlight, impactLead, impactHold, flightRamp, flight, recover } = KILL_CAM;
-    const slowFrom = this.length - impactLead;
-    const s = this.simTime;
-    if (s < slowFrom) {
-      const k = s / slowFrom;
-      return scaleLead + (scaleImpact - scaleLead) * k * k;
-    }
-    const after = s - this.length;
-    if (after < impactHold) return scaleImpact;
-    if (after < flight) return scaleImpact + (scaleFlight - scaleImpact) * Math.min(1, (after - impactHold) / flightRamp);
-    return scaleFlight + (1 - scaleFlight) * Math.min(1, (after - flight) / recover);
+    return timeScaleAt(this.simTime, this.length);
   }
 
   /** True once time is back to normal speed. */
@@ -144,10 +155,9 @@ export class KillCam {
 
   /** Re-simulates one recorded tick. */
   stepReplay(): SimEvent[] {
-    const frame = this.frames[this.index++]!;
-    const events = step(this.state, [frame.input, null]);
+    const events = step(this.state, this.replay.inputs[this.index++]!);
     this.simTime += TICK_DT;
-    if (this.index >= this.frames.length) this.replaying = false;
+    if (this.index >= this.replay.inputs.length) this.replaying = false;
     return events;
   }
 
@@ -158,8 +168,29 @@ export class KillCam {
     return last;
   }
 
-  /** A live tick passed after the replay caught up. */
-  liveTick(): void {
-    this.simTime += TICK_DT;
+  /** Game time passed after the replay caught up (the aftermath: the body flying). */
+  advance(seconds: number): void {
+    this.simTime += seconds;
   }
+}
+
+/**
+ * Builds the kill cam from a replay alone: runs it once to learn who dies and where the blow came from,
+ * then frames the shot on that final moment. Returns null if nobody dies in it.
+ */
+export function planKillCam(replay: Replay): KillCam | null {
+  if (replay.inputs.length < 2) return null;
+  const end = structuredClone(replay.start);
+  const lastHitBy = new Map<number, number>();
+  let victimId = -1;
+  for (const inputs of replay.inputs) {
+    for (const e of step(end, inputs)) {
+      if (e.t === "damage" && e.targetKind === "champion") lastHitBy.set(e.target, e.source);
+      if (e.t === "death" && victimId < 0) victimId = e.unit;
+    }
+  }
+  const victim = end.units.find((u) => u.id === victimId);
+  if (!victim) return null;
+  const killer = end.units.find((u) => u.id === lastHitBy.get(victimId));
+  return new KillCam(replay, frameKill(end, victim, killer));
 }

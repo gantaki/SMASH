@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { arena } from "@smash/content";
 import { TICK_DT, blocker, championOfTeam, createMatch, step, type MatchState } from "@smash/sim";
-import { KILL_CAM, KillCam, frameKill, type Frame } from "./killcam.ts";
+import { ReplayRecorder, type Replay } from "../net/replay.ts";
+import { KILL_CAM, KillCam, frameKill, killCamDuration, planKillCam } from "./killcam.ts";
 
 const duel = (seed = 11): MatchState =>
   createMatch({ seed, mode: "duel", players: [{ champion: "ember", controller: "bot" }, { champion: "fang", controller: "bot" }] });
@@ -9,35 +10,50 @@ const duel = (seed = 11): MatchState =>
 describe("kill cam replay", () => {
   it("re-simulates the final moments into exactly the live state", () => {
     const live = duel();
-    const history: Frame[] = [];
-    const want = Math.round(KILL_CAM.rewind / TICK_DT);
+    const recorder = new ReplayRecorder();
     for (let i = 0; i < 60 * 300; i++) {
-      if (live.phase === "fight") {
-        history.push({ state: structuredClone(live), input: null });
-        if (history.length > want) history.shift();
-      }
+      if (live.phase === "fight") recorder.record(live, [null, null]);
       if (step(live, [null, null]).some((e) => e.t === "roundEnd")) break;
     }
     expect(live.phase).toBe("roundEnd");
-    expect(history).toHaveLength(want);
+    const replay = recorder.take()!;
+    expect(replay.inputs).toHaveLength(Math.round(KILL_CAM.rewind / TICK_DT));
     const victim = live.units.find((u) => u.kind === "champion" && u.dead)!;
-    const cam = new KillCam(history, frameKill(live, victim, undefined));
+    const cam = planKillCam(replay)!;
+    expect(cam.shot.victim).toBe(victim.id);
     let deaths = 0;
     while (cam.replaying) deaths += cam.stepReplay().filter((e) => e.t === "death").length;
     expect(deaths).toBe(1);
     expect(cam.state).toEqual(live);
+    // The recorder starts afresh for the next round.
+    expect(recorder.take()).toBeNull();
+  });
+
+  it("has nothing to show when nobody dies in the recording", () => {
+    const s = duel();
+    expect(planKillCam({ start: s, inputs: Array.from({ length: 10 }, () => [null, null]) })).toBeNull();
   });
 
   it("slows down into the blow and returns to normal speed afterwards", () => {
-    const frames: Frame[] = Array.from({ length: Math.round(KILL_CAM.rewind / TICK_DT) }, () => ({ state: duel(), input: null }));
-    const s = frames[0]!.state;
-    const cam = new KillCam(frames, frameKill(s, championOfTeam(s, 1), championOfTeam(s, 0)));
+    const s = duel();
+    const ticks = Math.round(KILL_CAM.rewind / TICK_DT);
+    const replay: Replay = { start: s, inputs: Array.from({ length: ticks }, () => [null, null]) };
+    const cam = new KillCam(replay, frameKill(s, championOfTeam(s, 1), championOfTeam(s, 0)));
     expect(cam.timeScale()).toBeCloseTo(KILL_CAM.scaleLead);
     while (cam.replaying) cam.stepReplay();
     expect(cam.timeScale()).toBeCloseTo(KILL_CAM.scaleImpact);
-    for (let i = 0; i < 60; i++) cam.liveTick();
+    cam.advance(1);
     expect(cam.timeScale()).toBe(1);
     expect(cam.settled).toBe(true);
+  });
+
+  it("knows how long it lasts in real time (the host holds the match for that long online)", () => {
+    const ticks = Math.round(KILL_CAM.rewind / TICK_DT);
+    const seconds = killCamDuration(ticks);
+    // Slower than real time throughout, but not endless.
+    expect(seconds).toBeGreaterThan(KILL_CAM.rewind + KILL_CAM.flight + KILL_CAM.recover);
+    expect(seconds).toBeLessThan(8);
+    expect(killCamDuration(ticks * 2)).toBeGreaterThan(seconds);
   });
 });
 
