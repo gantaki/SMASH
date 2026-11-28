@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
-import { RAGDOLL, Ragdoll, collapse, impulseFor, launchFor, type RagdollWorld } from "./Ragdoll.ts";
+import { RAGDOLL, Ragdoll, blowOf, collapse, impulseFor, launchFor, type RagdollWorld } from "./Ragdoll.ts";
 
 /** A model like the real ones: parts at different heights, one prop, one marker to hide. */
 function model() {
@@ -78,6 +78,19 @@ describe("ragdoll", () => {
     expect(impulseFor({ dx: 0, dz: 0, amount: 50, at: 5 }, 5).up).toBe(RAGDOLL.collapse.lift);
     // A remembered hit from "the future" (the kill cam rewound time) is not used.
     expect(impulseFor(blow, 9).up).toBe(RAGDOLL.collapse.lift);
+  });
+
+  it("flies away from where the hit came from, and has no direction without one", () => {
+    // A companion bites from the right of the victim; its owner (who gets the credit) stands far to the left.
+    const bite = { x: 0, z: 0, amount: 5, absorbed: 0, fromX: 1, fromZ: 0 };
+    expect(blowOf(bite, 2)).toEqual({ dx: -1, dz: 0, amount: 5, at: 2 });
+    // Shield damage counts toward the strength of the blow.
+    expect(blowOf({ ...bite, amount: 3, absorbed: 9 }, 2)!.amount).toBe(12);
+    // Burn, zone and rift damage come from nowhere.
+    expect(blowOf({ x: 0, z: 0, amount: 4, absorbed: 0 }, 2)).toBeNull();
+    // Attacker on the very same spot: a blow, but with no direction, so the body crumples.
+    const onTop = blowOf({ ...bite, fromX: 0 }, 2)!;
+    expect(impulseFor(onTop, 2).up).toBe(RAGDOLL.collapse.lift);
   });
 
   it("puts the model back together exactly", () => {

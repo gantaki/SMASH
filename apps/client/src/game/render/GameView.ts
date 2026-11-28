@@ -11,7 +11,7 @@ import { GOLD, ALLY, FOE, G, basic, clamp, rand, rgb, type RGB } from "./gfx.ts"
 import { Hazards } from "./Hazards.ts";
 import { Overlay } from "./Overlay.ts";
 import { Particles } from "./Particles.ts";
-import { RAGDOLL, impulseFor, type Blow, type RagdollWorld } from "./Ragdoll.ts";
+import { RAGDOLL, blowOf, impulseFor, type Blow, type RagdollWorld } from "./Ragdoll.ts";
 import { SpineBillboard } from "./SpineBillboard.ts";
 import { ChampionView, CompanionView, type Pose } from "./Units.ts";
 import { World } from "./World.ts";
@@ -493,13 +493,10 @@ export class GameView {
             break;
           }
           this.champs.get(e.target)?.flash();
-          if (!e.dot) {
-            const src = unit(e.source);
-            const dx = src ? e.x - src.x : 0;
-            const dz = src ? e.z - src.z : 0;
-            const d = Math.hypot(dx, dz);
-            this.lastHit.set(e.target, { dx: d > 0.05 ? dx / d : 0, dz: d > 0.05 ? dz / d : 0, amount: e.amount + e.absorbed, at: state.tick / rules.tickRate });
-          }
+          // Remember the blow by where it physically came from (a companion's bite comes from the companion,
+          // not from its owner, who only gets the credit).
+          const blow = blowOf(e, state.tick / rules.tickRate);
+          if (blow) this.lastHit.set(e.target, blow);
           if (e.absorbed > 0) {
             overlay.floatText(e.x, 2.4, e.z, "щит", "#ffd28a");
             this.sound("shield_block", e.x, e.z);

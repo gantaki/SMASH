@@ -326,6 +326,48 @@ describe("projectiles", () => {
   });
 });
 
+describe("damage events", () => {
+  it("say where a projectile hit came from: a point behind it on its path", () => {
+    const s = scene();
+    place(s.a, 5.1, 6);
+    place(s.b, 5.1, -4);
+    s.press(0, "primary", 5.1, -4);
+    const hit = of(s.run(1.2), "damage").find((e) => e.target === s.b.id)!;
+    expect(hit.source).toBe(s.a.id);
+    expect(hit.fromX).toBeCloseTo(5.1);
+    // The bolt flew toward -z, so its origin is on the +z side of the target.
+    expect(hit.fromZ!).toBeGreaterThan(hit.z);
+  });
+
+  it("report a companion's bite from the companion, while its owner gets the credit", () => {
+    const s = scene("fang", "ember", { companions: true });
+    // Owner to the left of the victim, hound on its right (within the hound's leash).
+    place(s.a, -2, -2);
+    place(s.b, 6, -2);
+    const hound = companionOf(s.state, s.a)!;
+    Object.assign(hound, { x: 7.2, z: -2, mode: "engage", modeTime: 5, target: s.b.id, attackTimer: 0 });
+    // Park the victim's own companion out of the way.
+    const wisp = companionOf(s.state, s.b)!;
+    wisp.dead = true;
+    wisp.respawn = 1e9;
+    const bite = of(s.run(0.3), "damage").find((e) => e.target === s.b.id)!;
+    expect(bite.source).toBe(s.a.id);
+    expect(Math.hypot(bite.fromX! - hound.x, bite.fromZ! - hound.z)).toBeLessThan(0.5);
+    // The hit came from the far side of the victim, not from the owner's side.
+    expect(bite.fromX!).toBeGreaterThan(bite.x);
+    expect(s.a.x).toBeLessThan(bite.x);
+  });
+
+  it("carry no origin for damage without a direction", () => {
+    const s = scene();
+    Object.assign(s.b, { burn: 1, burnDps: 4, burnTick: 0, burnSource: s.a.id });
+    const tick = of(s.run(0.2), "damage").find((e) => e.target === s.b.id)!;
+    expect(tick.dot).toBe(true);
+    expect(tick.fromX).toBeUndefined();
+    expect(tick.fromZ).toBeUndefined();
+  });
+});
+
 describe("melee and control", () => {
   it("Cleave hits what is in front of Fang, not behind him", () => {
     const s = scene("fang", "ember");

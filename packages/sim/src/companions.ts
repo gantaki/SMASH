@@ -217,7 +217,7 @@ export function updateCompanion(ctx: Ctx, c: CompanionUnit): void {
       gz = target.z;
       speed = def.moveSpeed * rules.companion.engageSpeedFactor;
       if (fight && def.attack.kind === "melee" && c.attackTimer <= 0 && Math.hypot(target.x - c.x, target.z - c.z) < c.radius + target.radius + rules.companion.bitePad) {
-        hurt(ctx, target, def.attack.damage, c);
+        hurt(ctx, target, def.attack.damage, c, { from: { x: c.x, z: c.z } });
         ctx.events.push({ t: "companionAttack", unit: c.id, target: target.id, heavy: false, x: target.x, z: target.z });
         c.attackTimer = def.attack.interval;
       }

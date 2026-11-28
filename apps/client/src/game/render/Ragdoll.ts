@@ -99,6 +99,18 @@ export interface Blow {
 }
 
 /**
+ * The blow a damage event represents, or null if the damage has no direction (burn, zone, rift, slam).
+ * (x, z) is where the target stood; (fromX, fromZ) where the hit came from.
+ */
+export function blowOf(e: { x: number; z: number; amount: number; absorbed: number; fromX?: number; fromZ?: number }, now: number): Blow | null {
+  if (e.fromX === undefined || e.fromZ === undefined) return null;
+  const dx = e.x - e.fromX;
+  const dz = e.z - e.fromZ;
+  const d = Math.hypot(dx, dz);
+  return { dx: d > 0.05 ? dx / d : 0, dz: d > 0.05 ? dz / d : 0, amount: e.amount + e.absorbed, at: now };
+}
+
+/**
  * How a body leaves this world: thrown by the blow that killed it, or crumpling if nothing hit it just now
  * (burn, zone and rift damage carry no direction, and a hit from seconds ago is not what killed it).
  */
