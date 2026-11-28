@@ -64,7 +64,7 @@ export function Menu(p: Props) {
 
   return (
     <div className="menu" style={{ "--c": c.color } as React.CSSProperties}>
-      <header className="menu-top">
+      <header className="menu-top" inert={help}>
         <div className="wordmark">SMASH</div>
         <button className="pill" onClick={() => setHelp(true)}>
           <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -78,7 +78,7 @@ export function Menu(p: Props) {
       {leaving && <img key={`out-${prev}`} className="portrait out" src={leaving} alt="" draggable={false} />}
       {portrait && <img key={c.id} className="portrait" src={portrait} alt="" draggable={false} />}
 
-      <main className="menu-main">
+      <main className="menu-main" inert={help}>
         <section className="hero" aria-label="Чемпион">
           <div className="champs">
             {playableChampions.map((ch) => {

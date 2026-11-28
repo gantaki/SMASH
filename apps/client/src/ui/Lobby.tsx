@@ -7,7 +7,7 @@ export interface LobbyProps {
   online: OnlineRoomHandle;
 }
 
-/** WebRTC P2P room lobby: create or join by 4-char /r/CODE link, pick champion, ready up. Lives in the menu's play card. */
+/** WebRTC P2P room lobby: create or join by 4-char /r/CODE link, pick champion, ready up. Lives in the menu's play bar. */
 export function Lobby({ champion, online }: LobbyProps) {
   const [codeInput, setCodeInput] = useState("");
   const [copied, setCopied] = useState(false);

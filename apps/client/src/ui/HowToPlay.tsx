@@ -16,15 +16,22 @@ const CONTROLS: readonly { keys: readonly string[]; text: string }[] = [
 export function HowToPlay({ onClose }: { onClose(): void }) {
   const close = useRef<HTMLButtonElement>(null);
   const sd = arena.suddenDeath;
+  // The parent passes a new callback on every render; the effect below must run once per opening, not once per render.
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
 
   useEffect(() => {
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     close.current?.focus();
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") closeRef.current();
     };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      opener?.focus();
+    };
+  }, []);
 
   return (
     <div className="screen" onClick={(e) => e.target === e.currentTarget && onClose()}>

@@ -134,8 +134,8 @@ Each champion has a **unique companion** (more per champion later). Design rule:
 
 | Companion | Owner | HP | Default | Command | Synergy |
 |---|---|---|---|---|---|
-| **Wisp** (Огонёк) | Ember | 40 | Floats behind Ember, shoots sparks (4 dmg, every 1.2 s, range 8 m) | Flies to a point (max 11 m) and holds it for 6 s as a sentry (every 0.7 s, range 9 m). cd 5 s | **Fireball through the Wisp splits into 3** (12 dmg + burn 3/s for 2 s each) |
-| **Hound** (Гончая) | Fang | 55 | Follows Fang, engages enemies within 4 m of him, bites 5 dmg/s | Sprints to a point (max 11 m); on contact bites 8 dmg and **pins (root) 0.8 s**, then fights for 3 s. cd 7 s | **Harpoon hitting the Hound pulls Fang to it** (gap closer) |
+| **Wisp** (Огонёк) | Ember | 40 | Floats behind Ember, shoots sparks (4 dmg, every 1.3 s, range 8 m) | Flies to a point (max 11 m) and holds it for 6 s as a sentry (every 0.8 s, range 9 m). 25 energy, cd 4.4 s | **Fireball through the Wisp splits into 3** (12 dmg + burn 3/s for 2 s each) |
+| **Hound** (Гончая) | Fang | 55 | Follows Fang, engages enemies within 4 m of him, bites 5 dmg/s | Sprints to a point (max 11 m); on contact bites 8 dmg and **pins (root) 0.8 s**, then fights for 3 s. 25 energy, cd 6 s | **Harpoon hitting the Hound pulls Fang to it** (gap closer) |
 
 ### 2.2 Obstacles (prototype, under playtest)
 
@@ -364,10 +364,13 @@ packages/
   protocol/      message types (+ binary codecs in M2)
   vfx/           particle system + Spine effect player (added in M3)
 assets/
-  characters/    glTF + textures (M3)
+  art/           champion portraits, select tiles, ability and interface icons (WebP) + the generation recipe
+  sfx/           sound effects (mp3)
   vfx/           Spine exports (.json/.skel + .atlas + .png)
+  characters/    glTF + textures (M3)
 docs/
   GAME_DESIGN.md this file
+  ART_STYLE.md   approved art style: line, palettes, portraits, icons, interface
   adr/           architecture decision records
 prototype/       single-file prototype (reference for feel and numbers)
 tests/           repo-wide guards (architecture rules)

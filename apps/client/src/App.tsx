@@ -51,6 +51,9 @@ export function App() {
 
   useEffect(() => {
     if (!online.activeMatch) return;
+    // A champion swap may still be waiting to restart the demo: it must not restart the match.
+    window.clearTimeout(swap.current);
+    setStageOut(false);
     setOpponentLeft(false);
     setPaused(false);
     setResult(null);

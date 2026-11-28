@@ -6,17 +6,6 @@ export type AbilitySlot = "primary" | "secondary" | "mobility" | "q" | "e" | "co
 
 export const ABILITY_SLOTS: readonly AbilitySlot[] = ["primary", "secondary", "mobility", "q", "e", "companion", "ultimate"];
 
-/** Default key binding shown in the UI. */
-export const SLOT_KEYS: Record<AbilitySlot, string> = {
-  primary: "LMB",
-  secondary: "RMB",
-  mobility: "Space",
-  q: "Q",
-  e: "E",
-  companion: "R",
-  ultimate: "X",
-};
-
 /**
  * Kit template every champion follows (keeps champions comparable and readable for opponents):
  * primary = spammable basic attack · secondary = heavier skill-shot on a cooldown · mobility = escape / gap closer

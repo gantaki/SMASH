@@ -1095,7 +1095,7 @@ a,
   color: var(--soft);
 }
 
-/* ---------- online lobby (inside the play card) ---------- */
+/* ---------- online lobby (inside the play bar) ---------- */
 .lobby {
   display: grid;
   gap: 12px;
@@ -1382,6 +1382,9 @@ a,
   }
 }
 @media (prefers-reduced-motion: reduce) {
+  .portrait.out {
+    display: none;
+  }
   .slot.ult.ready,
   .portrait,
   .hero-info > *,

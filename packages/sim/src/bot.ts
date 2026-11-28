@@ -23,9 +23,9 @@ const RIFT_MARGIN = 1.3;
 const AIM_ERROR_SCALE = 0.22;
 const CANCEL_SLACK = 0.6;
 const CANCEL_RATE = 12;
-/** Slots tried for offence, most valuable first. */
 /** Energy above which a bot stops paying for companion commands and saves for the ultimate. */
 const COMMAND_ENERGY_CAP = 60;
+/** Slots tried for offence, most valuable first. */
 const OFFENCE_ORDER: readonly AbilitySlot[] = ["ultimate", "e", "q", "secondary", "mobility", "primary"];
 
 interface Target {
@@ -81,6 +81,8 @@ export function botInput(ctx: Ctx, b: ChampionUnit): PlayerInput {
   const ai = state.bots[b.team];
   const profile = getChampion(b.champion).bot;
   const ranged = profile.style === "ranged";
+  // A knockback travels its distance divided by the target's weight (combat.ts, knock).
+  const shoveWeight = getChampion(p.champion).stats.weight;
   const press = (slot: AbilitySlot, aim: Vec2): PlayerInput => {
     input.press = [slot];
     input.aim = aim;
@@ -238,7 +240,7 @@ export function botInput(ctx: Ctx, b: ChampionUnit): PlayerInput {
   if (ranged && d < 3.3 && acting) {
     if (novaSlot) {
       const a = abilityOf(b, novaSlot)!;
-      const reachK = a.kind === "nova" && a.onHit.knockback ? a.onHit.knockback.distance : 0;
+      const reachK = a.kind === "nova" && a.onHit.knockback ? a.onHit.knockback.distance / shoveWeight : 0;
       if (rng.next() < D.dodge * dt * (wallBehind(state, b, p, reachK) ? 16 : 8)) return press(novaSlot, p);
     } else if (mobilitySlot && rng.next() < D.dodge * dt * 4) {
       const tx = b.x - nx * 7;
@@ -338,7 +340,7 @@ export function botInput(ctx: Ctx, b: ChampionUnit): PlayerInput {
         if (slot === "primary") return press(slot, { x: tgt.x, z: tgt.z });
         if (!targetIsEnemy) break;
         const kb = a.onHit.knockback;
-        const slamChance = kb && wallBehind(state, b, p, kb.distance) && rng.next() < dt * 6;
+        const slamChance = kb && wallBehind(state, b, p, kb.distance / shoveWeight) && rng.next() < dt * 6;
         if (p.cast || slamChance || rng.next() < dt * 1.2 * D.rate) return press(slot, { x: p.x, z: p.z });
         break;
       }
