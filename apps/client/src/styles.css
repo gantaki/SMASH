@@ -4,6 +4,7 @@
   --bg: #160e0a;
   --ink: #f7ebd9;
   --mut: #c4ad91;
+  --soft: #e3d2ba;
   --panel: rgba(24, 15, 10, 0.86);
   --line: rgba(255, 222, 176, 0.16);
   --fire: #ff7a2b;
@@ -319,6 +320,14 @@ body,
   stroke-linecap: round;
   stroke-linejoin: round;
 }
+.slot img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+}
 .slot .cdv {
   position: absolute;
   inset: 0;
@@ -433,6 +442,7 @@ body.killcam .stage {
   place-items: center;
   padding: 16px;
   overflow: auto;
+  z-index: 4;
   background: radial-gradient(ellipse at 50% 35%, rgba(22, 14, 10, 0.25), rgba(12, 7, 4, 0.82));
 }
 .panel {
@@ -462,83 +472,6 @@ h1 {
   margin: 6px 0 20px;
   font-size: 16px;
 }
-.picks {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-}
-.pick {
-  display: block;
-  width: 100%;
-  text-align: left;
-  background: rgba(255, 240, 220, 0.035);
-  border: 1.5px solid var(--line);
-  border-radius: 14px;
-  padding: 16px;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-  transition:
-    background 0.15s,
-    border-color 0.15s,
-    box-shadow 0.15s;
-}
-.pick:hover {
-  background: rgba(255, 240, 220, 0.07);
-}
-.pick[aria-pressed="true"] {
-  border-color: var(--c);
-  background: color-mix(in srgb, var(--c) 9%, transparent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 22%, transparent);
-}
-.ph {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 8px;
-}
-.ph svg {
-  flex: none;
-  width: 44px;
-  height: 44px;
-  color: var(--c);
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.8;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-.ph h2 {
-  font: 400 26px/1.05 "Russo One", sans-serif;
-  margin: 0;
-  color: var(--c);
-}
-.role {
-  font-size: 13px;
-  color: var(--mut);
-}
-.pick p {
-  margin: 0 0 12px;
-  font-size: 14px;
-}
-.ab {
-  display: grid;
-  gap: 7px;
-  font-size: 13px;
-  line-height: 1.35;
-}
-.abrow {
-  display: grid;
-  grid-template-columns: 52px minmax(0, 1fr);
-  gap: 10px;
-  align-items: baseline;
-}
-.ab b {
-  font-weight: 600;
-}
-.ab span {
-  color: var(--mut);
-}
 kbd {
   display: inline-block;
   font: 600 11px/1 Rubik, sans-serif;
@@ -556,32 +489,6 @@ kbd {
   align-items: center;
   gap: 12px;
   margin-top: 20px;
-}
-.lbl {
-  font: 400 15px "Russo One", sans-serif;
-  color: var(--mut);
-}
-.seg {
-  display: inline-flex;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  overflow: hidden;
-}
-.seg button {
-  min-height: 44px;
-  padding: 0 16px;
-  border: 0;
-  background: transparent;
-  color: var(--mut);
-  font: 500 15px Rubik, sans-serif;
-  cursor: pointer;
-}
-.seg button + button {
-  border-left: 1px solid var(--line);
-}
-.seg button[aria-pressed="true"] {
-  background: rgba(255, 201, 60, 0.16);
-  color: var(--ink);
 }
 .go,
 .ghost {
@@ -644,39 +551,421 @@ a,
   text-decoration: underline;
 }
 
-/* ---------- online lobby (M2 preview) ---------- */
-.lobby {
-  margin-top: 14px;
-  padding: 14px 16px;
-  border: 1px dashed var(--line);
+/* ---------- main menu: the demo fight is the backdrop, no panel over it ---------- */
+.menu {
+  position: fixed;
+  inset: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: clamp(16px, 2.6vw, 40px) clamp(16px, 3.4vw, 48px);
+  background:
+    linear-gradient(90deg, rgba(14, 8, 5, 0.93) 0%, rgba(14, 8, 5, 0.74) 30%, rgba(14, 8, 5, 0.18) 56%, transparent 68%),
+    linear-gradient(0deg, rgba(14, 8, 5, 0.72), transparent 260px);
+}
+.menu-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.wordmark {
+  font: 400 30px/1 "Russo One", sans-serif;
+  letter-spacing: 0.02em;
+}
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 22px;
+  border: 1px solid var(--line);
+  background: rgba(20, 12, 8, 0.78);
+  color: var(--ink);
+  font: 500 14px Rubik, sans-serif;
+  cursor: pointer;
+}
+.pill:hover {
+  background: rgba(46, 29, 19, 0.9);
+}
+.pill svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.menu-main {
+  position: relative;
+  z-index: 1;
+  margin-top: auto;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 32px;
+}
+.portrait {
+  position: absolute;
+  /* Starts where the champion column ends and never reaches under the play card. */
+  left: calc(clamp(16px, 3.4vw, 48px) + 470px);
+  bottom: 0;
+  width: min(56vh, 573px, 100vw - 880px);
+  pointer-events: none;
+  filter: drop-shadow(0 20px 40px rgba(0, 0, 0, 0.55));
+  -webkit-mask-image: linear-gradient(0deg, transparent, #000 22%);
+  mask-image: linear-gradient(0deg, transparent, #000 22%);
+  animation: portrait-in 0.35s ease-out;
+}
+@keyframes portrait-in {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+}
+.hero {
+  width: min(480px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.champs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.champ {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 0 18px 0 12px;
+  border-radius: 24px;
+  border: 1.5px solid var(--line);
+  background: rgba(20, 12, 8, 0.6);
+  color: var(--mut);
+  font: 600 15px Rubik, sans-serif;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    border-color 0.15s,
+    color 0.15s;
+}
+.champ:hover {
+  color: var(--ink);
+}
+.champ[aria-pressed="true"] {
+  border-color: var(--c);
+  background: color-mix(in srgb, var(--c) 14%, rgba(20, 12, 8, 0.6));
+  color: var(--ink);
+}
+.champ svg {
+  width: 26px;
+  height: 26px;
+  color: var(--c);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.eyebrow {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--c) 78%, #fff);
+}
+.hero-name {
+  margin-top: 6px;
+  font-size: clamp(56px, 8vw, 112px);
+  line-height: 0.95;
+}
+.hero-blurb {
+  margin: 0;
+  max-width: 420px;
+  font-size: 16px;
+  line-height: 1.45;
+  color: var(--soft);
+}
+.stats {
+  display: flex;
+  gap: 24px;
+  margin: 0;
+}
+.stats div {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 2px;
+}
+.stats dt {
+  font-size: 12px;
+  color: var(--mut);
+}
+.stats dd {
+  margin: 0;
+  font: 400 26px/1 "Russo One", sans-serif;
+}
+.kit {
+  display: grid;
+  gap: 12px;
+}
+.kit-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.kit-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.kit-slot kbd {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--mut);
+}
+.tile {
+  width: 52px;
+  height: 52px;
+  padding: 0;
   border-radius: 12px;
+  border: 1.5px solid var(--line);
+  background: rgba(20, 12, 8, 0.88);
+  color: var(--c);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  cursor: pointer;
+  transition:
+    border-color 0.12s,
+    transform 0.12s;
 }
-.lobby .row {
-  margin-top: 10px;
+.tile svg {
+  width: 26px;
+  height: 26px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
-.lobby-entry .go {
-  margin-left: 0;
+.tile img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.tile[aria-pressed="true"] {
+  border-color: var(--c);
+  background: color-mix(in srgb, var(--c) 20%, rgba(20, 12, 8, 0.88));
+  transform: translateY(-2px);
+}
+.tile[aria-pressed="true"] + kbd {
+  color: var(--ink);
+}
+.kit-info {
+  margin: 0;
+  max-width: 440px;
+  min-height: 2.9em;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--mut);
+}
+.kit-info b {
+  font-weight: 600;
+  color: var(--ink);
+}
+.play {
+  flex: none;
+  width: 372px;
+  padding: 18px;
+  border-radius: 22px;
+  border: 1px solid var(--line);
+  background: rgba(20, 12, 8, 0.86);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.tabs {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 4px;
+  padding: 4px;
+  border-radius: 14px;
+  background: rgba(255, 240, 220, 0.06);
+}
+.tabs button {
+  min-height: 44px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--mut);
+  font: 500 14px Rubik, sans-serif;
+  cursor: pointer;
+}
+.tabs button:hover {
+  color: var(--ink);
+}
+.tabs button[aria-pressed="true"] {
+  background: rgba(255, 201, 60, 0.2);
+  color: var(--ink);
+  font-weight: 600;
+}
+.tabs.small {
+  grid-auto-columns: auto;
+  padding: 0;
+  background: none;
+}
+.tabs.small button {
+  padding: 0 12px;
+  font-size: 13px;
+}
+.tabs.small button[aria-pressed="true"] {
+  background: rgba(255, 240, 220, 0.1);
+}
+.play-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+  color: var(--mut);
+}
+.play-note {
+  margin: 0;
+  text-align: center;
+  font-size: 12px;
+  color: var(--mut);
+}
+.go.big {
+  width: 100%;
+  min-height: 68px;
+  border-radius: 16px;
+  font-size: 26px;
+  letter-spacing: 0.02em;
+}
+
+/* ---------- how to play ---------- */
+.panel.how {
+  width: min(640px, 100%);
+}
+.how-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.how h2 {
+  margin: 0;
+  font: 400 28px/1.1 "Russo One", sans-serif;
+}
+.how h3 {
+  margin: 22px 0 10px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--mut);
+}
+.controls {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+.controls div {
+  display: grid;
+  grid-template-columns: 172px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+}
+.controls dt {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.controls dd {
+  margin: 0;
+  font-size: 14px;
+  color: var(--soft);
+}
+.how-rules {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--soft);
+}
+
+/* ---------- online lobby (inside the play card) ---------- */
+.lobby {
+  display: grid;
+  gap: 12px;
+}
+.lobby-join {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+.lobby input {
+  min-height: 48px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(255, 240, 220, 0.06);
+  color: var(--ink);
+  font: 600 16px Rubik, sans-serif;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+.lobby input::placeholder {
+  color: var(--mut);
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.lobby .ghost {
+  font-size: 15px;
+  padding: 0 16px;
 }
 .lobby-head {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
   gap: 10px;
 }
+.lobby-head span {
+  font-size: 13px;
+  color: var(--mut);
+}
+.lobby-head b {
+  font: 400 26px/1 "Russo One", sans-serif;
+  letter-spacing: 0.14em;
+}
 .lobby-actions {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
 }
 .copy-btn {
   border-color: rgba(255, 201, 60, 0.38);
 }
 .net-status {
+  margin: 0;
   font-size: 13px;
   color: var(--mut);
 }
-.net-status.connected {
+.net-status.connected,
+.net-ping {
   color: #7dffa0;
 }
 .net-status.waiting {
@@ -685,40 +974,56 @@ a,
 .net-status.disconnected {
   color: var(--fire);
 }
-.net-ping {
-  color: #7dffa0;
-}
-.lobby input {
-  width: 90px;
-  min-height: 48px;
-  padding: 0 14px;
-  border-radius: 12px;
-  border: 1px solid var(--line);
-  background: rgba(255, 240, 220, 0.06);
-  color: var(--ink);
-  font: inherit;
-  text-transform: uppercase;
-}
-.lobby .ghost {
-  font-size: 15px;
-  padding: 0 16px;
+.share {
+  margin: 0;
+  font-size: 12px;
+  color: var(--mut);
+  overflow-wrap: anywhere;
+  -webkit-user-select: text;
+  user-select: text;
 }
 .players {
-  margin: 10px 0 0;
-  padding-left: 18px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+}
+.players li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: 10px;
+  background: rgba(255, 240, 220, 0.05);
+  font-size: 14px;
+}
+.players li::before {
+  content: "";
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.players li span {
+  color: var(--ink);
+}
+.players li i {
+  margin-left: auto;
+  font-style: normal;
+  font-size: 12px;
+  color: var(--mut);
+}
+.players li i.ready {
+  color: #7dffa0;
 }
 .ally {
   color: var(--ally);
 }
 .enemy {
   color: var(--foe);
-}
-.status.online {
-  color: #7dffa0;
-}
-.status.offline,
-.status.no-server {
-  color: var(--fire);
 }
 
 /* ---------- training range ---------- */
@@ -806,10 +1111,37 @@ a,
   line-height: 1.4;
 }
 
-@media (max-width: 720px) {
-  .picks {
-    grid-template-columns: minmax(0, 1fr);
+@media (max-width: 1180px) {
+  .portrait {
+    display: none;
   }
+}
+@media (max-width: 900px) {
+  .menu {
+    background: linear-gradient(0deg, rgba(14, 8, 5, 0.93) 0%, rgba(14, 8, 5, 0.8) 60%, rgba(14, 8, 5, 0.45) 100%);
+  }
+  .menu-main {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .play {
+    width: 100%;
+  }
+}
+@media (max-height: 760px) {
+  .menu {
+    gap: 12px;
+    padding-top: 16px;
+    padding-bottom: 16px;
+  }
+  .hero {
+    gap: 14px;
+  }
+  .hero-name {
+    font-size: clamp(48px, 11vh, 84px);
+  }
+}
+@media (max-width: 720px) {
   .row .go {
     margin-left: 0;
     width: 100%;
@@ -839,8 +1171,12 @@ a,
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .slot.ult.ready {
+  .slot.ult.ready,
+  .portrait {
     animation: none;
+  }
+  .tile {
+    transition: none;
   }
   .msg {
     transition: none;

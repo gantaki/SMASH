@@ -29,7 +29,7 @@ pnpm install
 pnpm dev          # client on http://localhost:5173, server on ws://localhost:2567
 ```
 
-Open the client, pick a champion and press **В бой** (duel vs a bot), **Онлайн 1 на 1** (create a room or share `/r/CODE` over WebRTC P2P), or **Тренировка** (practice range).
+Open the client, pick a champion, pick a mode in the card on the right — **С ботом** (duel vs a bot), **Онлайн** (create a room or share `/r/CODE` over WebRTC P2P) or **Тренировка** (practice range) — and press the big button. Controls and arena rules are under **Как играть**.
 
 | Command | What it does |
 |---|---|

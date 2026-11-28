@@ -7,7 +7,7 @@ export interface LobbyProps {
   online: OnlineRoomHandle;
 }
 
-/** WebRTC P2P room lobby: create or join by 4-char /r/CODE link, pick champion, ready up. */
+/** WebRTC P2P room lobby: create or join by 4-char /r/CODE link, pick champion, ready up. Lives in the menu's play card. */
 export function Lobby({ champion, online }: LobbyProps) {
   const [codeInput, setCodeInput] = useState("");
   const [copied, setCopied] = useState(false);
@@ -26,81 +26,70 @@ export function Lobby({ champion, online }: LobbyProps) {
     <div className="lobby">
       {!online.code ? (
         <>
-          <div className="row lobby-entry">
-            <button className="go" onClick={() => online.createRoom(champion)}>
-              Создать комнату
-            </button>
+          <button className="go big" onClick={() => online.createRoom(champion)}>
+            Создать комнату
+          </button>
+          <div className="lobby-join">
             <input
               value={codeInput}
               onChange={(e) => setCodeInput(e.target.value.toUpperCase())}
-              placeholder="КОД"
+              placeholder="Код комнаты"
               maxLength={4}
               aria-label="Код комнаты"
             />
-            <button
-              className="ghost"
-              onClick={() => online.joinRoom(codeInput, champion)}
-              disabled={codeInput.trim().length !== 4}
-            >
+            <button className="ghost" onClick={() => online.joinRoom(codeInput, champion)} disabled={codeInput.trim().length !== 4}>
               Войти
             </button>
           </div>
-          <p className="keys">P2P через WebRTC — работает прямо в браузере по ссылке, без сервера.</p>
+          <p className="play-note">Играете напрямую, по ссылке — без сервера</p>
         </>
       ) : (
         <>
           <div className="lobby-head">
-            <div>
-              Комната <b>{online.code}</b>{" "}
-              <span className={`net-status ${online.status}`}>
-                {online.status === "waiting" && "· Ждём соперника… Отправь ссылку другу"}
-                {online.status === "connected" &&
-                  `· Подключено (P2P${online.pingMs !== null ? ` · ${online.pingMs} мс` : ""})`}
-                {online.status === "disconnected" && "· Соперник отключился"}
-              </span>
-            </div>
-            <div className="lobby-actions">
-              <button className="ghost copy-btn" onClick={copyLink}>
-                {copied ? "Скопировано!" : "Скопировать ссылку"}
-              </button>
-              <button className="ghost" onClick={online.leaveRoom}>
-                Выйти
-              </button>
-            </div>
+            <span>Комната</span>
+            <b>{online.code}</b>
           </div>
-          <p className="keys">
-            Ссылка для друга: <code>{shareUrl}</code>
+          <p className={`net-status ${online.status}`}>
+            {online.status === "waiting" && "Ждём соперника — отправьте другу ссылку"}
+            {online.status === "connected" && `Соперник подключён${online.pingMs !== null ? ` · ${online.pingMs} мс` : ""}`}
+            {online.status === "disconnected" && "Соперник отключился"}
           </p>
           <ul className="players">
             <li className="ally">
-              {online.me.name} (вы{online.role === "host" ? ", хост" : ""}) — {getChampion(online.me.champion).nameRu}{" "}
-              {online.me.ready ? "✓" : ""}
+              <span>
+                {online.me.name} · {getChampion(online.me.champion).nameRu}
+              </span>
+              <i className={online.me.ready ? "ready" : ""}>{online.me.ready ? "готов" : online.role === "host" ? "вы, хост" : "вы"}</i>
             </li>
             {online.opponent && (
               <li className="enemy">
-                {online.opponent.name}
-                {online.role === "guest" ? " (хост)" : ""} — {getChampion(online.opponent.champion).nameRu}{" "}
-                {online.opponent.ready ? "✓" : ""}
+                <span>
+                  {online.opponent.name} · {getChampion(online.opponent.champion).nameRu}
+                </span>
+                <i className={online.opponent.ready ? "ready" : ""}>{online.opponent.ready ? "готов" : online.role === "guest" ? "хост" : "выбирает"}</i>
               </li>
             )}
           </ul>
+          <div className="lobby-actions">
+            <button className="ghost copy-btn" onClick={copyLink}>
+              {copied ? "Скопировано" : "Скопировать ссылку"}
+            </button>
+            <button className="ghost" onClick={online.leaveRoom}>
+              Выйти
+            </button>
+          </div>
+          <p className="share">{shareUrl}</p>
           {online.status === "connected" && (
-            <div className="row">
-              <span className="keys" style={{ margin: 0 }}>
-                Когда оба нажмут «Готов», матч начнётся автоматически.
-              </span>
-              <button
-                className="go"
-                aria-pressed={online.me.ready}
-                onClick={() => online.setReady(!online.me.ready)}
-              >
+            <>
+              <button className="go big" aria-pressed={online.me.ready} onClick={() => online.setReady(!online.me.ready)}>
                 {online.me.ready ? "Не готов" : "Готов"}
               </button>
-            </div>
+              <p className="play-note">Матч начнётся, когда готовы оба</p>
+            </>
           )}
         </>
       )}
-      {online.error && <p className="keys warn">{online.error}</p>}
+      {online.error && <p className="net-status disconnected">{online.error}</p>}
     </div>
   );
 }

@@ -2,6 +2,7 @@
 
 import { ABILITY_SLOTS, getChampion, rules, type AbilitySlot } from "@smash/content";
 import type { ChampionUnit, MatchState } from "@smash/sim";
+import { ABILITY_ART } from "../ui/art.ts";
 import { ABILITY_ICONS, KEY_LABELS } from "../ui/icons.ts";
 
 interface SlotView {
@@ -32,8 +33,10 @@ export class Hud {
     const slotHtml = ABILITY_SLOTS.filter((s) => champ.abilities[s])
       .map((s) => {
         const a = champ.abilities[s]!;
+        const art = ABILITY_ART[a.icon];
+        const icon = art ? `<img src="${art}" alt="" draggable="false">` : `<svg viewBox="0 0 24 24">${ABILITY_ICONS[a.icon] ?? ""}</svg>`;
         return `<div class="slot${a.energyCost ? " ult" : ""}" data-slot="${s}" style="--c:${a.color}" title="${a.nameRu}: ${a.descriptionRu}">
-          <svg viewBox="0 0 24 24">${ABILITY_ICONS[a.icon] ?? ""}</svg><i class="cdv"></i><span class="cdt"></span><kbd>${KEY_LABELS[s]}</kbd></div>`;
+          ${icon}<i class="cdv"></i><span class="cdt"></span><kbd>${KEY_LABELS[s]}</kbd></div>`;
       })
       .join("");
     const hint = online
