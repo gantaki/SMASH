@@ -129,6 +129,9 @@ export class Overlay {
       if (u.counter > 0) tags.push("контрстойка");
       if (u.empowered > 0) tags.push("усилен");
       if (u.channel) tags.push("вихрь");
+      if (u.brace) tags.push("неуязвим");
+      if (u.hover > 0) tags.push("парит");
+      if (u.held) tags.push("держит ящик");
       const st = tags.join(" · ");
       if (bar.status && st !== bar.lastStatus) {
         bar.status.textContent = st;
