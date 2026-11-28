@@ -11,7 +11,7 @@ import { GOLD, ALLY, FOE, G, basic, clamp, rand, rgb, type RGB } from "./gfx.ts"
 import { Hazards } from "./Hazards.ts";
 import { Overlay } from "./Overlay.ts";
 import { Particles } from "./Particles.ts";
-import { RAGDOLL, collapse, launchFor, type RagdollWorld } from "./Ragdoll.ts";
+import { RAGDOLL, impulseFor, type Blow, type RagdollWorld } from "./Ragdoll.ts";
 import { SpineBillboard } from "./SpineBillboard.ts";
 import { ChampionView, CompanionView, type Pose } from "./Units.ts";
 import { World } from "./World.ts";
@@ -59,7 +59,7 @@ export class GameView {
   /** Wind-up cues still playing, by unit id: cut short if the cast is cancelled or interrupted. */
   private readonly castSounds = new Map<number, () => void>();
   /** The last direct hit each champion took: where it came from and how hard. Launches the ragdoll on death. */
-  private readonly lastHit = new Map<number, { dx: number; dz: number; amount: number }>();
+  private readonly lastHit = new Map<number, Blow>();
   /** Latest state seen, for ragdoll collisions against obstacles. */
   private latest: MatchState;
   /** Orbiting camera with no HUD: used behind the menu. */
@@ -210,6 +210,8 @@ export class GameView {
     this.ink.clear();
     for (const stop of this.castSounds.values()) stop();
     this.castSounds.clear();
+    // Time may be about to rewind (kill cam): hits remembered from the future would be wrong.
+    this.lastHit.clear();
   }
 
   /** What a ragdoll can bump into: obstacles (up to their height), the arena rim, the stands. */
@@ -496,7 +498,7 @@ export class GameView {
             const dx = src ? e.x - src.x : 0;
             const dz = src ? e.z - src.z : 0;
             const d = Math.hypot(dx, dz);
-            this.lastHit.set(e.target, { dx: d > 0.05 ? dx / d : 0, dz: d > 0.05 ? dz / d : 0, amount: e.amount + e.absorbed });
+            this.lastHit.set(e.target, { dx: d > 0.05 ? dx / d : 0, dz: d > 0.05 ? dz / d : 0, amount: e.amount + e.absorbed, at: state.tick / rules.tickRate });
           }
           if (e.absorbed > 0) {
             overlay.floatText(e.x, 2.4, e.z, "щит", "#ffd28a");
@@ -595,9 +597,9 @@ export class GameView {
           fx.wave(u.x, u.z, 3, teamHex(u.team), 0.5, true);
           this.sound("death", u.x, u.z);
           this.shakeAt(u.x, u.z, 0.3);
-          // The killing blow throws the body; deaths without a direction (burn, zone, rift) just crumple.
-          const hit = this.lastHit.get(u.id);
-          const impulse = hit && (hit.dx !== 0 || hit.dz !== 0) ? launchFor(hit.amount, hit.dx, hit.dz) : collapse();
+          // The blow that just landed throws the body. Without one (burn, zone, rift, or a hit from a while ago
+          // followed by damage over time) it crumples.
+          const impulse = impulseFor(this.lastHit.get(u.id), state.tick / rules.tickRate);
           this.lastHit.delete(u.id);
           this.champs.get(u.id)?.startRagdoll(this.scene, impulse, this.ragdollWorld);
           break;

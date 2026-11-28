@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
-import { RAGDOLL, Ragdoll, collapse, launchFor, type RagdollWorld } from "./Ragdoll.ts";
+import { RAGDOLL, Ragdoll, collapse, impulseFor, launchFor, type RagdollWorld } from "./Ragdoll.ts";
 
 /** A model like the real ones: parts at different heights, one prop, one marker to hide. */
 function model() {
@@ -61,6 +61,23 @@ describe("ragdoll", () => {
     expect(launchFor(1000, 1, 0).x).toBe(RAGDOLL.launch.max);
     const c = collapse();
     expect(Math.hypot(c.x, c.z)).toBeCloseTo(RAGDOLL.collapse.speed);
+  });
+
+  it("is thrown only by a blow that just landed: a burn finishing the job later makes the body crumple", () => {
+    const blow = { dx: 1, dz: 0, amount: 20, at: 10 };
+    const thrown = launchFor(20, 1, 0);
+    // The hit itself kills, or a wall slam right after its knockback does.
+    expect(impulseFor(blow, 10)).toEqual(thrown);
+    expect(impulseFor(blow, 10 + RAGDOLL.blowWindow)).toEqual(thrown);
+    // The Fireball landed three seconds ago; its burn (or the zone, or a rift) deals the last damage.
+    const late = impulseFor(blow, 13);
+    expect(Math.hypot(late.x, late.z)).toBeCloseTo(RAGDOLL.collapse.speed);
+    expect(late.up).toBe(RAGDOLL.collapse.lift);
+    // Never hit directly at all, or a hit without a direction (the attacker stood on the same spot).
+    expect(impulseFor(undefined, 5).up).toBe(RAGDOLL.collapse.lift);
+    expect(impulseFor({ dx: 0, dz: 0, amount: 50, at: 5 }, 5).up).toBe(RAGDOLL.collapse.lift);
+    // A remembered hit from "the future" (the kill cam rewound time) is not used.
+    expect(impulseFor(blow, 9).up).toBe(RAGDOLL.collapse.lift);
   });
 
   it("puts the model back together exactly", () => {

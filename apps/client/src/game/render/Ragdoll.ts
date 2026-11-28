@@ -11,6 +11,11 @@ export const RAGDOLL = {
   lift: { base: 3.6, perDamage: 0.07, max: 7.5 },
   /** Deaths without a direction (burn, zone, rift): the body just crumples. */
   collapse: { speed: 1.2, lift: 2.2 },
+  /**
+   * A direct hit counts as "the killing blow" for this many seconds. It covers what follows the hit at once
+   * (a knockback ending in a wall slam), but not a burn that finishes the job seconds later.
+   */
+  blowWindow: 0.4,
   /** Joint heights in model units (feet, hips, neck, top of head) and how much of the launch each one gets. */
   joints: [0.08, 0.92, 1.6, 2.15],
   jointKick: [0.75, 1, 1.25, 1.45],
@@ -83,6 +88,25 @@ export function launchFor(damage: number, dirX: number, dirZ: number): Impulse {
 export function collapse(): Impulse {
   const a = Math.random() * Math.PI * 2;
   return { x: Math.cos(a) * RAGDOLL.collapse.speed, z: Math.sin(a) * RAGDOLL.collapse.speed, up: RAGDOLL.collapse.lift };
+}
+
+/** The last direct hit a champion took: where it came from, how hard, and when (seconds of game time). */
+export interface Blow {
+  dx: number;
+  dz: number;
+  amount: number;
+  at: number;
+}
+
+/**
+ * How a body leaves this world: thrown by the blow that killed it, or crumpling if nothing hit it just now
+ * (burn, zone and rift damage carry no direction, and a hit from seconds ago is not what killed it).
+ */
+export function impulseFor(blow: Blow | undefined, now: number): Impulse {
+  // Times are tick counts divided by the tick rate: allow for rounding at the edge of the window.
+  const age = blow ? now - blow.at : Infinity;
+  const recent = blow && age >= 0 && age <= RAGDOLL.blowWindow + 1e-6 && (blow.dx !== 0 || blow.dz !== 0);
+  return recent ? launchFor(blow.amount, blow.dx, blow.dz) : collapse();
 }
 
 export class Ragdoll {
