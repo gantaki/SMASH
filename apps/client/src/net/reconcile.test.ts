@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { championOfTeam, emptyInput, type PlayerInput } from "@smash/sim";
-import { GuestSession, HostSession, type GameSnapshot, type OnlineMatchConfig } from "./reconcile.ts";
+import { championOfTeam, emptyInput, step, type PlayerInput } from "@smash/sim";
+import { GuestSession, HostSession, isKillCamPacket, type GameSnapshot, type KillCamPacket, type OnlineMatchConfig } from "./reconcile.ts";
+import { REPLAY_TICKS } from "./replay.ts";
 
 const CFG: OnlineMatchConfig = {
   seed: 123456,
@@ -185,5 +186,136 @@ describe("netcode reconciliation", () => {
     }
 
     expect(guestEventCount).toBe(hostEventCount);
+  });
+});
+
+describe("kill cam over the network", () => {
+  /** Host and guest joined by a link with `delay` ticks each way; messages are serialized like on a real channel. */
+  function link(delay: number) {
+    const host = new HostSession(CFG);
+    const guest = new GuestSession(CFG);
+    const wire: { at: number; run: () => void }[] = [];
+    const packets: KillCamPacket[] = [];
+    let now = 0;
+    const later = (run: () => void) => wire.push({ at: now + delay, run });
+    const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
+    const tick = (hostInput: PlayerInput = emptyInput(), guestInput: PlayerInput = emptyInput()) => {
+      const due = wire.filter((p) => p.at <= now);
+      for (const p of due) wire.splice(wire.indexOf(p), 1);
+      for (const p of due) p.run();
+      const net = guest.stepLocal(guestInput);
+      if (net) {
+        const sent = clone(net);
+        later(() => host.pushGuestInput(sent));
+      }
+      const out = host.stepTick(hostInput);
+      if (out.snapshot) {
+        const snap = clone(out.snapshot);
+        later(() => guest.applySnapshot(snap));
+      }
+      if (out.replay) {
+        const packet = clone(out.replay);
+        packets.push(packet);
+        later(() => {
+          if (isKillCamPacket(packet)) guest.freeze(packet.tick);
+        });
+      }
+      now++;
+      return out;
+    };
+    const run = (ticks: number) => {
+      for (let i = 0; i < ticks; i++) tick();
+    };
+    /** Plays until the fight is on, then lets the guest's champion burn to death. */
+    const decideRound = () => {
+      // Countdown (3 s) plus more than a full replay window of fighting.
+      run(180 + REPLAY_TICKS + 20);
+      // A slow burn: the death comes more than a replay window later, so the whole replay is plain simulation
+      // (a state edited by the test inside the window could not be re-simulated).
+      Object.assign(championOfTeam(host.state, 1), { hp: 14, burn: 5, burnDps: 10, burnTick: 0.5 });
+      for (let i = 0; i < 200 && !packets.length; i++) tick();
+    };
+    return { host, guest, packets, tick, run, decideRound };
+  }
+
+  it("sends the last moments when a round is decided, and they replay into the host's state", () => {
+    const w = link(3);
+    w.decideRound();
+    expect(w.packets).toHaveLength(1);
+    const packet = w.packets[0]!;
+    expect(isKillCamPacket(packet)).toBe(true);
+    expect(packet.inputs).toHaveLength(REPLAY_TICKS);
+    expect(packet.tick).toBe(w.host.state.tick);
+    const replayed = structuredClone(packet.start);
+    let deaths = 0;
+    for (const inputs of packet.inputs) deaths += step(replayed, inputs).filter((e) => e.t === "death").length;
+    expect(deaths).toBe(1);
+    expect(replayed).toEqual(JSON.parse(JSON.stringify(w.host.state)));
+  });
+
+  it("holds the match until the host releases it, ignoring what the guest sends meanwhile", () => {
+    const w = link(3);
+    w.decideRound();
+    expect(w.host.isHolding).toBe(true);
+    const held = w.host.state.tick;
+    const guestBefore = championOfTeam(w.host.state, 1).x;
+    for (let i = 0; i < 300; i++) w.tick(emptyInput(), moveInput(1, 0));
+    expect(w.host.state.tick).toBe(held);
+    expect(w.host.state.phase).toBe("roundEnd");
+    w.host.release();
+    w.run(10);
+    expect(w.host.state.tick).toBe(held + 10);
+    expect(championOfTeam(w.host.state, 1).x).toBe(guestBefore);
+  });
+
+  it("freezes the guest on the deciding tick instead of predicting into the next round", () => {
+    const w = link(3);
+    w.decideRound();
+    w.run(10);
+    expect(w.guest.frozen).toBe(true);
+    expect(w.guest.stepLocal(emptyInput())).toBeNull();
+    // Long enough for an unfrozen prediction to run through the round-end delay and the next countdown.
+    w.run(400);
+    expect(w.guest.state.tick).toBe(w.host.state.tick);
+    expect(w.guest.state.phase).toBe("roundEnd");
+    expect(w.guest.state.round).toBe(1);
+
+    w.host.release();
+    w.run(200);
+    expect(w.guest.frozen).toBe(false);
+    expect(w.host.state.round).toBe(2);
+    expect(w.guest.state.round).toBe(2);
+    // Back to normal: the guest predicts ahead of the host's last snapshot again.
+    expect(w.guest.pendingCount).toBeGreaterThan(0);
+  });
+
+  it("freezes correctly even if the replay arrives before the deciding snapshot", () => {
+    const host = new HostSession(CFG);
+    const guest = new GuestSession(CFG);
+    const snaps: GameSnapshot[] = [];
+    let packet: KillCamPacket | null = null;
+    for (let i = 0; i < 600 && !packet; i++) {
+      if (i === 240) Object.assign(championOfTeam(host.state, 1), { hp: 14, burn: 5, burnDps: 10, burnTick: 0.5 });
+      const out = host.stepTick(emptyInput());
+      if (out.snapshot) snaps.push(JSON.parse(JSON.stringify(out.snapshot)) as GameSnapshot);
+      if (out.replay) packet = out.replay;
+    }
+    const deciding = snaps.pop()!;
+    for (const s of snaps) guest.applySnapshot(s);
+    guest.freeze(packet!.tick);
+    expect(guest.frozen).toBe(true);
+    guest.applySnapshot(deciding);
+    expect(guest.frozen).toBe(true);
+    expect(guest.state.tick).toBe(packet!.tick);
+    expect(guest.state.phase).toBe("roundEnd");
+  });
+
+  it("rejects malformed replays", () => {
+    expect(isKillCamPacket(null)).toBe(false);
+    expect(isKillCamPacket({ tick: 5, start: {}, inputs: [] })).toBe(false);
+    expect(isKillCamPacket({ tick: 5, start: { units: [] }, inputs: [[null, null]] })).toBe(false);
+    expect(isKillCamPacket({ tick: "5", start: { units: [] }, inputs: [[null, null], [null, null]] })).toBe(false);
+    expect(isKillCamPacket({ tick: 5, start: { units: [] }, inputs: [[null, null], [null]] })).toBe(false);
+    expect(isKillCamPacket({ tick: 5, start: { units: [] }, inputs: Array.from({ length: 5000 }, () => [null, null]) })).toBe(false);
   });
 });

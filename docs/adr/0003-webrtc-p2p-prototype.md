@@ -16,7 +16,7 @@ The client is deployed as a static site on Vercel (`apps/client/dist`), which ca
 2. **Host-authoritative 60 Hz sim + Guest prediction & reconciliation.**
    - Room creator (`wantsHost: true`, with deterministic lexicographical `peerId` tie-break in `resolvePeerRole`) runs `HostSession` (Team 0) at 60 Hz (`TICK_DT`), consumes sanitized `NetInput`s from the Guest, and emits `NetSnapshot`s every 3 ticks (20 Hz) plus on critical phase/round/match transitions.
    - Guest (`GuestSession`, Team 1) predicts its own champion locally at 60 Hz (`stepLocal`), applies authoritative `SimEvent`s from snapshots, and reconciles by cloning the snapshot state and replaying unacknowledged inputs (`applySnapshot`).
-   - Kill cam is temporarily disabled in online mode (M2 server-held round end comes later).
+   - Kill cam works online: `HostSession` records the last 0.6 s of each round (the state they start from plus both players' inputs per tick), sends them on a `kcam` channel when the round is decided and holds the sim until `release()`. The host's client releases it after the kill cam's real-time length (about 6 s); the guest freezes its prediction on the deciding tick until a later snapshot arrives. Each side re-simulates the replay locally, so what it shows is exactly what the host simulated.
 
 3. **Transport-agnostic protocol (`packages/protocol/src/net.ts`).**
    - `NetInput`, `NetSnapshot`, `PeerControlMessage`, `PingPacket`, `sanitizeNetInput`, and `resolvePeerRole` live in `@smash/protocol` with no WebRTC or DOM dependencies.

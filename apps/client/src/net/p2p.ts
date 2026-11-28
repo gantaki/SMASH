@@ -3,7 +3,7 @@
 
 import { joinRoom, type JsonValue, type Room } from "trystero";
 import type { NetInput, PeerControlMessage, PingPacket } from "@smash/protocol";
-import type { GameSnapshot } from "./reconcile.ts";
+import type { GameSnapshot, KillCamPacket } from "./reconcile.ts";
 
 const APP_ID = "smash-arena-p2p-v1";
 
@@ -36,6 +36,9 @@ export interface P2PRoom {
   onInput(fn: (input: NetInput, fromId: string) => void): () => void;
   sendSnap(snap: GameSnapshot): void;
   onSnap(fn: (snap: GameSnapshot, fromId: string) => void): () => void;
+  /** Host → guest when a round is decided: the replay for the kill cam. Untrusted on arrival: check with isReplay(). */
+  sendKillCam(packet: KillCamPacket): void;
+  onKillCam(fn: (packet: unknown, fromId: string) => void): () => void;
   sendPing(p: PingPacket): void;
   onPing(fn: (p: PingPacket, fromId: string) => void): () => void;
   sendPong(p: PingPacket): void;
@@ -84,6 +87,7 @@ export function createP2PRoom(code: string): P2PRoom {
   const control = makeChannel<PeerControlMessage>(room, "ctrl");
   const input = makeChannel<NetInput>(room, "inp");
   const snap = makeChannel<GameSnapshot>(room, "snap");
+  const killCam = makeChannel<KillCamPacket>(room, "kcam");
   const ping = makeChannel<PingPacket>(room, "ping");
   const pong = makeChannel<PingPacket>(room, "pong");
 
@@ -115,6 +119,8 @@ export function createP2PRoom(code: string): P2PRoom {
     onInput: input.on,
     sendSnap: snap.send,
     onSnap: snap.on,
+    sendKillCam: killCam.send,
+    onKillCam: killCam.on,
     sendPing: ping.send,
     onPing: ping.on,
     sendPong: pong.send,
@@ -143,6 +149,7 @@ export function createP2PRoom(code: string): P2PRoom {
       control.dispose();
       input.dispose();
       snap.dispose();
+      killCam.dispose();
       ping.dispose();
       pong.dispose();
       joinListeners.clear();
