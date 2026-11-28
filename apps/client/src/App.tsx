@@ -8,8 +8,8 @@ import { TrainingPanel } from "./ui/TrainingPanel.tsx";
 
 type Screen = "menu" | "game" | "end";
 
-/** Fade-out of the demo fight before a champion swap; matches `.stage.out` in styles.css. */
-const STAGE_FADE_MS = 220;
+/** How long the still of the old demo fight stays over the new one; matches `ghost-out` in styles.css. */
+const GHOST_MS = 650;
 const EMPTY_STATS: TrainingStats = { dps: 0, lastHit: 0, total: 0, dummyMoves: false, suddenDeath: false };
 const DIFFICULTY_NAMES: Record<BotDifficulty, string> = { easy: "лёгкий", normal: "средний", hard: "сложный" };
 
@@ -36,8 +36,10 @@ export function App() {
   const [stats, setStats] = useState<TrainingStats>(EMPTY_STATS);
   // Bumping the run number gives the next match a fresh canvas (and WebGL context).
   const [run, setRun] = useState(0);
-  // True while the demo fight is fading out before it restarts with another champion.
-  const [stageOut, setStageOut] = useState(false);
+  // A still of the previous demo fight, laid over the new one and faded out: a champion swap is a cross-fade, not a cut.
+  const [ghost, setGhost] = useState<string | null>(null);
+  // The demo fades in from the background only when there is nothing to cross-fade from (first load, back from a match).
+  const [fadeIn, setFadeIn] = useState(true);
   const swap = useRef(0);
 
   const online = useOnlineRoom(champion);
@@ -51,9 +53,8 @@ export function App() {
 
   useEffect(() => {
     if (!online.activeMatch) return;
-    // A champion swap may still be waiting to restart the demo: it must not restart the match.
     window.clearTimeout(swap.current);
-    setStageOut(false);
+    setGhost(null);
     setOpponentLeft(false);
     setPaused(false);
     setResult(null);
@@ -116,7 +117,7 @@ export function App() {
 
   const start = useCallback(() => {
     window.clearTimeout(swap.current);
-    setStageOut(false);
+    setGhost(null);
     audio.unlock();
     audio.play("ui_click");
     setPaused(false);
@@ -137,10 +138,11 @@ export function App() {
     setLastOnlineRole(null);
     setResult(null);
     setScreen("menu");
+    setFadeIn(true);
     setRun((n) => n + 1);
   }, [lastOnlineRole, online]);
 
-  // The menu shows the new pick at once; the demo fight behind it fades out, restarts with the new champion and fades in.
+  // The demo fight restarts with the new champion at once, under a still of the old one that fades away.
   const pick = (id: string) => {
     if (!isChampionId(id) || id === champion) return;
     audio.unlock();
@@ -148,12 +150,11 @@ export function App() {
     setChampion(id);
     online.setChampion(id);
     if (screen !== "menu") return;
-    setStageOut(true);
+    setGhost(game.current?.still() ?? null);
+    setFadeIn(false);
+    setRun((n) => n + 1);
     window.clearTimeout(swap.current);
-    swap.current = window.setTimeout(() => {
-      setRun((n) => n + 1);
-      setStageOut(false);
-    }, STAGE_FADE_MS);
+    swap.current = window.setTimeout(() => setGhost(null), GHOST_MS);
   };
 
   const inGame = screen !== "menu";
@@ -165,8 +166,9 @@ export function App() {
 
   return (
     <>
-      <canvas key={run} ref={canvas} className={`stage${screen === "menu" ? " demo" : ""}${stageOut ? " out" : ""}`} tabIndex={0} aria-label="Арена" />
-      <div ref={overlay} className={stageOut ? "ov out" : "ov"} />
+      <canvas key={run} ref={canvas} className={screen === "menu" && fadeIn ? "stage demo" : "stage"} tabIndex={0} aria-label="Арена" />
+      {ghost && <img key={`ghost-${run}`} className="stage ghost" src={ghost} alt="" />}
+      <div ref={overlay} className="ov" />
       <div ref={hud} className="hud" hidden={!inGame || screen === "end"} />
 
       {screen === "menu" && (

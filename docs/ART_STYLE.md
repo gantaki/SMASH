@@ -99,7 +99,7 @@ Controls are drawn the same way as the art: flat, outlined, a little heavy.
   belong to a champion (their tile ring, their kit).
 - **Icons** on controls are drawn emblems on a transparent background, one object each, following §6 (plain tier).
   An idle control shows its icon desaturated; hover and selection bring the colour back.
-- **Motion**: nothing cuts. A champion swap cross-fades the portrait and the text and fades the arena through black;
+- **Motion**: nothing cuts. A champion swap moves the old portrait out before the new one comes in and cross-fades the arena (never through black);
   durations stay under half a second, and `prefers-reduced-motion` turns them off.
 
 ## 8. Checklist for a new champion

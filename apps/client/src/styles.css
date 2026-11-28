@@ -41,20 +41,23 @@ body,
   cursor: crosshair;
   touch-action: none;
 }
-/* The demo fight behind the menu fades in when it (re)starts and out before a champion swap. */
+/* The demo fight fades in from the background on first load. On a champion swap a still of the old fight lies over
+   the new one and fades away, so the picture never goes dark. */
 .stage.demo {
   animation: stage-in 0.5s ease-out;
 }
-.stage.out,
-.ov.out {
-  opacity: 0;
-  transition: opacity 0.22s ease-in;
-}
-.ov {
-  transition: opacity 0.4s ease-out;
+.stage.ghost {
+  pointer-events: none;
+  object-fit: cover;
+  animation: ghost-out 0.55s ease-in-out 0.08s both;
 }
 @keyframes stage-in {
   from {
+    opacity: 0;
+  }
+}
+@keyframes ghost-out {
+  to {
     opacity: 0;
   }
 }
@@ -688,10 +691,11 @@ a,
   pointer-events: none;
   -webkit-mask-image: linear-gradient(0deg, transparent, #000 14%);
   mask-image: linear-gradient(0deg, transparent, #000 14%);
-  animation: portrait-in 0.45s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  /* Waits for the outgoing portrait to leave first. */
+  animation: portrait-in 0.4s cubic-bezier(0.2, 0.7, 0.2, 1) 0.16s both;
 }
 .portrait.out {
-  animation: portrait-out 0.32s ease-in both;
+  animation: portrait-out 0.2s ease-in both;
 }
 @keyframes portrait-in {
   from {
@@ -702,7 +706,7 @@ a,
 @keyframes portrait-out {
   to {
     opacity: 0;
-    transform: translateX(-28px);
+    transform: translateX(-56px);
   }
 }
 .hero {
@@ -1382,7 +1386,8 @@ a,
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .portrait.out {
+  .portrait.out,
+  .stage.ghost {
     display: none;
   }
   .slot.ult.ready,
@@ -1395,10 +1400,7 @@ a,
   .champ-face,
   .champ-face img,
   .mode,
-  .mode img,
-  .stage.out,
-  .ov,
-  .ov.out {
+  .mode img {
     transition: none;
   }
   .msg {

@@ -453,6 +453,11 @@ export class Game {
     }
   };
 
+  /** A still of the current frame, for cross-fading into the next scene. */
+  still(): string {
+    return this.view.still();
+  }
+
   dispose(): void {
     this.disposed = true;
     document.body.classList.remove(KILLCAM_CLASS);

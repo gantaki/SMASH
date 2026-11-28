@@ -15,7 +15,7 @@ const MODES: readonly { id: PlayMode; label: string }[] = [
 ];
 const DIFFICULTY_LABELS: Record<BotDifficulty, string> = { easy: "Лёгкий", normal: "Средний", hard: "Сложный" };
 /** How long the outgoing portrait stays mounted to fade out; matches `portrait-out` in styles.css. */
-const PORTRAIT_FADE_MS = 320;
+const PORTRAIT_FADE_MS = 220;
 
 interface Props {
   champion: ChampionId;
