@@ -41,22 +41,22 @@ body,
   cursor: crosshair;
   touch-action: none;
 }
-/* The demo fight fades in from the background on first load. On a champion swap a still of the old fight lies over
-   the new one and fades away, so the picture never goes dark. */
+/* The demo fight fades in from the background on first load. On a champion swap the old fight keeps playing on its
+   own canvas above the new one and fades away, so the picture never goes dark and never freezes. */
 .stage.demo {
   animation: stage-in 0.5s ease-out;
 }
-.stage.ghost {
+.stage.leaving,
+.ov.leaving {
   pointer-events: none;
-  object-fit: cover;
-  animation: ghost-out 0.55s ease-in-out 0.08s both;
+  animation: stage-leave 0.55s ease-in-out 0.08s both;
 }
 @keyframes stage-in {
   from {
     opacity: 0;
   }
 }
-@keyframes ghost-out {
+@keyframes stage-leave {
   to {
     opacity: 0;
   }
@@ -1387,7 +1387,8 @@ a,
 }
 @media (prefers-reduced-motion: reduce) {
   .portrait.out,
-  .stage.ghost {
+  .stage.leaving,
+  .ov.leaving {
     display: none;
   }
   .slot.ult.ready,

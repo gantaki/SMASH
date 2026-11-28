@@ -250,12 +250,6 @@ export class GameView {
   // ---------- frame ----------
 
   /** `dt` is scaled game time (slow motion slows effects too); `realDt` is wall-clock time for the kill cam's drift. */
-  /** The scene as a still image. Renders first: a WebGL canvas can only be read in the frame it was drawn in. */
-  still(): string {
-    this.renderer.render(this.scene, this.camera);
-    return this.renderer.domElement.toDataURL("image/jpeg", 0.85);
-  }
-
   render(state: MatchState, alpha: number, dt: number, time: number, aim: { x: number; z: number }, realDt = dt): void {
     this.alpha = alpha;
     this.latest = state;
