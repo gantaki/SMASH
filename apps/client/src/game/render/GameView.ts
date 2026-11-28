@@ -601,7 +601,7 @@ export class GameView {
           // followed by damage over time) it crumples.
           const impulse = impulseFor(this.lastHit.get(u.id), state.tick / rules.tickRate);
           this.lastHit.delete(u.id);
-          this.champs.get(u.id)?.startRagdoll(this.scene, impulse, this.ragdollWorld);
+          this.champs.get(u.id)?.startRagdoll(this.scene, impulse, this.ragdollWorld, { x: u.x, z: u.z, face: u.face });
           break;
         }
         case "respawn": {

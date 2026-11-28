@@ -212,11 +212,16 @@ export class ChampionView {
     if (heavy) this.bash = 0.2;
   }
 
-  /** The champion died: hand the model over to the ragdoll, launched by the killing blow. */
-  startRagdoll(scene: THREE.Object3D, impulse: Impulse, world: RagdollWorld): void {
+  /**
+   * The champion died: hand the model over to the ragdoll, launched by the killing blow.
+   * `at` is where it died. The model is moved there first: it may not have been drawn for a while
+   * (several ticks in one frame, or a skipped kill cam replay), and the body must fall where the death happened.
+   */
+  startRagdoll(scene: THREE.Object3D, impulse: Impulse, world: RagdollWorld, at: Pose): void {
     if (this.ragdoll) return;
-    this.body.rotation.x = 0;
-    this.root.position.y = Math.max(0, this.root.position.y);
+    this.root.position.set(at.x, Math.max(0, this.root.position.y), at.z);
+    this.body.rotation.set(0, at.face, 0);
+    this.body.position.y = 0;
     const props = [this.rig.arm, ...(this.rig.shield ? [this.rig.shield] : [])];
     this.ragdoll = new Ragdoll(scene, this.body, props, [this.arrow], impulse, world);
     this.ring.visible = false;
