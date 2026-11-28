@@ -5,7 +5,7 @@ import { applyOnHit, damageObstacle, removeObstacle } from "./combat.ts";
 import type { Ctx } from "./context.ts";
 import { rimPenetration, solidAt } from "./floor.ts";
 import { obstaclePenetration } from "./geometry.ts";
-import { unitById } from "./state.ts";
+import { offGround, unitById } from "./state.ts";
 
 /** Below this speed a crate is considered at rest (numerical cut-off). */
 const CRATE_REST_SPEED = 0.05;
@@ -73,7 +73,7 @@ export function updateObstacles(ctx: Ctx): void {
     if (speed > cfg.crateHitSpeed && fight) {
       for (const t of state.units) {
         if (t.dead || (o.pusherTeam !== -1 && t.team === o.pusherTeam)) continue;
-        if (t.kind === "champion" && t.leap) continue;
+        if (offGround(t)) continue;
         if (Math.hypot(t.x - o.x, t.z - o.z) >= o.radius + t.radius) continue;
         const pusher = o.pusher >= 0 ? (unitById(state, o.pusher) ?? null) : null;
         // Knock the target along the crate's direction of travel.

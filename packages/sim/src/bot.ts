@@ -191,9 +191,16 @@ export function botInput(ctx: Ctx, b: ChampionUnit): PlayerInput {
   const jump = (slot: AbilitySlot, aim: Vec2): PlayerInput | null => {
     const a = abilityOf(b, slot);
     if (a?.kind !== "blink" && a?.kind !== "leap" && a?.kind !== "dash") return null;
-    const land = reach(b, aim, a.maxRange);
+    let land = reach(b, aim, a.maxRange);
+    if (a.kind === "dash") {
+      // A charge covers at least its minimum distance: check where it really ends, and the way there.
+      const lx = land.x - b.x;
+      const lz = land.z - b.z;
+      const l = Math.hypot(lx, lz);
+      if (l < a.minRange) land = l > 0.2 ? { x: b.x + (lx / l) * a.minRange, z: b.z + (lz / l) * a.minRange } : { x: b.x + Math.sin(b.face) * a.minRange, z: b.z + Math.cos(b.face) * a.minRange };
+      if (!pathSolid(state, b.x, b.z, land.x, land.z)) return null;
+    }
     if (!safeAt(state, land.x, land.z)) return null;
-    if (a.kind === "dash" && !pathSolid(state, b.x, b.z, land.x, land.z)) return null;
     return press(slot, aim);
   };
   /** The way the enemy would be shoved from here leads into the abyss: over a hole, or out through a gap in the wall. */
@@ -483,7 +490,8 @@ export function botInput(ctx: Ctx, b: ChampionUnit): PlayerInput {
   // A crate held overhead: throw it as soon as there is a line to the target.
   if (b.held) {
     const liftSlot = ABILITY_SLOTS.find((sl) => abilityOf(b, sl)?.kind === "lift");
-    if (liftSlot && !blocker(state, b, tgt) && rng.next() < dt * 8) return press(liftSlot, leadAim(b, ai, D, tgt, td / 17));
+    const lift = liftSlot ? abilityOf(b, liftSlot) : undefined;
+    if (liftSlot && lift?.kind === "lift" && !blocker(state, b, tgt) && rng.next() < dt * 8) return press(liftSlot, leadAim(b, ai, D, tgt, td / lift.throwSpeed));
   }
 
   // ---------- offence, by ability kind ----------

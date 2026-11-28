@@ -60,6 +60,7 @@ export const boulder: CompanionDef = {
   attack: { kind: "none" },
   command: {
     kind: "roll",
+    minRange: 4,
     maxRange: 12,
     bounces: 2,
     bounceExtra: 4,

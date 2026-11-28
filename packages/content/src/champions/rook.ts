@@ -62,6 +62,7 @@ export const rook: Champion = {
       descriptionRu: "рывок до 6 м: первого соперника тащит перед собой. Упёрлись в стену — удар о стену, оказалась дыра — он в ней",
       icon: "ram",
       cooldown: 7,
+      minRange: 2,
       maxRange: 6,
       duration: 0.3,
       onHit: { damage: 12 },

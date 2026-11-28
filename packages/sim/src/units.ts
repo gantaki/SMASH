@@ -294,11 +294,14 @@ export function collide(ctx: Ctx): void {
       const d = Math.hypot(dx, dz);
       const m = a.radius + b.radius;
       if (d < m && d > 1e-4) {
-        const o = (m - d) / 2;
-        a.x -= (dx / d) * o;
-        a.z -= (dz / d) * o;
-        b.x += (dx / d) * o;
-        b.z += (dz / d) * o;
+        // Each gives way by half; a braced champion does not give way at all.
+        const fixed = (a.brace ? 1 : 0) + (b.brace ? 1 : 0);
+        const ka = a.brace ? 0 : fixed ? 1 : 0.5;
+        const kb = b.brace ? 0 : fixed ? 1 : 0.5;
+        a.x -= (dx / d) * (m - d) * ka;
+        a.z -= (dz / d) * (m - d) * ka;
+        b.x += (dx / d) * (m - d) * kb;
+        b.z += (dz / d) * (m - d) * kb;
       }
     }
   }

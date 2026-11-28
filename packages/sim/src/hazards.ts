@@ -5,7 +5,7 @@ import { hurt, slow } from "./combat.ts";
 import type { Ctx } from "./context.ts";
 import { polylineDistance } from "./geometry.ts";
 import { TAU, type Vec2 } from "./math.ts";
-import type { MatchState, Rift } from "./state.ts";
+import { offGround, type MatchState, type Rift } from "./state.ts";
 
 const DEG = Math.PI / 180;
 // Generation limits (not balance): how hard to look for a valid crack before waiting, and how finely to measure gaps.
@@ -155,7 +155,7 @@ function updateRifts(ctx: Ctx): void {
   const erupting = state.rifts.filter((r) => r.phase === "erupt");
   for (const u of state.units) {
     if (u.dead) continue;
-    const airborne = u.kind === "champion" && !!u.leap;
+    const airborne = offGround(u);
     const over = !airborne && erupting.some((r) => polylineDistance(r.points, u.x, u.z) < cfg.halfWidth + u.radius * rules.areaBodyFactor);
     if (!over) {
       // Reset, so stepping onto an erupting rift hurts immediately.

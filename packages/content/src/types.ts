@@ -190,6 +190,8 @@ export interface WallAbility extends AbilityCommon {
  */
 export interface DashAbility extends AbilityCommon {
   kind: "dash";
+  /** The charge goes to the aim point: at least `minRange` (however close the cursor is), at most `maxRange`. */
+  minRange: number;
   maxRange: number;
   /** Seconds the full distance takes. */
   duration: number;
@@ -307,11 +309,11 @@ export type CompanionCommand =
   /** Sprints to the point; the first enemy champion touched takes onHit, then the companion fights for engageTime. */
   | { kind: "pounce"; maxRange: number; onHit: OnHit; engageTime: number; searchRange: number; searchEngageTime: number }
   /**
-   * Rolls in a straight line toward the point, bouncing off obstacles and the arena wall up to `bounces` times
+   * Rolls in a straight line toward the point (at least `minRange`), bouncing off obstacles and the arena wall up to `bounces` times
    * (each bounce adds `bounceExtra` meters to the roll). Enemies it runs into take onHit, knocked the way it rolls.
    * Where it stops it lies as cover for `coverTime`.
    */
-  | { kind: "roll"; maxRange: number; bounces: number; bounceExtra: number; onHit: OnHit; coverTime: number }
+  | { kind: "roll"; minRange: number; maxRange: number; bounces: number; bounceExtra: number; onHit: OnHit; coverTime: number }
   /**
    * Flies to the point and becomes a gravity well for `duration`: enemies within `radius` drift toward it at
    * `unitPull` m/s, crates are flung toward it at `cratePull` m/s (and hit enemies on the way, like any flying crate).

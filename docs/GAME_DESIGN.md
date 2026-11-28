@@ -118,11 +118,11 @@ Rules that follow from this:
 | Channel | Whirlwind | Unstoppable, damage pulses. |
 | Raised wall | Raise Wall, Colosseum | A wall (or a ring of them) that stands for a few seconds: blocks both sides, can be broken, can be slammed into. Telegraph: its footprint. |
 | Charge | Ram | A run along the ground that carries the first enemy in front of it: into a wall it is a slam, over a hole a fall. The charger falls too if he runs over a hole. |
-| Brace | Stoneskin | A second of taking nothing (no damage, no control) and not moving, then a burst that throws everyone back. The burst's area fills up as it comes. |
+| Brace | Stoneskin | A second of taking nothing (no damage, no control) and not moving (walking into him moves the walker), then a burst that throws everyone back. The burst's area fills up as it comes. |
 | Ground line | Shatter | A shock along a line: strikes the ground (cracks every tile it crosses), and bursts the caster's own wall if one stands on it. |
 | Lift and throw | Lift | Picks up the crate under the cursor; a second press throws it. No crate, no cast. |
 | Swap | Shift | Trades places with the unit or crate under the cursor, in plain sight. No target, no cast. |
-| Float | Float | Cannot be shoved or pulled, passes over holes and crates, cannot cast. Comes down where it ends. |
+| Float | Float | Off the ground, like a leap that can be steered: cannot be shoved, pulled or dragged, passes over holes, crates and erupting rifts, cannot cast. Comes down where it ends. |
 
 ### Status effects
 
@@ -213,7 +213,7 @@ Walls take the ability's damage number. The floor takes the ability's own `floor
 **The abyss.** Whatever has no floor under its centre falls, and a fall is **death on the spot**: no health, shield or counter matters. (Instant death is the rule *for now*; alternatives are in §8.)
 
 - Walking, blinking or landing a leap onto a hole or out through a gap: a fall.
-- A **knockback or a pull across a hole**, or out through a gap: a fall, credited to whoever did it. Where the wall section still stands, the same shove is a slam.
+- A **knockback or a pull across a hole**, or out through a gap: a fall, credited to whoever did it (so is a fall while being dragged by a Maelstrom or the Moon's well). Where the wall section still stands, the same shove is a slam.
 - A champion **in the air during a leap** is not falling: holes only matter where it lands. Landing on a hole is a fall, without the landing blow.
 - **Flying companions** (the Wisp) ignore holes. Walking ones (the Hound) fall when thrown or when the floor goes from under them, and come back after the usual 15 s on the nearest floor; on their own they walk along the edge of a hole, never into it.
 - Pillars, walls and crates fall with the tile under their centre (§2.2). The orb hovers and does not care.
@@ -295,11 +295,11 @@ HP 225 · speed 5.9 m/s · weight 1.25 (the heaviest: shoved 20% less). Rebuilds
 |---|---|---|---|
 | LMB | Maul | Melee cone | Wind-up 0.32 s (move ×0.8), range 3 m, ±55°, 16 dmg + fading snare 25% over 0.6 s, cd 0.42 s. Bats crates away (9 m/s: enough to hurt who they reach) |
 | RMB | Raise Wall | Raised wall | Wind-up 0.35 s, up to 7 m away, 3 m wide across the aim, 40 HP, stands 5 s, at most two (a third crumbles the oldest), cd 5 s |
-| Space | Ram | Charge | Up to 6 m in 0.3 s. First enemy: 12 dmg, carried to the end of the charge and 1.5 m further; **slam: stun 1 s, +10 dmg**. Shoves crates, cd 7 s |
+| Space | Ram | Charge | 2–6 m (to the cursor) at 20 m/s. First enemy: 12 dmg, carried to the end of the charge and 1.5 m further; **slam: stun 1 s, +10 dmg**. Shoves crates, cd 7 s |
 | Q | Stoneskin | Brace | 1 s: no damage, no control, no movement; then r 3 m: 6 dmg + knockback 3 m (slam). The answer to a Leap or a Meteor, cd 9.5 s |
 | E | Shatter | Ground line | Wind-up 0.4 s, 8 m long, 1.8 m wide, 22 dmg + slow 35% 1.2 s, **floor 50** on every tile it crosses (not the one he stands on). His own wall on the line bursts: r 3 m, 14 dmg + knockback 3.5 m away from the wall. cd 8 s |
 | R | Boulder | Companion command | See §2.1 |
-| X | Colosseum | Ring of walls | 100 energy, wind-up 0.4 s, up to 9 m away, r 4.5 m, ten pieces of 40 HP, 5 s. Inside, **slam damage ×2**, for everyone, Rook included |
+| X | Colosseum | Ring of walls | 100 energy, wind-up 0.4 s, up to 9 m away, r 4.5 m, ten pieces of 40 HP, 5 s. Inside, **slam damage ×2**, for everyone, Rook included. Pieces go up only where there is floor: at the edge the arena wall closes the ring, a hole leaves a gap |
 
 ### Tide (Прилив) — Moon priestess, manipulator
 
@@ -502,7 +502,7 @@ tests/           repo-wide guards (architecture rules)
 - 3D character pipeline: who makes models and animations (Mixamo, AI-generated, outsourced)?
 - Companions are summon-only now (§2.1). Does a companion that is on the field for 3–6 s per 25 energy still feel like *your* companion, or like one more ability with a model? Should the cheapest thing it does (the Wisp's sparks) go up to make the summon worth it?
 - Crates are ammunition that runs out (40 HP, no respawn). Four per round is little for Tide, whose Lift needs one: more crates on the arena, or a crate drop during the round?
-- Rook and Tide are first drafts. In bot batches (normal, 40 matches a pairing) Rook, as a melee champion, wins 45% against Fang, 30% against Ember and 43% against Tide; Tide wins 43% against Ember and 27% against Fang. Rook mirrors end in the abyss far more than anything else (22% ring-outs, 9% falls on their own): two crossing Shatters open the floor in the first seconds. Bots do not play walls, swaps or crates the way a person would, so these say more about the bots than about the kits: playtest before tuning.
+- Rook and Tide are first drafts. In bot batches (normal, 40 matches a pairing) Rook, as a melee champion, wins 47% against Fang, 45% against Ember and 40% against Tide; Tide wins 45% against Ember and 37% against Fang. Rook mirrors end in the abyss far more than anything else (24% ring-outs, 12% falls on their own): two crossing Shatters open the floor in the first seconds. Tide bots still fall on their own in 9% of mirror rounds. Bots do not play walls, swaps or crates the way a person would, so these say more about the bots than about the kits: playtest before tuning.
 - Tide's Shift moves two units at once: a mis-predicted swap will snap on the guest in online play. Not tested online yet.
 - 2v2: with four ground-strikers the floor may go too fast, and a Colosseum or a Maelstrom catches two. Is 100 HP per tile still right for four players? Should allies' walls block allies?
 - Slam frequency: with this obstacle density, are slams too common?

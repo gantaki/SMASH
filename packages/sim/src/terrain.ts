@@ -5,11 +5,11 @@ import { arena, getChampion } from "@smash/content";
 import { kill } from "./combat.ts";
 import type { Ctx } from "./context.ts";
 import { rimArc, solidAt } from "./floor.ts";
-import { championById, type Unit } from "./state.ts";
+import { championById, offGround, type Unit } from "./state.ts";
 
 /** Units that the floor does not concern right now: in the air mid-leap, floating, or a flying companion. */
 function airborne(ctx: Ctx, u: Unit): boolean {
-  if (u.kind === "champion") return !!u.leap || u.hover > 0;
+  if (u.kind === "champion") return offGround(u);
   const owner = championById(ctx.state, u.owner);
   return !!owner && !!getChampion(owner.champion).companion?.flying;
 }
@@ -44,7 +44,7 @@ export function updateTerrain(ctx: Ctx): void {
   // Pillars and walls drop with the tile under their centre; a crate also when it slides over a hole or out through a gap.
   for (const o of state.obstacles) {
     if (o.fallen || o.heldBy >= 0 || solidAt(state, o.x, o.z)) continue;
-    // A wood wall that is already broken cannot be rebuilt over a hole, but there is nothing left to fall.
+    // What is already broken (a wall, a crate) has nothing left to fall; the spot is just marked.
     const standing = o.alive;
     o.fallen = true;
     o.alive = false;
@@ -54,9 +54,10 @@ export function updateTerrain(ctx: Ctx): void {
 
   for (const u of state.units) {
     if (u.dead || airborne(ctx, u) || solidAt(state, u.x, u.z)) continue;
-    // Whoever is shoving or dragging the unit at this moment gets the credit.
-    const by = u.forced ? u.forced.source : -1;
+    // Whoever is shoving, pulling or dragging the unit at this moment gets the credit.
+    const by = u.forced && u.forced.source >= 0 ? u.forced.source : u.draggedBy;
     events.push({ t: "fall", unit: u.id, x: u.x, z: u.z, by });
     kill(ctx, u, by);
   }
+  for (const u of state.units) u.draggedBy = -1;
 }

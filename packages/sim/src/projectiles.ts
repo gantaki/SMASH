@@ -5,7 +5,7 @@ import { applyOnHit, damageFloor, damageObstacle, damageRim, damageStructuresInA
 import type { Ctx } from "./context.ts";
 import { rimPenetration } from "./floor.ts";
 import { obstaclePenetration } from "./geometry.ts";
-import { companionOf, creditOf, unitById, type Projectile, type Unit } from "./state.ts";
+import { companionOf, creditOf, offGround, unitById, type Projectile, type Unit } from "./state.ts";
 import type { ProjectileEndReason } from "./events.ts";
 
 const DEG = Math.PI / 180;
@@ -162,7 +162,7 @@ export function updateGrounds(ctx: Ctx): void {
       // A whirl: enemies inside are dragged toward the middle until it goes off.
       if (g.drag > 0) {
         for (const t of state.units) {
-          if (t.team === g.team || t.dead || !movable(t) || (t.kind === "champion" && t.leap)) continue;
+          if (t.team === g.team || t.dead || !movable(t) || offGround(t)) continue;
           const dx = g.x - t.x;
           const dz = g.z - t.z;
           const d = Math.hypot(dx, dz);
@@ -170,6 +170,7 @@ export function updateGrounds(ctx: Ctx): void {
           const move = Math.min(d - DRAG_STOP, g.drag * dt);
           t.x += (dx / d) * move;
           t.z += (dz / d) * move;
+          t.draggedBy = g.owner;
         }
       }
       continue;

@@ -28,7 +28,7 @@ import {
 } from "./combat.ts";
 import { commandCompanion } from "./companions.ts";
 import type { Ctx } from "./context.ts";
-import { rimPenetration, rimPoint, tileAt } from "./floor.ts";
+import { rimPenetration, rimPoint, solidAt, tileAt } from "./floor.ts";
 import { blocker, obstacleDistance, obstaclePenetration, reach, segmentHitsObstacle } from "./geometry.ts";
 import { TAU, angleDiff, segmentDistance } from "./math.ts";
 import { spawnProjectile } from "./projectiles.ts";
@@ -332,7 +332,7 @@ const behaviors: { [K in AbilityKind]: Behavior<K> } = {
       d = 1;
     }
     const speed = a.maxRange / a.duration;
-    u.dash = { slot, vx: (dx / d) * speed, vz: (dz / d) * speed, time: Math.max(MIN_DASH, Math.hypot(p.x - u.x, p.z - u.z)) / speed, hit: false };
+    u.dash = { slot, vx: (dx / d) * speed, vz: (dz / d) * speed, time: Math.max(a.minRange, Math.hypot(p.x - u.x, p.z - u.z)) / speed, hit: false };
     u.mvx = u.mvz = 0;
   },
 
@@ -404,7 +404,10 @@ const behaviors: { [K in AbilityKind]: Behavior<K> } = {
     const halfWidth = a.radius * Math.tan(Math.PI / a.segments) + a.halfDepth;
     for (let k = 0; k < a.segments; k++) {
       const angle = (k * TAU) / a.segments;
-      raiseWall(ctx, u, a.id, p.x + Math.sin(angle) * a.radius, p.z + Math.cos(angle) * a.radius, angle, halfWidth, a.halfDepth, a.hp, a.duration);
+      const x = p.x + Math.sin(angle) * a.radius;
+      const z = p.z + Math.cos(angle) * a.radius;
+      // Only where there is floor to stand on: near the edge the arena wall closes the ring, a hole leaves a gap.
+      if (solidAt(ctx.state, x, z)) raiseWall(ctx, u, a.id, x, z, angle, halfWidth, a.halfDepth, a.hp, a.duration);
     }
     const id = ctx.state.nextId++;
     ctx.state.arenas.push({ id, owner: u.id, x: p.x, z: p.z, radius: a.radius, time: a.duration, slamMultiplier: a.slamMultiplier });
@@ -455,8 +458,6 @@ const behaviors: { [K in AbilityKind]: Behavior<K> } = {
   },
 };
 
-/** A charge covers at least this distance, however close the cursor is. */
-const MIN_DASH = 2;
 /** A line ability's footprint on the floor: sampled every LINE_STEP meters, across LINE_SPREAD of its half-width. */
 const LINE_STEP = 0.4;
 const LINE_SPREAD = 0.7;

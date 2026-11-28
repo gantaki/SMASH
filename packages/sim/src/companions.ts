@@ -8,17 +8,17 @@ import { nearestSafe, rimPenetration, safeAt } from "./floor.ts";
 import { clearLine, obstaclePenetration, reach } from "./geometry.ts";
 import { angleDiff, type Vec2 } from "./math.ts";
 import { spawnProjectile } from "./projectiles.ts";
-import { championById, enemiesOf, resetCompanion, unitById, type ChampionUnit, type CompanionUnit, type Unit } from "./state.ts";
+import { championById, enemiesOf, offGround, resetCompanion, unitById, type ChampionUnit, type CompanionUnit, type Unit } from "./state.ts";
 
 // Path-finding and presentation helpers (not balance): how long to keep sliding around an obstacle, turn smoothing.
 const SLIDE_TIME = 0.6;
 const TURN_RATE = 12;
 /** A companion that has not reached its point in this many times the direct trip (plus a second) gives up: the way is cut off. */
 const GO_PATIENCE = 2;
-/** A roll covers at least this distance, however close the cursor is. */
-const ROLL_MIN = 4;
 /** How far ahead of its centre a rolling companion looks for the edge of a hole (less than the gap kept to the arena wall). */
 const ROLL_LOOK = 0.3;
+/** Room a flying companion keeps between itself and an obstacle it was sent onto: the pad of the line-of-sight test. */
+const SIGHT_PAD = 0.4;
 /** Extra reach when a rolling companion runs into someone. */
 const ROLL_PAD = 0.15;
 /** Things pulled by a gravity well stop this close to it. */
@@ -62,13 +62,21 @@ export function commandCompanion(ctx: Ctx, c: CompanionUnit, owner: ChampionUnit
     const d = Math.hypot(dx, dz);
     c.rollX = d > 0.05 ? dx / d : Math.sin(owner.face);
     c.rollZ = d > 0.05 ? dz / d : Math.cos(owner.face);
-    c.travel = Math.max(ROLL_MIN, d);
+    c.travel = Math.max(cmd.minRange, d);
     c.bounces = 0;
     c.rolledOver = [];
     c.mode = "roll";
   } else {
     // A walking companion sent onto a hole goes to the nearest floor instead.
     if (!def.flying && !safeAt(state, t.x, t.z)) t = nearestSafe(state, t.x, t.z) ?? t;
+    // A flying one can hold a point over anything, but from inside a wall or a pillar it would see nothing: it
+    // takes the nearest spot beside it.
+    if (def.flying) {
+      for (const o of state.obstacles) {
+        const pen = obstaclePenetration(o, t.x, t.z, c.radius + SIGHT_PAD);
+        if (pen) t = { x: t.x + pen.nx * pen.depth, z: t.z + pen.nz * pen.depth };
+      }
+    }
     c.mode = "go";
     c.modeTime = (Math.hypot(t.x - c.x, t.z - c.z) / def.commandSpeed) * GO_PATIENCE + 1;
   }
@@ -178,7 +186,7 @@ function well(ctx: Ctx, c: CompanionUnit, def: CompanionDef, owner: ChampionUnit
   const cmd = def.command;
   if (cmd.kind !== "well" || ctx.state.phase !== "fight") return;
   for (const e of enemies) {
-    if (!movable(e) || (e.kind === "champion" && e.leap)) continue;
+    if (!movable(e) || offGround(e)) continue;
     const dx = c.x - e.x;
     const dz = c.z - e.z;
     const d = Math.hypot(dx, dz);
@@ -186,6 +194,7 @@ function well(ctx: Ctx, c: CompanionUnit, def: CompanionDef, owner: ChampionUnit
     const move = Math.min(d - WELL_STOP, cmd.unitPull * ctx.dt);
     e.x += (dx / d) * move;
     e.z += (dz / d) * move;
+    e.draggedBy = owner.id;
   }
   for (const o of ctx.state.obstacles) {
     if (o.kind !== "crate" || !o.alive) continue;

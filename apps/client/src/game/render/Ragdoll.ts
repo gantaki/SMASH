@@ -3,6 +3,7 @@
 // Position-based dynamics on a handful of points; purely cosmetic (Math.random is fine), never touches the sim.
 
 import * as THREE from "three";
+import { FLOOR_DEPTH } from "./Floor.ts";
 
 export const RAGDOLL = {
   gravity: 24,
@@ -27,7 +28,7 @@ export const RAGDOLL = {
   /** Normal speed above which hitting something counts as a slam (dust, sound). */
   slamSpeed: 3.2,
   /** A point this far below the walking surface is under the floor slabs: nothing holds it up any more. */
-  slab: 1.1,
+  slab: FLOOR_DEPTH,
   /** Depth at which a body that went into the abyss is out of sight and stops being simulated. */
   abyss: 60,
   /** A champion that fell keeps this much of its speed sideways, and gets this much of a hop, as it goes down. */

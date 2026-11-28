@@ -93,6 +93,11 @@ interface UnitBase {
   slowFading: boolean;
   root: number;
   forced: Forced | null;
+  /**
+   * Champion whose whirl or gravity well moved this unit this tick, or -1. Unlike `forced` it is not a movement
+   * of its own; it only says who gets the credit if the unit ends up in the abyss. Cleared every tick (terrain.ts).
+   */
+  draggedBy: number;
 }
 
 export interface CastState {
@@ -398,6 +403,7 @@ export function resetChampion(u: ChampionUnit, x: number, z: number, face: numbe
     slowFading: false,
     root: 0,
     forced: null,
+    draggedBy: -1,
     energy: 0,
     cooldowns: zeroCooldowns(),
     move: { x: 0, z: 0 },
@@ -450,6 +456,7 @@ export function resetCompanion(c: CompanionUnit, owner: ChampionUnit, away = fal
     slowFading: false,
     root: 0,
     forced: null,
+    draggedBy: -1,
     respawn: 0,
     mode: "go",
     modeTime: 0,
@@ -636,6 +643,9 @@ export const championOfTeam = (state: MatchState, team: Team): ChampionUnit =>
   state.units.find((u): u is ChampionUnit => u.kind === "champion" && u.team === team)!;
 
 /** The champion of a player slot. */
+/** Off the ground: in the arc of a leap, or floating. Holes, rifts and sliding crates pass under such a champion. */
+export const offGround = (u: Unit): boolean => u.kind === "champion" && (!!u.leap || u.hover > 0);
+
 export const championOfSlot = (state: MatchState, slot: number): ChampionUnit =>
   state.units.find((u): u is ChampionUnit => u.kind === "champion" && u.slot === slot)!;
 

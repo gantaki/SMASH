@@ -2,7 +2,7 @@
 
 import { arena, getChampion, rules, type OnHit } from "@smash/content";
 import type { Ctx } from "./context.ts";
-import { floorTiles, rimPenetration, rimPoint, tileAt } from "./floor.ts";
+import { floorTiles, rimPenetration, rimPoint, solidAt, tileAt } from "./floor.ts";
 import { obstacleDistance, obstaclePenetration } from "./geometry.ts";
 import { championById, creditOf, unitById, type ChampionUnit, type CompanionUnit, type Obstacle, type Unit } from "./state.ts";
 
@@ -10,6 +10,8 @@ export type Target = Unit | "orb";
 
 /** Gap left between a champion and the crate it puts down or throws (numerical, so they do not start overlapped). */
 const HELD_GAP = 0.15;
+/** Where a released crate goes when the spot in front is taken: angles from the facing, tried in this order. */
+const RELEASE_TURNS = [0, Math.PI / 2, -Math.PI / 2, Math.PI, Math.PI / 4, -Math.PI / 4, (3 * Math.PI) / 4, (-3 * Math.PI) / 4];
 
 export interface HurtOptions {
   /** Damage over time, zone, slams, counter punish: cannot be countered and does not shake the screen. */
@@ -146,8 +148,16 @@ export function releaseHeld(ctx: Ctx, u: ChampionUnit, dx = Math.sin(u.face), dz
   o.heldBy = -1;
   o.alive = true;
   const reach = u.radius + o.radius + HELD_GAP;
-  o.x = u.x + dx * reach;
-  o.z = u.z + dz * reach;
+  // In front of the holder, unless that spot is beyond the arena wall, inside an obstacle or over the edge: then
+  // the nearest free spot around the holder, so a crate is never passed through a wall.
+  const free = (x: number, z: number): boolean =>
+    solidAt(ctx.state, x, z) &&
+    !rimPenetration(ctx.state, x, z, rules.obstacles.crateWallMargin) &&
+    !ctx.state.obstacles.some((q) => q !== o && obstaclePenetration(q, x, z, o.radius));
+  const facing = Math.atan2(dx, dz);
+  const turn = RELEASE_TURNS.find((t) => free(u.x + Math.sin(facing + t) * reach, u.z + Math.cos(facing + t) * reach)) ?? 0;
+  o.x = u.x + Math.sin(facing + turn) * reach;
+  o.z = u.z + Math.cos(facing + turn) * reach;
   o.vx = dx * speed;
   o.vz = dz * speed;
   o.pusher = speed > 0 ? u.id : -1;

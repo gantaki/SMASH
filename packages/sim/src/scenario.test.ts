@@ -1025,6 +1025,21 @@ describe("companions are summoned", () => {
     expect(pet.respawn).toBe(0);
   });
 
+  it("a flying sentry sent onto a wall takes a spot beside it, from where it can see", () => {
+    const s = scene("ember", "fang", { companions: true });
+    const pet = companionOf(s.state, s.a)!;
+    place(s.a, 0, 12);
+    place(s.b, 0, 9);
+    s.a.energy = rules.energy.max;
+    // The middle of the wood wall at (0, 5).
+    s.press(0, "companion", 0, 5);
+    const ev = s.run(2.5);
+    expect(pet.mode).toBe("sentry");
+    const wall = s.state.obstacles.find((o) => o.kind === "wood" && o.z === 5)!;
+    expect(Math.abs(pet.z - wall.z)).toBeGreaterThan(wall.halfDepth);
+    expect(of(ev, "companionAttack").length).toBeGreaterThan(0);
+  });
+
   it("cannot be summoned for a while after it is killed, and is away again when the next round starts", () => {
     const s = scene("fang", "ember", { companions: true });
     const pet = companionOf(s.state, s.a)!;
@@ -1205,6 +1220,18 @@ describe("Rook", () => {
     expect(s.b.z).toBeLessThan(6 - 1.5);
   });
 
+  it("holds his ground while braced: walking into him pushes the walker back, not him", () => {
+    const s = scene("rook", "fang");
+    place(s.a, -4.5, 8);
+    place(s.b, -4.5, 5);
+    s.press(0, "q", -4.5, 5);
+    s.run(0.05);
+    s.inputs[1].move = { x: 0, z: 1 };
+    s.run(skin.duration - 0.2);
+    expect(s.a.z).toBe(8);
+    expect(s.b.z).toBeLessThanOrEqual(8 - s.a.radius - s.b.radius + 1e-6);
+  });
+
   it("cracks the floor along a line, and bursts his own wall on it into shards", () => {
     const s = scene("rook", "ember");
     place(s.a, -4.5, 13);
@@ -1279,6 +1306,19 @@ describe("Rook", () => {
     s.run(colosseum.duration);
     expect(s.state.obstacles.some((o) => o.kind === "wall")).toBe(false);
     expect(s.state.arenas).toHaveLength(0);
+
+    // At the edge of the arena only the pieces that have floor under them go up; none is raised just to fall.
+    const e = scene("rook", "ember");
+    place(e.a, 0.5, 12);
+    place(e.b, -10, -10);
+    e.a.energy = rules.energy.max;
+    e.press(0, "ultimate", 0.5, 17);
+    const edge = e.run(colosseum.castTime! + 0.2);
+    const raised = e.state.obstacles.filter((o) => o.kind === "wall");
+    expect(raised.length).toBeGreaterThan(0);
+    expect(raised.length).toBeLessThan(colosseum.segments);
+    expect(raised.every((o) => o.alive && solidAt(e.state, o.x, o.z))).toBe(true);
+    expect(of(edge, "obstacleFall")).toHaveLength(0);
   });
 });
 
@@ -1333,6 +1373,25 @@ describe("Tide", () => {
     expect(Math.hypot(crate.x - s.a.x, crate.z - s.a.z)).toBeLessThan(2);
   });
 
+  it("never passes a crate through the arena wall: held at the wall, it is put down beside her", () => {
+    const s = scene("tide", "fang");
+    const edge = arena.radius - arena.wallMargin;
+    place(s.a, 0.5, edge - 2);
+    place(s.b, 10, -10);
+    const crate = crateAt(s, 0.5, edge - 4);
+    s.press(0, "secondary", 0.5, edge - 4);
+    s.run(lift.castTime! + 0.1);
+    expect(s.a.held?.id).toBe(crate.id);
+    // Up against the wall, looking out over it.
+    s.inputs[0].move = { x: 0, z: 1 };
+    s.inputs[0].aim = { x: 0.5, z: 40 };
+    const ev = s.run(lift.holdTime + 0.3);
+    expect(of(ev, "release")).toHaveLength(1);
+    expect(of(ev, "obstacleFall")).toHaveLength(0);
+    expect(crate.alive).toBe(true);
+    expect(Math.hypot(crate.x, crate.z)).toBeLessThan(arena.radius);
+  });
+
   it("trades places with an enemy or a crate in sight, and does not fire without a target", () => {
     const s = scene("tide", "fang");
     place(s.a, -4.5, 12);
@@ -1377,7 +1436,16 @@ describe("Tide", () => {
     h.press(0, "q", -4.5, 6);
     h.run(0.05);
     h.state.floor.hp[tileAt(-4.5, 8)] = 0;
-    expect(of(h.run(float.duration - 0.2), "fall")).toHaveLength(0);
+    // Nor does an erupting rift under her burn her: she is off the ground, like someone mid-leap.
+    h.state.suddenDeath = { active: true, startedAt: 0, zoneRadius: arena.radius, pairsSpawned: 0, nextRiftAt: 1e9 };
+    h.state.rifts.push({ id: 900, pair: 0, closing: false, points: [{ x: -6, z: 8 }, { x: -3, z: 8 }], phase: "erupt", time: 5, total: 5, age: 1 });
+    // (The same rift does burn someone standing on it.)
+    place(h.b, -5.5, 8);
+    h.state.floor.hp[tileAt(-5.5, 8)] = arena.floor.hp;
+    const over = h.run(float.duration - 0.2);
+    expect(of(over, "fall")).toHaveLength(0);
+    expect(h.a.hp).toBe(h.a.maxHp);
+    expect(h.b.hp).toBeLessThan(h.b.maxHp);
     expect(of(h.run(0.4), "fall")[0]!.unit).toBe(h.a.id);
   });
 
@@ -1409,6 +1477,18 @@ describe("Tide", () => {
     expect(of(ev, "crateHit").some((e) => e.id === crate.id && e.target === s.b.id)).toBe(true);
     expect(of(ev, "companionLeave")).toHaveLength(1);
     expect(pet.dead).toBe(true);
+  });
+
+  it("gets the credit for a fall she drags someone into, with the Maelstrom or the Moon", () => {
+    const s = scene("tide", "fang");
+    place(s.a, -4.5, 13);
+    place(s.b, -4.5 + 3, 5);
+    // A hole between the enemy and the middle of the whirl.
+    s.state.floor.hp[tileAt(-4.5 + 1.4, 5)] = 0;
+    s.a.energy = rules.energy.max;
+    s.press(0, "ultimate", -4.5, 5);
+    const ev = s.run(maelstrom.castTime! + maelstrom.delay);
+    expect(of(ev, "fall")[0]).toMatchObject({ unit: s.b.id, by: s.a.id });
   });
 
   it("Maelstrom drags enemies to its middle, then the middle of the floor goes", () => {
