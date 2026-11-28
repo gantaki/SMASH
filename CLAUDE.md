@@ -34,7 +34,7 @@ pnpm sim:batch   # headless bot-vs-bot batch (rule 6); args: [matches] [easy|nor
 - Code, comments, docs and commit messages in English.
 - Spine VFX: keep `.json`/`.skel` + `.atlas` + `.png` together in `assets/vfx/<effect>/`.
 - Sounds: `assets/sfx/<id>.mp3` + an entry in `apps/client/src/audio/manifest.ts`; abilities reference ids through `sfx`.
-- Painted art: `assets/art/portraits/<championId>.webp` and `assets/art/abilities/<iconId>.webp` + the id in `apps/client/src/ui/art.ts`. New art must match the existing style: follow `assets/art/README.md`.
+- Painted art: `assets/art/portraits/<championId>.webp` and `assets/art/abilities/<iconId>.webp` + the id in `apps/client/src/ui/art.ts`. Every champion owns a palette and all art is hand-drawn ink style: rules in `docs/GAME_DESIGN.md` §3 "Character design guide", generation recipe in `assets/art/README.md`.
 - UI text is Russian (`nameRu`, `descriptionRu`); identifiers, comments and docs stay English.
 - Adding champions, ability kinds, companions: recipe in `docs/GAME_DESIGN.md` §3 "Adding content".
 - The dev client exposes the running `Game` as `window.__smash` for Playwright checks; look at a change in the browser before calling it done.

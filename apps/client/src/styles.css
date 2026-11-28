@@ -613,11 +613,11 @@ a,
   /* Starts where the champion column ends and never reaches under the play card. */
   left: calc(clamp(16px, 3.4vw, 48px) + 470px);
   bottom: 0;
-  width: min(56vh, 573px, 100vw - 880px);
+  width: min(60vh, 620px, 100vw - 920px);
   pointer-events: none;
   filter: drop-shadow(0 20px 40px rgba(0, 0, 0, 0.55));
-  -webkit-mask-image: linear-gradient(0deg, transparent, #000 22%);
-  mask-image: linear-gradient(0deg, transparent, #000 22%);
+  -webkit-mask-image: linear-gradient(0deg, transparent, #000 16%);
+  mask-image: linear-gradient(0deg, transparent, #000 16%);
   animation: portrait-in 0.35s ease-out;
 }
 @keyframes portrait-in {

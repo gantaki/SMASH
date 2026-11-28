@@ -219,9 +219,26 @@ HP 220 · speed 6.4 m/s. Closes distance, hooks, doesn't let go.
 
 Training target: 300 HP, no abilities, not pickable.
 
+### Character design guide
+
+Rules for inventing a champion and for drawing one. The art recipe (model, prompts, reference images) is in `assets/art/README.md`.
+
+- **Anyone can be a champion.** Humans are not the default: beasts, constructs, spirits, undead, things with too many arms are all welcome, as long as the silhouette reads from the top-down camera and the kit fills the seven slots. (Ember and Fang happen to be human and stay human.)
+- **One palette per champion, owned by nobody else.** A palette is two or three colours plus one metal. Everything the champion owns uses it: clothes and gear in the portrait, the 3D model, the ability icons and their background, and the signature `color` in content that tints telegraphs, VFX and UI. Two champions never share a dominant hue, a metal or an icon background; if a new palette sits next to an existing one on the colour wheel, pick another. Do not use the team-marker cyan and red as a champion's glow colour.
+
+  | Champion | Palette | Metal | Icon background | Signature `color` |
+  |---|---|---|---|---|
+  | Ember | crimson, ember orange, flame yellow; violet lining | dark copper | deep wine-maroon | `#ff7a2b` |
+  | Fang | cold steel, deep navy blue | polished gold | dark slate-navy | `#ffc93c` |
+
+- **Hand-drawn look.** Portraits and icons are inked illustrations, not paintings and not renders: bold black outlines with a lively, variable line weight, angular brush-pen strokes, hatching in the shadows, flat saturated fills with hard-edged cel shading, a little paper grain.
+- **Heroic exaggeration.** Proportions are pushed, never realistic. Women are drawn as glamorous heroines: adult, with a pronounced feminine figure and a deep neckline. Men get the same treatment in their own key (broad, heavy, scarred). Non-human champions exaggerate whatever makes them that creature.
+- **Portrait**: waist-up, three-quarter view turned slightly left, looking at the viewer, transparent background, cropped by the bottom edge only.
+- **Ability icons**: one bold motif per icon on the champion's flat icon background. The seven icons of one kit share a palette, so they must differ in silhouette (a diagonal dart, a round swirl, chevrons, a flat ring, a shield, a creature, a vertical rock); judge them at 52 px next to each other, not at full size. An ability that shows the champion's gear shows the same gear as the portrait.
+
 ### Adding content
 
-- **New champion from existing mechanics**: add `packages/content/src/champions/<id>.ts` (stats, seven abilities, optional companion, bot profile), register it in `packages/content/src/index.ts`, add a model in `apps/client/src/game/render/Units.ts` and an emblem and line icons in `ui/icons.ts`. Painted art is optional and comes later: a portrait and ability icons in `assets/art/`, registered in `ui/art.ts` (the menu and the HUD fall back to the line icons without it; the recipe for matching the style is in `assets/art/README.md`). The sim, the bot (it decides per ability *kind*), the HUD, telegraphs and the menu pick it up from the data. `content.test.ts` checks the kit is complete and dodgeable.
+- **New champion from existing mechanics**: add `packages/content/src/champions/<id>.ts` (stats, seven abilities, optional companion, bot profile), register it in `packages/content/src/index.ts`, add a model in `apps/client/src/game/render/Units.ts` and an emblem and line icons in `ui/icons.ts`. Painted art is optional and comes later: a portrait and ability icons in `assets/art/`, registered in `ui/art.ts` (the menu and the HUD fall back to the line icons without it). Decide the champion's palette first: see the character design guide above. The sim, the bot (it decides per ability *kind*), the HUD, telegraphs and the menu pick it up from the data. `content.test.ts` checks the kit is complete and dodgeable.
 - **New mechanic**: add a `kind` to the `Ability` union in `types.ts` and one function to `behaviors` in `packages/sim/src/abilities.ts` (TypeScript refuses to compile until every kind has one). Add a scenario test, a bot rule in `bot.ts` if bots should use it, and a telegraph in `Fx.ts` if it has a wind-up shape of its own.
 - **New on-hit effect**: add a field to `OnHit` and handle it in `applyOnHit` (`combat.ts`).
 - **New companion**: a `CompanionDef` in `companions.ts` (attack: ranged / melee; command: sentry / pounce).
@@ -340,6 +357,7 @@ tests/           repo-wide guards (architecture rules)
 ## 6. Art & VFX Direction
 
 - **Camera-first design**: everything must read from ~60° pitch at gameplay zoom.
+- Character look, palettes, portraits and ability icons: the character design guide in §3.
 - Stylized 3D characters with strong silhouettes from above. Team-colored ring under the feet and a facing arrow.
 - Arena look (prototype): sun-baked sandstone, warm dusk light, stone pillars with braziers.
 - **VFX pipeline**: BoneGyre → Spine 4.2 export → `spine-threejs`. Effects are camera-facing billboards, mirrored to the hit direction, drawn on top of characters.
