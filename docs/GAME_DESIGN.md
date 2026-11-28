@@ -68,8 +68,8 @@ Design intent: the zone pushes players together, rifts cut the remaining space i
 | RMB | Secondary ability |
 | Space | Mobility |
 | Q / E | Abilities |
-| R / middle mouse | Command the companion (to the cursor) |
-| F | Ultimate (costs 100 energy) |
+| R / middle mouse | Command the companion (to the cursor); costs 25 energy |
+| X | Ultimate (costs 100 energy) |
 | C | Cancel your own wind-up or channel |
 | Esc / P | Pause (local) / menu |
 | M | Mute |
@@ -103,7 +103,7 @@ Rules that follow from this:
 ### Resources
 
 - **HP**: per champion (170–220 in the prototype).
-- **Energy (0–100)**: +0.55 per point of damage dealt, +1.2/s passive. Resets every round. Ultimate costs 100.
+- **Energy (0–100)**: +0.55 per point of damage dealt, +1.2/s passive. Resets every round. The bar is cut into **four quarters**: a **companion command costs one quarter (25)**, the **ultimate costs the whole bar (100)**. So the bar is a choice: four commands, or one ultimate, or something in between. A command also keeps its own cooldown. The HUD shows the quarters on the bar, dims a slot that cannot be paid for, and draws the companion's slot round and the ultimate's bigger and framed.
 
 ### Ability archetypes
 
@@ -126,7 +126,7 @@ A stun or forced movement **cancels a cast in progress**. Unstoppable ignores st
 
 Each champion has a **unique companion** (more per champion later). Design rule: the companion is an **extension of the player's kit, not a second fighter**, so the duel stays a duel.
 
-- **Default behaviour** without input (follow, guard, auto-attack), plus **one command key** (R / middle mouse): send it to the cursor.
+- **Default behaviour** without input (follow, guard, auto-attack), plus **one command key** (R / middle mouse): send it to the cursor. A command costs **25 energy** (a quarter of the bar) and has a cooldown; the default behaviour is free.
 - **Vulnerable**: has HP, dies, returns after **15 s**; the killer gains **+20 energy**. Enemy companions are valid targets for every ability.
 - **Blocks enemy projectiles**, so it can be used as a shield.
 - **Synergies** with its owner's abilities are where the depth comes from.
@@ -134,8 +134,8 @@ Each champion has a **unique companion** (more per champion later). Design rule:
 
 | Companion | Owner | HP | Default | Command | Synergy |
 |---|---|---|---|---|---|
-| **Wisp** (Огонёк) | Ember | 40 | Floats behind Ember, shoots sparks (4 dmg, every 1.2 s, range 8 m) | Flies to a point (max 11 m) and holds it for 6 s as a sentry (every 0.7 s, range 9 m). cd 5 s | **Fireball through the Wisp splits into 3** (12 dmg + burn 3/s for 2 s each) |
-| **Hound** (Гончая) | Fang | 55 | Follows Fang, engages enemies within 4 m of him, bites 5 dmg/s | Sprints to a point (max 11 m); on contact bites 8 dmg and **pins (root) 0.8 s**, then fights for 3 s. cd 7 s | **Harpoon hitting the Hound pulls Fang to it** (gap closer) |
+| **Wisp** (Огонёк) | Ember | 40 | Floats behind Ember, shoots sparks (4 dmg, every 1.3 s, range 8 m) | Flies to a point (max 11 m) and holds it for 6 s as a sentry (every 0.8 s, range 9 m). 25 energy, cd 4.4 s | **Fireball through the Wisp splits into 3** (12 dmg + burn 3/s for 2 s each) |
+| **Hound** (Гончая) | Fang | 55 | Follows Fang, engages enemies within 4 m of him, bites 5 dmg/s | Sprints to a point (max 11 m); on contact bites 8 dmg and **pins (root) 0.8 s**, then fights for 3 s. 25 energy, cd 6 s | **Harpoon hitting the Hound pulls Fang to it** (gap closer) |
 
 ### 2.2 Obstacles (prototype, under playtest)
 
@@ -150,6 +150,29 @@ Material tells the rule at a glance:
 **Slam rule:** any knockback that drives a target into an obstacle or the arena wall stuns for **0.6 s** and deals **10 dmg** (abilities can raise both). Pulls do not slam.
 
 Prototype layout: 4 stone pillars at `(±7.5, ±7.5)`; wood walls 4 × 0.7 m at `(0, ±5)` and `(±12, 0)` (rotated 90°); crates at `(±3.5, 0)` and `(−12, 7)`, `(12, −7)`. Point-symmetric for fairness.
+
+### 2.3 Knockback: the core mechanic
+
+Moving the enemy is the game's signature interaction: where you stand relative to walls, rifts and the edge matters as much as your health. A hit that deals 10 damage and shoves 3 m is often worth more than a hit that deals 25.
+
+What a knockback or a pull can do with the arena:
+
+| Push the enemy into… | Result | State |
+|---|---|---|
+| A wall, pillar, wood wall or crate | **Slam**: stun 0.6 s + 10 dmg, more for abilities that say so (§2.2) | in the game |
+| An erupting **rift** | Rift damage every 0.3 s while they stand on it | in the game |
+| Outside the **sudden-death zone** | Zone damage every 0.5 s until they walk back | in the game |
+| Their own or your delayed AoE | They eat the explosion they were dodging | in the game |
+| Over the **arena edge or into a pit** (ring-out) | Out for the round | **planned**: needs arenas with open edges; rules open (§8) |
+
+Rules that keep it fair:
+
+- **Every kit can move an enemy** at least once (a knockback or a pull), and every kit has an answer: a mobility skill on Space and a defensive skill on Q (§3). `content.test.ts` checks the first half.
+- Knockbacks are telegraphed like every other attack: a wind-up, a cone or circle on the ground, a sound.
+- `weight` divides the distance: Fang (1.2) flies 17% less than the number on the ability, Ember (0.9) 11% further. `unstoppable` ignores knockback and pull entirely.
+- Forced movement cancels a cast in progress, so a shove is also an interrupt.
+- Typical distance is 3–5 m: enough to cross one hazard line, not enough to cross the arena.
+- Arenas are built for it: something to be pushed into should be within about 6 m of any spot where fights happen (pillars, walls, later edges and pits).
 
 ### Readability rules
 
@@ -173,55 +196,70 @@ A champion is **four core stats plus a kit**. Data lives in `packages/content/sr
 | `hp` | Health pool | 170 squishy · 195 average · 220 tank |
 | `moveSpeed` | Top speed, m/s (the arena is 36 m across) | about 6; 5.5 slowest · 6.5 fastest (tested) |
 | `radius` | Collision and hit radius | 0.7 m |
-| `weight` | Divides knockback distance | 1 = normal, above 1 = heavy |
+| `weight` | Divides knockback distance (§2.3) | 0.9 light · 1 normal · 1.2 heavy; allowed 0.8–1.3 |
 
-Every kit fills the same seven slots, so champions stay comparable and opponents know what to expect:
+Every kit fills the same seven slots, and a slot means the same thing on every champion, so a player who knows one champion knows where the escape and the answer are on all of them, and an opponent knows what to expect. These are strong defaults ("almost always"), not laws: break one only when the kit still has an escape, a defensive answer and a way to move an enemy.
 
-| Slot | Key | Role | Typical cooldown |
-|---|---|---|---|
-| primary | LMB | Spammable basic attack; the main energy source | 0.3–0.5 s after a 0.2–0.4 s wind-up |
-| secondary | RMB | Heavier skill-shot | 4.5–6 s |
-| mobility | Space | Escape or gap closer | 7 s |
-| q | Q | Control (stun, knockback) | 8 s |
-| e | E | Defence (shield, counter) | 9.5 s |
-| companion | R | One command for the companion | 4.5–6 s |
-| ultimate | F | Costs 100 energy | none |
+| Slot | Key | Role | Usual forms | Typical cooldown |
+|---|---|---|---|---|
+| primary | LMB | Basic attack: spammable, the main energy source | projectile, melee cone | 0.3–0.5 s after a 0.2–0.4 s wind-up |
+| secondary | RMB | Alternative attack or the signature skill-shot | heavy projectile, hook | 4.5–6 s |
+| mobility | Space | Escape or repositioning | blink, leap, dash; sometimes a self-buff (haste, brief immunity) | 7 s |
+| q | Q | **Defence**: the answer to the enemy's move | counter, parry, reflecting shield, absorb shield, heal | 9.5 s |
+| e | E | **Strike or area skill**; usually the kit's knockback or control | bash, ground AoE, nova, stun | 8 s |
+| companion | R | One command for the companion; costs a quarter of the energy bar (25) | sentry, pounce | 4.5–6 s |
+| ultimate | X | Costs the whole energy bar (100) | big AoE, channel | none |
+
+Where the knockback sits is a choice: usually on E (Fang's Shield Bash), sometimes on the defensive Q as a "get off me" (Ember's Flame Shield pushes while it shields, so her E is free to be a stun). What matters is that the kit has one (§2.3).
 
 ### Ember (Искра) — Fire Mage, ranged
 
-HP 170 · speed 6.0 m/s. Kites, applies burn, punishes bad positioning.
+HP 170 · speed 6.0 m/s · weight 0.9 (light: shoved 11% further). Kites, applies burn, punishes bad positioning.
 
 | Slot | Ability | Behaviour | Starting values |
 |---|---|---|---|
 | LMB | Fire Bolt | Projectile | Wind-up 0.3 s (move ×0.55), 19.3 m/s, range 13 m, 11 dmg + fading snare 25% over 0.7 s, cd 0.31 s |
 | RMB | Fireball | Heavy projectile | Wind-up 0.6 s (move ×0.4), 14.5 m/s, range 15 m, 20 dmg + burn 4/s for 3 s, cd 4.4 s. Splits into 3 when passing through the Wisp |
 | Space | Blink | Teleport to cursor | Up to 7 m, cd 7 s |
-| Q | Ring of Fire | Delayed AoE at cursor | Wind-up 0.2 s, max range 11 m, r 2.6 m, delay 0.85 s, 18 dmg + stun 0.8 s, cd 8 s |
-| E | Flame Shield | Knockback + shield | Enemies within 3.4 m: 6 dmg, knocked back 5 m (slam); pushes crates; shield 25 for 2.5 s, cd 9.5 s |
+| Q | Flame Shield | Knockback + shield | Enemies within 3.4 m: 6 dmg, knocked back 5 m (slam); pushes crates; shield 25 for 2.5 s, cd 9.5 s |
+| E | Ring of Fire | Delayed AoE at cursor | Wind-up 0.2 s, max range 11 m, r 2.6 m, delay 0.85 s, 18 dmg + stun 0.8 s, cd 8 s |
 | R | Wisp | Companion command | See §2.1 |
-| F | Meteor | Big delayed AoE | 100 energy, wind-up 0.3 s, max range 13 m, r 3.6 m, delay 1.2 s, 45 dmg + stun 0.5 s |
+| X | Meteor | Big delayed AoE | 100 energy, wind-up 0.3 s, max range 13 m, r 3.6 m, delay 1.2 s, 45 dmg + stun 0.5 s |
 
 ### Fang (Клык) — Warrior, melee
 
-HP 220 · speed 6.4 m/s. Closes distance, hooks, doesn't let go.
+HP 220 · speed 6.4 m/s · weight 1.2 (heavy: shoved 17% less). Closes distance, hooks, doesn't let go.
 
 | Slot | Ability | Behaviour | Starting values |
 |---|---|---|---|
 | LMB | Cleave | Melee cone | Wind-up 0.28 s (move ×0.8), range 2.9 m, ±60°, 14 dmg + fading snare 25% over 0.6 s, cd 0.37 s. Empowered: 26 dmg + slow 50% 1.5 s. On-hit VFX: **Ink Blade Hit** (Spine) |
 | RMB | Harpoon | Hook | Wind-up 0.35 s (move ×0.4), 17.4 m/s, range 11 m, 10 dmg, pulls target to 1.5 m, cd 6 s. Pulls crates; hitting the Hound pulls Fang to it |
 | Space | Leap | Arc jump | Up to 8 m in 0.55 s, landing marker shown. Landing r 2.4 m: 14 dmg + slow 40% 1.5 s, cd 7 s |
-| Q | Shield Bash | Melee cone | Wind-up 0.25 s, range 3.1 m, ±52°, 10 dmg + stun 0.5 s, knockback 3 m; **slam: stun 1.2 s, +10 dmg**; pushes crates, cd 8 s |
+| Q | Counter | Stance | 1 s, move ×0.5. Negates a hit; attacker within 8 m: stun 1 s + 12 dmg; empowers next LMB for 3 s, cd 9.5 s |
+| E | Shield Bash | Melee cone | Wind-up 0.25 s, range 3.1 m, ±52°, 10 dmg + stun 0.5 s, knockback 3 m; **slam: stun 1.2 s, +10 dmg**; pushes crates, cd 8 s |
 | R | Hound | Companion command | See §2.1 |
-| E | Counter | Stance | 1 s, move ×0.5. Negates a hit; attacker within 8 m: stun 1 s + 12 dmg; empowers next LMB for 3 s, cd 9.5 s |
-| F | Whirlwind | Channel | 100 energy, 2.4 s, move ×1.15, unstoppable, 7 dmg every 0.3 s in r 3.2 m |
+| X | Whirlwind | Channel | 100 energy, 2.4 s, move ×1.15, unstoppable, 7 dmg every 0.3 s in r 3.2 m |
 
 ### Dummy (Манекен)
 
 Training target: 300 HP, no abilities, not pickable.
 
+### Character design guide
+
+Rules for inventing a champion. How one is drawn (line, palettes, portraits, icons) is in [`ART_STYLE.md`](ART_STYLE.md).
+
+- **Anyone can be a champion.** Humans are not the default: beasts, constructs, spirits, undead, things with too many arms are all welcome, as long as the silhouette reads from the top-down camera and the kit fills the seven slots. (Ember and Fang happen to be human and stay human.)
+- **Start from one sentence**: what this champion does to the enemy's position. "Keeps them away and punishes where they stand" (Ember), "drags them in and doesn't let go" (Fang). The kit, the companion and the look follow from it.
+- **Fill the slots by their roles** (table above): LMB and RMB attack, Space escapes, Q defends, E strikes or controls. A new champion should feel familiar under the fingers in the first ten seconds.
+- **Give the kit a way to move an enemy** and decide what it combines with: a wall (slam), a rift, the zone, a delayed AoE, the companion (§2.3). A knockback with nothing to push into is a wasted button.
+- **One hard defensive tool, not two.** A kit with a counter and a shield and an escape has no weakness to play around.
+- **The companion extends the kit** (§2.1); it never covers the kit's weakness for free.
+- **Pick a palette nobody else owns** before any art is made; it also sets the signature `color` in content (telegraphs, VFX, UI).
+- **Stats**: three numbers the player sees: `hp`, `moveSpeed` and `weight`, within the reference ranges above. A champion that is tougher or heavier is slower or shorter-ranged. No hidden stats (armour, crit, attack speed): the same hit always takes the same number off.
+
 ### Adding content
 
-- **New champion from existing mechanics**: add `packages/content/src/champions/<id>.ts` (stats, seven abilities, optional companion, bot profile), register it in `packages/content/src/index.ts`, add a model in `apps/client/src/game/render/Units.ts` and an emblem in `ui/icons.ts`. The sim, the bot (it decides per ability *kind*), the HUD, telegraphs and the menu pick it up from the data. `content.test.ts` checks the kit is complete and dodgeable.
+- **New champion from existing mechanics**: add `packages/content/src/champions/<id>.ts` (stats, seven abilities, optional companion, bot profile), register it in `packages/content/src/index.ts`, add a model in `apps/client/src/game/render/Units.ts` and an emblem and line icons in `ui/icons.ts`. Painted art is optional and comes later: a portrait, a select tile and ability icons in `assets/art/`, registered in `ui/art.ts` (the menu and the HUD fall back to the line icons without it). Decide the champion's palette first (`ART_STYLE.md`), then follow `assets/art/README.md`. The sim, the bot (it decides per ability *kind*), the HUD, telegraphs and the menu pick it up from the data. `content.test.ts` checks the kit is complete and dodgeable.
 - **New mechanic**: add a `kind` to the `Ability` union in `types.ts` and one function to `behaviors` in `packages/sim/src/abilities.ts` (TypeScript refuses to compile until every kind has one). Add a scenario test, a bot rule in `bot.ts` if bots should use it, and a telegraph in `Fx.ts` if it has a wind-up shape of its own.
 - **New on-hit effect**: add a field to `OnHit` and handle it in `applyOnHit` (`combat.ts`).
 - **New companion**: a `CompanionDef` in `companions.ts` (attack: ranged / melee; command: sentry / pounce).
@@ -301,6 +339,7 @@ Same rules as players, no cheating: a bot produces the same per-tick input a hum
 
 - Reads sim state, interpolates and drives meshes, animations, VFX, audio and HUD. **Never mutates sim state.**
 - `game/Game.ts` runs the loop (fixed ticks + render interpolation) and input; `game/render/GameView.ts` owns the scene and maps events to effects and sounds; `render/Fx.ts` draws telegraphs, `render/Hazards.ts` the zone and rifts, `render/Overlay.ts` health and cast bars; `game/Hud.ts` the HUD; `ui/` the React menu and training panel.
+- The main menu (`ui/Menu.tsx`) has no panel over the scene: the bot-vs-bot demo fight is the backdrop and stays visible in the middle. Left: the champion picker (a row of portrait tiles that wraps as the roster grows) and the picked champion (name, role, the three stats, the kit as an icon row that mirrors the HUD slots). Right: the champion's portrait. Bottom centre: the play bar (mode, bot difficulty or the online lobby, the start button), drawn in the ink style. Switching champions is never a cut: the portrait and the text cross-fade, the outgoing portrait leaves first and the new one follows, and the demo fight cross-fades: the old fight keeps playing above the restarted one while it fades away, so the screen never goes dark and never freezes. Reference text never goes on the front page: ability descriptions show one at a time under the icon row, controls and arena rules live in the "Как играть" dialog (`ui/HowToPlay.tsx`).
 - Maps gameplay events to presentation through data, e.g. `fang.cleave.onHit → vfx: "ink_blade_hit"`.
 - Camera: perspective, FOV 45°, height ~26 m, ~12.5 m back, follows the player with look-ahead toward the cursor (28%, clamped to 6 m).
 - **Kill cam** (`game/killcam.ts`): when a round is decided the client rewinds 0.6 s and **re-simulates** the final blow (the sim is deterministic and its state is plain data, so a short history of state + input is enough; in dev builds the replay is compared with the live state and a mismatch is logged). It is shown from a low side camera (1.9 m high, 8.5–13 m away, perpendicular to the line of the blow, on the side with a clear view), time eases from 0.5× down to 0.1× at the hit and back to normal, sounds are pitched down, the HUD gives way to letterbox bars. Space skips it; it is disabled with `prefers-reduced-motion`. Online (P2P): the host records the replay, sends it to the guest when the round is decided and holds the match for the kill cam's real-time length (about 6 s) while both players watch; the guest stops predicting until the host moves on.
@@ -325,10 +364,13 @@ packages/
   protocol/      message types (+ binary codecs in M2)
   vfx/           particle system + Spine effect player (added in M3)
 assets/
-  characters/    glTF + textures (M3)
+  art/           champion portraits, select tiles, ability and interface icons (WebP) + the generation recipe
+  sfx/           sound effects (mp3)
   vfx/           Spine exports (.json/.skel + .atlas + .png)
+  characters/    glTF + textures (M3)
 docs/
   GAME_DESIGN.md this file
+  ART_STYLE.md   approved art style: line, palettes, portraits, icons, interface
   adr/           architecture decision records
 prototype/       single-file prototype (reference for feel and numbers)
 tests/           repo-wide guards (architecture rules)
@@ -339,6 +381,7 @@ tests/           repo-wide guards (architecture rules)
 ## 6. Art & VFX Direction
 
 - **Camera-first design**: everything must read from ~60° pitch at gameplay zoom.
+- Character look, palettes, portraits and ability icons: [`ART_STYLE.md`](ART_STYLE.md).
 - Stylized 3D characters with strong silhouettes from above. Team-colored ring under the feet and a facing arrow.
 - Arena look (prototype): sun-baked sandstone, warm dusk light, stone pillars with braziers.
 - **VFX pipeline**: BoneGyre → Spine 4.2 export → `spine-threejs`. Effects are camera-facing billboards, mirrored to the hit direction, drawn on top of characters.
@@ -373,6 +416,9 @@ tests/           repo-wide guards (architecture rules)
 - 3D character pipeline: who makes models and animations (Mixamo, AI-generated, outsourced)?
 - Companion damage share and command cooldowns: does the companion feel useful without stealing the duel?
 - Slam frequency: with this obstacle density, are slams too common?
+- Ring-outs (§2.3): open arena edges and pits. Is a ring-out an instant round loss, heavy damage plus a respawn at the edge, or only possible below some health? How much of the edge is open?
+- `weight` is now per champion (0.9 / 1.2). Is the spread felt before ring-outs exist, and should `radius` follow it (bigger and heavier, smaller and lighter)?
+- Companion commands cost 25 energy, and a round starts at 0: the first command comes only after the first exchanges. Start rounds with one quarter filled? In bot batches the cost hurt Fang (his Hound opener) more than Ember.
 - More companions per champion: chosen before the match, or swapped mid-match?
 - Team sizes to prioritise after 1v1.
 - Final game name.

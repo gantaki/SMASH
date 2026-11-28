@@ -23,6 +23,7 @@ export const CHAMPION_EMBLEMS: Record<string, string> = {
   fang: '<path d="M14 40 34 14"/><path d="M30 8c6 1 10 5 11 11l-7 2-6-6z"/><path d="M10 22c0-6 4-10 10-11v12c0 5-3 9-10 11z"/>',
 };
 
+/** Key shown for each ability slot. The bindings themselves are `KEY_SLOTS` in game/Game.ts: change both together. */
 export const KEY_LABELS: Record<string, string> = {
   primary: "ЛКМ",
   secondary: "ПКМ",
@@ -30,5 +31,5 @@ export const KEY_LABELS: Record<string, string> = {
   q: "Q",
   e: "E",
   companion: "R",
-  ultimate: "F",
+  ultimate: "X",
 };

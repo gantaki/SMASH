@@ -10,7 +10,7 @@ export const fang: Champion = {
   roleRu: "Воин · ближний бой",
   blurbRu: "Сокращает дистанцию, ловит гарпуном и не отпускает. Много здоровья.",
   playable: true,
-  stats: { hp: 220, moveSpeed: 6.4, radius: 0.7, weight: 1 },
+  stats: { hp: 220, moveSpeed: 6.4, radius: 0.7, weight: 1.2 },
   color: GOLD,
   particles: ["#ffe073", "#d9730d"],
   companion: hound,
@@ -68,7 +68,7 @@ export const fang: Champion = {
       color: GOLD,
       sfx: { fire: "leap", hit: "ground_slam" },
     },
-    q: {
+    e: {
       kind: "cone",
       id: "fang.shieldBash",
       name: "Shield Bash",
@@ -85,7 +85,7 @@ export const fang: Champion = {
       color: "#fff0b0",
       sfx: { cast: "windup_bash", fire: "shield_bash", hit: "heavy_hit" },
     },
-    e: {
+    q: {
       kind: "counter",
       id: "fang.counter",
       name: "Counter",
@@ -109,6 +109,7 @@ export const fang: Champion = {
       descriptionRu: "компаньон: охраняет и кусает; по команде бросается и прижимает врага к месту на 0,8 с",
       icon: "paw",
       cooldown: 6,
+      energyCost: 25,
       color: GOLD,
       sfx: { fire: "companion_command" },
     },

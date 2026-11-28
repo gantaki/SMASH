@@ -14,6 +14,7 @@ Fast top-down arena brawler for quick PvP with friends. Send a link, fight a bes
 Every branch gets a stable preview alias that follows its latest push. Short branch names give `https://smash-git-<branch>-aleksandr-chernovs-projects-5d557d3c.vercel.app` (`/` becomes `-`, e.g. `feat/walls` → `smash-git-feat-walls-…`); long names are shortened with a hash (`prototype-companions` → `smash-git-prototype-fc037e-…`), so take those from the PR. Previews require a Vercel login (deployment protection); production is meant to be shared with friends.
 
 - Design, rules, champions and architecture: [`docs/GAME_DESIGN.md`](docs/GAME_DESIGN.md)
+- Art style for champions, icons and interface: [`docs/ART_STYLE.md`](docs/ART_STYLE.md)
 - Why a web stack: [`docs/adr/0001-web-stack.md`](docs/adr/0001-web-stack.md)
 - Playable single-file prototype (feel and numbers reference): [`prototype/`](prototype/)
 
@@ -29,7 +30,7 @@ pnpm install
 pnpm dev          # client on http://localhost:5173, server on ws://localhost:2567
 ```
 
-Open the client, pick a champion and press **В бой** (duel vs a bot), **Онлайн 1 на 1** (create a room or share `/r/CODE` over WebRTC P2P), or **Тренировка** (practice range).
+Open the client, pick a champion from the tiles on the left, pick a mode in the bar at the bottom — **С ботом** (duel vs a bot), **Онлайн** (create a room or share `/r/CODE` over WebRTC P2P) or **Тренировка** (practice range) — and press the big button. Controls and arena rules are under **Как играть**.
 
 | Command | What it does |
 |---|---|
@@ -58,10 +59,11 @@ packages/
   content/     champions, abilities, arena and match rules (data)
   protocol/    client/server message types
 assets/
+  art/         champion portraits, select tiles, ability and interface icons
   vfx/         Spine exports (Ink Blade Hit)
   sfx/         sound effects (mp3)
   characters/  glTF characters (M3)
-docs/          design doc, ADRs
+docs/          design doc, art style guide, ADRs
 prototype/     single-file Three.js prototype
 tests/         repo-wide guards
 ```

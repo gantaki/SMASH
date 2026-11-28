@@ -23,8 +23,10 @@ const RIFT_MARGIN = 1.3;
 const AIM_ERROR_SCALE = 0.22;
 const CANCEL_SLACK = 0.6;
 const CANCEL_RATE = 12;
+/** Energy above which a bot stops paying for companion commands and saves for the ultimate. */
+const COMMAND_ENERGY_CAP = 60;
 /** Slots tried for offence, most valuable first. */
-const OFFENCE_ORDER: readonly AbilitySlot[] = ["ultimate", "q", "e", "secondary", "mobility", "primary"];
+const OFFENCE_ORDER: readonly AbilitySlot[] = ["ultimate", "e", "q", "secondary", "mobility", "primary"];
 
 interface Target {
   x: number;
@@ -79,6 +81,8 @@ export function botInput(ctx: Ctx, b: ChampionUnit): PlayerInput {
   const ai = state.bots[b.team];
   const profile = getChampion(b.champion).bot;
   const ranged = profile.style === "ranged";
+  // A knockback travels its distance divided by the target's weight (combat.ts, knock).
+  const shoveWeight = getChampion(p.champion).stats.weight;
   const press = (slot: AbilitySlot, aim: Vec2): PlayerInput => {
     input.press = [slot];
     input.aim = aim;
@@ -236,7 +240,7 @@ export function botInput(ctx: Ctx, b: ChampionUnit): PlayerInput {
   if (ranged && d < 3.3 && acting) {
     if (novaSlot) {
       const a = abilityOf(b, novaSlot)!;
-      const reachK = a.kind === "nova" && a.onHit.knockback ? a.onHit.knockback.distance : 0;
+      const reachK = a.kind === "nova" && a.onHit.knockback ? a.onHit.knockback.distance / shoveWeight : 0;
       if (rng.next() < D.dodge * dt * (wallBehind(state, b, p, reachK) ? 16 : 8)) return press(novaSlot, p);
     } else if (mobilitySlot && rng.next() < D.dodge * dt * 4) {
       const tx = b.x - nx * 7;
@@ -293,7 +297,8 @@ export function botInput(ctx: Ctx, b: ChampionUnit): PlayerInput {
   const cmdSlot = findSlot(b, (a) => a.kind === "companionCommand");
   const petDef = getChampion(b.champion).companion;
   if (pet && !pet.dead && petDef) {
-    if (cmdSlot && rng.next() < dt * 0.9 * D.rate) {
+    // Commands are paid from the first part of the bar; above the cap the bot saves for the ultimate.
+    if (cmdSlot && isReady(b, cmdSlot) && b.energy < COMMAND_ENERGY_CAP && rng.next() < dt * 0.9 * D.rate) {
       if (petDef.command.kind === "sentry" && d < 12) return press(cmdSlot, { x: p.x - nz * 3 * ai.strafe, z: p.z + nx * 3 * ai.strafe });
       if (petDef.command.kind === "pounce" && d > 3 && d < petDef.command.maxRange) return press(cmdSlot, leadAim(b, ai, D, p, d / petDef.commandSpeed));
     }
@@ -335,7 +340,7 @@ export function botInput(ctx: Ctx, b: ChampionUnit): PlayerInput {
         if (slot === "primary") return press(slot, { x: tgt.x, z: tgt.z });
         if (!targetIsEnemy) break;
         const kb = a.onHit.knockback;
-        const slamChance = kb && wallBehind(state, b, p, kb.distance) && rng.next() < dt * 6;
+        const slamChance = kb && wallBehind(state, b, p, kb.distance / shoveWeight) && rng.next() < dt * 6;
         if (p.cast || slamChance || rng.next() < dt * 1.2 * D.rate) return press(slot, { x: p.x, z: p.z });
         break;
       }

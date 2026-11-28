@@ -49,12 +49,29 @@ describe("champion content", () => {
         expect(c.companion).toBeDefined();
       });
 
-      it("uses energy for the ultimate and cooldowns for the rest", () => {
+      it("follows the slot roles: Q protects the caster, E is a strike or an area hit (design guide, §3)", () => {
+        const q = c.abilities.q!;
+        const e = c.abilities.e!;
+        // New defensive or offensive ability kinds get added to these lists together with the kind.
+        expect(q.kind === "counter" || (q.kind === "nova" && q.shield !== undefined), q.id).toBe(true);
+        expect(e.kind === "cone" || e.kind === "groundAoe" || e.kind === "nova", e.id).toBe(true);
+      });
+
+      it("can move an enemy: at least one ability knocks back or pulls (knockback is the core mechanic, §2.3)", () => {
+        const moves = ABILITY_SLOTS.some((slot) => onHits(c.abilities[slot]!).some((h) => h.knockback !== undefined || h.pull !== undefined));
+        expect(moves, c.id).toBe(true);
+      });
+
+      it("uses energy for the ultimate, energy and a cooldown for the command, cooldowns for the rest", () => {
         for (const slot of ABILITY_SLOTS) {
           const a = c.abilities[slot]!;
           if (slot === "ultimate") {
             expect(a.energyCost).toBe(rules.energy.max);
             expect(a.cooldown).toBe(0);
+          } else if (slot === "companion") {
+            // A command costs a quarter of the bar and still has a cooldown.
+            expect(a.energyCost).toBe(rules.energy.commandCost);
+            expect(a.cooldown).toBeGreaterThan(0);
           } else {
             expect(a.energyCost).toBeUndefined();
             expect(a.cooldown).toBeGreaterThan(0);
@@ -67,7 +84,9 @@ describe("champion content", () => {
         // Playtested band: about 6 m/s feels right; nobody slower than 5.5 or faster than 6.5.
         expect(c.stats.moveSpeed).toBeGreaterThanOrEqual(5.5);
         expect(c.stats.moveSpeed).toBeLessThanOrEqual(6.5);
-        expect(c.stats.weight).toBeGreaterThan(0);
+        // Weight divides knockback distance: light 0.9, heavy 1.2. Outside this band a shove is either nothing or a ring-out.
+        expect(c.stats.weight).toBeGreaterThanOrEqual(0.8);
+        expect(c.stats.weight).toBeLessThanOrEqual(1.3);
         for (const slot of ABILITY_SLOTS) {
           const a = c.abilities[slot]!;
           if (a.castTime !== undefined) expect(a.castMoveMultiplier, a.id).toBeDefined();
@@ -83,7 +102,7 @@ describe("champion content", () => {
       it("keeps every dangerous ability dodgeable (pillar: readable and dodgeable)", () => {
         // From the button press to the hit at mid range there must be time to react and step aside.
         const REACTION = 0.3;
-        for (const slot of ["secondary", "q", "ultimate"] as const) {
+        for (const slot of ["secondary", "e", "ultimate"] as const) {
           const a = c.abilities[slot]!;
           const cast = a.castTime ?? 0;
           if (a.kind === "projectile") expect(cast + a.range / 2 / a.speed, a.id).toBeGreaterThan(REACTION);

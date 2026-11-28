@@ -72,7 +72,7 @@ export const rules: MatchRules = {
     turnRate: 14,
     castTurnRate: 30,
   },
-  energy: { max: 100, perDamage: 0.55, perCompanionDamage: 0.3, passivePerSecond: 1.2 },
+  energy: { max: 100, commandCost: 25, perDamage: 0.55, perCompanionDamage: 0.3, passivePerSecond: 1.2 },
   slam: { stun: 0.6, damage: 10, woodDamage: 20, crateImpulse: 4 },
   burn: { tickInterval: 0.5 },
   areaBodyFactor: 0.5,

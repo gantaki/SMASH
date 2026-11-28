@@ -5,6 +5,7 @@ Instructions for agents working in this repository.
 ## Read first
 
 - `docs/GAME_DESIGN.md`: vision, rules, champion numbers, architecture, roadmap. It is the source of truth; update it when a decision changes.
+- `docs/ART_STYLE.md`: the approved art style for champions, portraits and ability icons.
 - `docs/adr/`: recorded decisions. Add a new ADR for any decision that changes the stack or the architecture.
 
 ## Commands
@@ -34,8 +35,9 @@ pnpm sim:batch   # headless bot-vs-bot batch (rule 6); args: [matches] [easy|nor
 - Code, comments, docs and commit messages in English.
 - Spine VFX: keep `.json`/`.skel` + `.atlas` + `.png` together in `assets/vfx/<effect>/`.
 - Sounds: `assets/sfx/<id>.mp3` + an entry in `apps/client/src/audio/manifest.ts`; abilities reference ids through `sfx`.
+- Champion art: `assets/art/portraits/<championId>.webp` (cutout), `assets/art/tiles/<championId>.webp` (select tile), `assets/art/abilities/<iconId>.webp`, interface icons in `assets/art/ui/` + the id in `apps/client/src/ui/art.ts`. The approved style (hand-drawn ink, one palette per champion, one-object icons) is in `docs/ART_STYLE.md`; the generation recipe is in `assets/art/README.md`.
 - UI text is Russian (`nameRu`, `descriptionRu`); identifiers, comments and docs stay English.
-- Adding champions, ability kinds, companions: recipe in `docs/GAME_DESIGN.md` §3 "Adding content".
+- Adding champions, ability kinds, companions: recipe in `docs/GAME_DESIGN.md` §3 "Adding content"; what a kit should contain (slot roles, knockback) in §3 "Character design guide" and §2.3.
 - The dev client exposes the running `Game` as `window.__smash` for Playwright checks; look at a change in the browser before calling it done.
 
 ## Roadmap pointer

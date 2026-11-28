@@ -50,11 +50,12 @@ interface Rig {
 
 function buildEmber(body: THREE.Object3D, mats: Mats): Rig {
   const { M, add } = builder(body, mats);
-  const gold = M(0xe8a443, { metalness: 0.55, roughness: 0.35 });
+  // Copper, not gold: gold belongs to Fang's palette (docs/ART_STYLE.md §3).
+  const copper = M(0xc8733a, { metalness: 0.55, roughness: 0.35 });
   add(new THREE.CylinderGeometry(0.3, 0.7, 1.3, 16), M(0x9b2f1f), 0, 0.65, 0);
-  add(new THREE.CylinderGeometry(0.33, 0.36, 0.14, 16), gold, 0, 1.02, 0);
+  add(new THREE.CylinderGeometry(0.33, 0.36, 0.14, 16), copper, 0, 1.02, 0);
   add(G.sphere, M(0xa8382a), 0, 1.36, 0, [0.38, 0.32, 0.32]);
-  add(new THREE.TorusGeometry(0.3, 0.08, 8, 18), gold, 0, 1.55, 0).rotation.x = Math.PI / 2;
+  add(new THREE.TorusGeometry(0.3, 0.08, 8, 18), copper, 0, 1.55, 0).rotation.x = Math.PI / 2;
   add(G.sphere, M(0xf0c29a), 0, 1.78, 0.04, [0.23, 0.25, 0.23]);
   add(new THREE.ConeGeometry(0.36, 0.85, 16), M(0x6d1c13), 0, 1.98, -0.04).rotation.x = -0.18;
   const arm = new THREE.Group();
@@ -81,12 +82,13 @@ function buildFang(body: THREE.Object3D, mats: Mats): Rig {
   const steel = M(0x8f9aa5, { metalness: 0.65, roughness: 0.35 });
   const gold = M(0xc9a04a, { metalness: 0.7, roughness: 0.3 });
   const leather = M(0x3a2a20);
-  const red = M(0x8f2a1f);
+  // Navy cloth and shield: Fang's palette is steel, navy and gold (docs/ART_STYLE.md §3).
+  const navy = M(0x24407a);
   add(G.box, leather, -0.19, 0.38, 0, [0.24, 0.76, 0.28]);
   add(G.box, leather, 0.19, 0.38, 0, [0.24, 0.76, 0.28]);
   add(G.box, steel, 0, 1.08, 0, [0.86, 0.78, 0.52]);
   add(G.box, M(0x6b3d22), 0, 0.74, 0, [0.9, 0.14, 0.56]);
-  add(G.box, red, 0, 0.5, 0.22, [0.46, 0.5, 0.06]);
+  add(G.box, navy, 0, 0.5, 0.22, [0.46, 0.5, 0.06]);
   add(G.sphere, gold, -0.52, 1.42, 0, [0.27, 0.2, 0.27]);
   add(G.sphere, gold, 0.52, 1.42, 0, [0.27, 0.2, 0.27]);
   add(G.sphere, M(0xd9a982), 0, 1.68, 0.02, [0.22, 0.24, 0.22]);
@@ -95,7 +97,7 @@ function buildFang(body: THREE.Object3D, mats: Mats): Rig {
   const shield = new THREE.Group();
   shield.position.set(-0.5, 1.05, 0.36);
   body.add(shield);
-  add(G.box, red, 0, 0, 0, [0.62, 0.86, 0.1], shield);
+  add(G.box, navy, 0, 0, 0, [0.62, 0.86, 0.1], shield);
   add(G.sphere, gold, 0, 0, 0.07, [0.12, 0.12, 0.06], shield);
   const arm = new THREE.Group();
   arm.position.set(0.55, 1.25, 0.05);

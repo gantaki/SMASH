@@ -219,7 +219,7 @@ describe("cancelling a cast", () => {
     place(s.b, 5, 8);
     s.press(1, "secondary", 5, 10);
     s.run(0.1);
-    s.press(0, "q", 5, 8);
+    s.press(0, "e", 5, 8);
     const ev = s.run(0.5);
     expect(of(ev, "castCancel").map((e) => e.reason)).toEqual(["interrupted"]);
   });
@@ -326,6 +326,55 @@ describe("projectiles", () => {
   });
 });
 
+describe("energy and weight", () => {
+  it("a companion command needs a quarter of the energy bar, spends it and starts its cooldown", () => {
+    const s = scene("ember", "fang", { companions: true });
+    place(s.a, 0, 10);
+    place(s.b, 0, -10);
+    const fired = (ev: SimEvent[]) => of(ev, "abilityFire").filter((e) => e.unit === s.a.id && e.slot === "companion");
+
+    s.a.energy = rules.energy.commandCost - 5;
+    s.press(0, "companion", 0, 4);
+    expect(fired(s.run(0.1))).toHaveLength(0);
+    expect(s.a.cooldowns.companion).toBe(0);
+
+    s.a.energy = rules.energy.commandCost + 5;
+    s.press(0, "companion", 0, 4);
+    expect(fired(s.run(0.1))).toHaveLength(1);
+    expect(s.a.energy).toBeGreaterThanOrEqual(5);
+    expect(s.a.energy).toBeLessThan(6);
+    expect(s.a.cooldowns.companion).toBeGreaterThan(0);
+
+    // Enough energy again, but the cooldown still holds the command back.
+    s.a.energy = rules.energy.max;
+    s.press(0, "companion", 0, 4);
+    expect(fired(s.run(0.1))).toHaveLength(0);
+    expect(s.a.energy).toBe(rules.energy.max);
+  });
+
+  it("the same shove moves a heavy champion less than a light one", () => {
+    const bash = fang.abilities.e!;
+    if (bash.kind !== "cone" || !bash.onHit.knockback) throw new Error("expected a knockback cone");
+    const distance = bash.onHit.knockback.distance;
+    // Out in the open: nothing to slam into.
+    const shove = (target: "ember" | "fang") => {
+      const s = scene("fang", target);
+      place(s.a, 2, 10);
+      place(s.b, 2, 12);
+      s.press(0, "e", 2, 12);
+      const ev = s.run(1);
+      expect(of(ev, "slam")).toHaveLength(0);
+      return s.b.z - 12;
+    };
+    const light = shove("ember");
+    const heavy = shove("fang");
+    expect(ember.stats.weight).toBeLessThan(fang.stats.weight);
+    expect(Math.abs(light - distance / ember.stats.weight)).toBeLessThan(0.15);
+    expect(Math.abs(heavy - distance / fang.stats.weight)).toBeLessThan(0.15);
+    expect(heavy).toBeLessThan(light);
+  });
+});
+
 describe("damage events", () => {
   it("say where a projectile hit came from: a point behind it on its path", () => {
     const s = scene();
@@ -388,7 +437,7 @@ describe("melee and control", () => {
     const edge = arena.radius - arena.wallMargin;
     place(s.a, 0, edge - 2.4);
     place(s.b, 0, edge - 0.5);
-    s.press(0, "q", 0, edge);
+    s.press(0, "e", 0, edge);
     const ev = s.run(0.6);
     expect(of(ev, "slam")).toHaveLength(1);
     expect(s.b.hp).toBe(s.b.maxHp - 10 - (rules.slam.damage + 10));
@@ -399,7 +448,7 @@ describe("melee and control", () => {
     const s = scene("fang", "ember");
     place(s.a, 5, 10);
     place(s.b, 5, 4);
-    s.press(0, "e", 5, 4);
+    s.press(0, "q", 5, 4);
     s.press(1, "primary", 5, 10);
     const ev = s.run(0.9);
     expect(of(ev, "counter")).toHaveLength(1);
@@ -412,9 +461,9 @@ describe("melee and control", () => {
     const s = scene();
     place(s.a, 0, 8);
     place(s.b, 0, 0.5);
-    const ring = ember.abilities.q!;
+    const ring = ember.abilities.e!;
     if (ring.kind !== "groundAoe") throw new Error("expected groundAoe");
-    s.press(0, "q", 0, 0.5);
+    s.press(0, "e", 0, 0.5);
     s.run(ring.castTime! + ring.delay - 0.1);
     expect(s.b.hp).toBe(s.b.maxHp);
     s.run(0.2);
@@ -442,7 +491,7 @@ describe("melee and control", () => {
     s.a.energy = 100;
     s.press(0, "ultimate", 0, 8);
     s.run(0.1);
-    s.press(1, "e", 0, 10);
+    s.press(1, "q", 0, 10);
     s.run(0.2);
     expect(s.a.forced).toBeNull();
     expect(s.a.channel).not.toBeNull();

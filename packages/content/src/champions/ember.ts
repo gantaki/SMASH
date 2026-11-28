@@ -10,7 +10,7 @@ export const ember: Champion = {
   roleRu: "Маг огня · дальний бой",
   blurbRu: "Держит дистанцию, поджигает и наказывает за плохую позицию. Мало здоровья.",
   playable: true,
-  stats: { hp: 170, moveSpeed: 6, radius: 0.7, weight: 1 },
+  stats: { hp: 170, moveSpeed: 6, radius: 0.7, weight: 0.9 },
   color: FIRE,
   particles: ["#ff9e33", "#cc2405"],
   companion: wisp,
@@ -80,7 +80,7 @@ export const ember: Champion = {
       color: FIRE,
       sfx: { fire: "blink" },
     },
-    q: {
+    e: {
       kind: "groundAoe",
       id: "ember.ringOfFire",
       name: "Ring of Fire",
@@ -97,7 +97,7 @@ export const ember: Champion = {
       color: FIRE,
       sfx: { cast: "windup_fire", fire: "aoe_mark", hit: "fire_explosion" },
     },
-    e: {
+    q: {
       kind: "nova",
       id: "ember.flameShield",
       name: "Flame Shield",
@@ -121,6 +121,7 @@ export const ember: Champion = {
       descriptionRu: "компаньон: стреляет искрами; по команде летит в точку и 6 с держит её",
       icon: "wisp",
       cooldown: 4.4,
+      energyCost: 25,
       color: FIRE,
       sfx: { fire: "companion_command" },
     },

@@ -2,6 +2,7 @@
 
 import { ABILITY_SLOTS, getChampion, rules, type AbilitySlot } from "@smash/content";
 import type { ChampionUnit, MatchState } from "@smash/sim";
+import { ABILITY_ART } from "../ui/art.ts";
 import { ABILITY_ICONS, KEY_LABELS } from "../ui/icons.ts";
 
 interface SlotView {
@@ -32,8 +33,11 @@ export class Hud {
     const slotHtml = ABILITY_SLOTS.filter((s) => champ.abilities[s])
       .map((s) => {
         const a = champ.abilities[s]!;
-        return `<div class="slot${a.energyCost ? " ult" : ""}" data-slot="${s}" style="--c:${a.color}" title="${a.nameRu}: ${a.descriptionRu}">
-          <svg viewBox="0 0 24 24">${ABILITY_ICONS[a.icon] ?? ""}</svg><i class="cdv"></i><span class="cdt"></span><kbd>${KEY_LABELS[s]}</kbd></div>`;
+        const art = ABILITY_ART[a.icon];
+        const icon = art ? `<img src="${art}" alt="" draggable="false">` : `<svg viewBox="0 0 24 24">${ABILITY_ICONS[a.icon] ?? ""}</svg>`;
+        const tier = s === "ultimate" ? " ult" : s === "companion" ? " pet" : "";
+        return `<div class="slot${tier}" data-slot="${s}" style="--c:${a.color}" title="${a.nameRu}: ${a.descriptionRu}">
+          ${icon}<i class="cdv"></i><span class="cdt"></span><kbd>${KEY_LABELS[s]}</kbd></div>`;
       })
       .join("");
     const hint = online
@@ -49,7 +53,7 @@ export class Hud {
       <div class="dock">
         <div class="vitals">
           <div class="vbar hp"><i></i><span></span></div>
-          <div class="vbar en"><i></i></div>
+          <div class="vbar en" style="--parts:${rules.energy.max / rules.energy.commandCost}"><i></i></div>
         </div>
         <div class="slots">${slotHtml}</div>
         <div class="hint">${hint}</div>
@@ -89,17 +93,21 @@ export class Hud {
       const a = champ.abilities[slot]!;
       let p: number;
       let text = "";
-      if (a.energyCost) p = 1 - me.energy / a.energyCost;
-      else if (a.kind === "companionCommand" && pet?.kind === "companion" && pet.dead) {
+      const cd = me.cooldowns[slot];
+      const paid = !a.energyCost || me.energy >= a.energyCost;
+      if (a.kind === "companionCommand" && pet?.kind === "companion" && pet.dead) {
         p = pet.respawn / rules.companion.respawn;
         text = String(Math.ceil(pet.respawn));
+      } else if (cd > 0) {
+        p = cd / (a.cooldown * state.tuning.cooldown || 1);
+        if (a.cooldown >= 1) text = cd < 1 ? cd.toFixed(1) : String(Math.ceil(cd));
       } else {
-        const cd = me.cooldowns[slot];
-        p = a.cooldown > 0 ? cd / (a.cooldown * state.tuning.cooldown || 1) : 0;
-        if (cd > 0 && a.cooldown >= 1) text = cd < 1 ? cd.toFixed(1) : String(Math.ceil(cd));
+        // Off cooldown: an ability that costs energy fills up as the energy comes in.
+        p = a.energyCost ? 1 - me.energy / a.energyCost : 0;
       }
       view.el.style.setProperty("--p", Math.max(0, Math.min(1, p)).toFixed(3));
-      view.el.classList.toggle("ready", !!a.energyCost && full);
+      view.el.classList.toggle("ready", slot === "ultimate" && full);
+      view.el.classList.toggle("broke", !paid);
       view.el.classList.toggle("casting", me.cast?.slot === slot);
       if (view.last !== text) {
         view.text.textContent = text;

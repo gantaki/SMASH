@@ -8,6 +8,8 @@ import { TrainingPanel } from "./ui/TrainingPanel.tsx";
 
 type Screen = "menu" | "game" | "end";
 
+/** How long the old demo fight keeps playing over the new one while it fades out; matches `stage-leave` in styles.css. */
+const LEAVE_MS = 650;
 const EMPTY_STATS: TrainingStats = { dps: 0, lastHit: 0, total: 0, dummyMoves: false, suddenDeath: false };
 const DIFFICULTY_NAMES: Record<BotDifficulty, string> = { easy: "лёгкий", normal: "средний", hard: "сложный" };
 
@@ -34,8 +36,24 @@ export function App() {
   const [stats, setStats] = useState<TrainingStats>(EMPTY_STATS);
   // Bumping the run number gives the next match a fresh canvas (and WebGL context).
   const [run, setRun] = useState(0);
+  // A champion swap is a cross-fade, not a cut: the old demo fight keeps playing on its own canvas, laid over the new
+  // one, until it has faded out. `leaving` is the run number of that old fight, `leavingGame` the game still driving it.
+  const [leaving, setLeaving] = useState<number | null>(null);
+  const leavingGame = useRef<Game | null>(null);
+  // Set just before a swap so that the effect cleanup hands the old game over instead of disposing it.
+  const handOver = useRef(false);
+  // The demo fades in from the background only when there is nothing to cross-fade from (first load, back from a match).
+  const [fadeIn, setFadeIn] = useState(true);
+  const swap = useRef(0);
 
   const online = useOnlineRoom(champion);
+
+  const dropLeaving = useCallback(() => {
+    window.clearTimeout(swap.current);
+    leavingGame.current?.dispose();
+    leavingGame.current = null;
+    setLeaving(null);
+  }, []);
 
   // Browsers only allow audio after a user gesture: start loading sounds on the first click anywhere.
   useEffect(() => {
@@ -46,6 +64,7 @@ export function App() {
 
   useEffect(() => {
     if (!online.activeMatch) return;
+    dropLeaving();
     setOpponentLeft(false);
     setPaused(false);
     setResult(null);
@@ -85,7 +104,10 @@ export function App() {
           }
         : undefined,
       onMatchEnd: (won, score) => {
-        if (gameMode === "demo") setRun((n) => n + 1);
+        // A demo that is fading out may still finish its match: only the current one restarts the loop.
+        if (gameMode === "demo") {
+          if (game.current === g) setRun((n) => n + 1);
+        }
         else {
           setResult({ won, score });
           setScreen("end");
@@ -99,14 +121,16 @@ export function App() {
     // Handle for Playwright smoke tests and console debugging.
     if (import.meta.env.DEV) (window as unknown as { __smash?: Game }).__smash = g;
     return () => {
-      g.dispose();
-      game.current = null;
+      if (handOver.current) handOver.current = false;
+      else g.dispose();
+      if (game.current === g) game.current = null;
     };
     // The match is rebuilt only when a new run starts; menu selections apply to the next run.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [run]);
 
   const start = useCallback(() => {
+    dropLeaving();
     audio.unlock();
     audio.play("ui_click");
     setPaused(false);
@@ -116,7 +140,7 @@ export function App() {
     setStats(EMPTY_STATS);
     setScreen("game");
     setRun((n) => n + 1);
-  }, [audio]);
+  }, [audio, dropLeaving]);
 
   const toMenu = useCallback(() => {
     if (online.activeMatch || lastOnlineRole) {
@@ -127,16 +151,25 @@ export function App() {
     setLastOnlineRole(null);
     setResult(null);
     setScreen("menu");
+    setFadeIn(true);
     setRun((n) => n + 1);
   }, [lastOnlineRole, online]);
 
+  // The new demo fight starts at once; the old one plays on above it and fades away.
   const pick = (id: string) => {
-    if (!isChampionId(id)) return;
+    if (!isChampionId(id) || id === champion) return;
     audio.unlock();
     audio.play("ui_click");
     setChampion(id);
     online.setChampion(id);
-    if (screen === "menu") setRun((n) => n + 1);
+    if (screen !== "menu") return;
+    dropLeaving();
+    leavingGame.current = game.current;
+    handOver.current = game.current !== null;
+    setLeaving(run);
+    setFadeIn(false);
+    setRun((n) => n + 1);
+    swap.current = window.setTimeout(dropLeaving, LEAVE_MS);
   };
 
   const inGame = screen !== "menu";
@@ -148,8 +181,10 @@ export function App() {
 
   return (
     <>
-      <canvas key={run} ref={canvas} className="stage" tabIndex={0} aria-label="Арена" />
-      <div ref={overlay} className="ov" />
+      <canvas key={`stage-${run}`} ref={canvas} className={screen === "menu" && fadeIn ? "stage demo" : "stage"} tabIndex={0} aria-label="Арена" />
+      <div key={`ov-${run}`} ref={overlay} className="ov" />
+      {leaving !== null && <canvas key={`stage-${leaving}`} className="stage leaving" aria-hidden="true" />}
+      {leaving !== null && <div key={`ov-${leaving}`} className="ov leaving" />}
       <div ref={hud} className="hud" hidden={!inGame || screen === "end"} />
 
       {screen === "menu" && (
