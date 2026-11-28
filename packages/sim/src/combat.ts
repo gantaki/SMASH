@@ -10,6 +10,8 @@ export type Target = Unit | "orb";
 export interface HurtOptions {
   /** Damage over time, zone, slams, counter punish: cannot be countered and does not shake the screen. */
   dot?: boolean;
+  /** Where the hit physically comes from, if it has a direction. Reported in the damage event for presentation. */
+  from?: { x: number; z: number };
 }
 
 const fighting = (ctx: Ctx): boolean => ctx.state.phase === "fight";
@@ -44,13 +46,14 @@ export function hurt(ctx: Ctx, target: Target, damage: number, source: Unit | nu
   const credit = creditOf(state, source ?? undefined);
   const creditId = credit?.id ?? -1;
   const dot = !!opts.dot;
+  const origin = opts.from ? { fromX: opts.from.x, fromZ: opts.from.z } : {};
 
   if (target === "orb") {
     const orb = state.orb;
     if (!orb.alive) return false;
     orb.hp -= damage;
     orb.lastHitter = creditId;
-    events.push({ t: "damage", target: -1, targetKind: "orb", source: creditId, amount: damage, absorbed: 0, x: orb.x, z: orb.z, dot });
+    events.push({ t: "damage", target: -1, targetKind: "orb", source: creditId, amount: damage, absorbed: 0, x: orb.x, z: orb.z, dot, ...origin });
     if (orb.hp <= 0) breakOrb(ctx);
     return true;
   }
@@ -59,7 +62,7 @@ export function hurt(ctx: Ctx, target: Target, damage: number, source: Unit | nu
 
   if (target.kind === "companion") {
     target.hp -= damage;
-    events.push({ t: "damage", target: target.id, targetKind: "companion", source: creditId, amount: damage, absorbed: 0, x: target.x, z: target.z, dot });
+    events.push({ t: "damage", target: target.id, targetKind: "companion", source: creditId, amount: damage, absorbed: 0, x: target.x, z: target.z, dot, ...origin });
     if (credit && credit.team !== target.team) addEnergy(credit, damage * rules.energy.perCompanionDamage);
     if (target.hp <= 0) {
       target.hp = 0;
@@ -90,7 +93,7 @@ export function hurt(ctx: Ctx, target: Target, damage: number, source: Unit | nu
   }
   target.hp -= damage;
   target.lastHurtAt = state.roundTime;
-  events.push({ t: "damage", target: target.id, targetKind: "champion", source: creditId, amount: damage, absorbed, x: target.x, z: target.z, dot });
+  events.push({ t: "damage", target: target.id, targetKind: "champion", source: creditId, amount: damage, absorbed, x: target.x, z: target.z, dot, ...origin });
   if (credit && credit !== target) addEnergy(credit, damage * rules.energy.perDamage);
   if (target.hp <= 0) {
     target.hp = 0;
@@ -109,7 +112,7 @@ function counterHit(ctx: Ctx, t: ChampionUnit, source: Unit): void {
   ctx.events.push({ t: "status", unit: t.id, status: "empowered", duration: a.empowerDuration });
   if (!source.dead && Math.hypot(source.x - t.x, source.z - t.z) < a.punishRange) {
     if (a.punish.stun) stun(ctx, source, a.punish.stun);
-    hurt(ctx, source, a.punish.damage, t, { dot: true });
+    hurt(ctx, source, a.punish.damage, t, { dot: true, from: { x: t.x, z: t.z } });
   }
 }
 
@@ -268,7 +271,7 @@ function slam(ctx: Ctx, t: Unit, nx: number, nz: number, obstacle: Obstacle | nu
  * pull drags toward it. Returns false if the hit did not land (see hurt()).
  */
 export function applyOnHit(ctx: Ctx, target: Target, onHit: OnHit, source: Unit | null, ox: number, oz: number, opts: HurtOptions = {}): boolean {
-  if (!hurt(ctx, target, onHit.damage, source, opts)) return false;
+  if (!hurt(ctx, target, onHit.damage, source, { ...opts, from: opts.from ?? { x: ox, z: oz } })) return false;
   if (target === "orb") return true;
   if (onHit.stun) stun(ctx, target, onHit.stun);
   if (onHit.slow) slow(ctx, target, onHit.slow.amount, onHit.slow.duration, onHit.slow.fading);

@@ -36,6 +36,13 @@ export type SimEvent =
       x: number;
       z: number;
       dot: boolean;
+      /**
+       * Where the hit physically came from, when it has a direction: the attacker (champion or companion),
+       * a point behind a projectile on its path, the centre of a blast. Absent for burn, zone, rifts and slams.
+       * `source` is who gets the credit, which for a companion is its owner standing somewhere else.
+       */
+      fromX?: number;
+      fromZ?: number;
     }
   | { t: "meleeHit"; source: number; target: number; abilityId: string; empowered: boolean }
   | { t: "status"; unit: number; status: StatusKind; duration: number }

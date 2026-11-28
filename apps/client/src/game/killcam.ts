@@ -14,7 +14,11 @@ export const KILL_CAM = {
   scaleImpact: 0.1,
   /** Sim seconds before the kill at which the slowest speed is reached, and after it for which it is held. */
   impactLead: 0.12,
-  impactHold: 0.1,
+  impactHold: 0.06,
+  /** After the blow the body flies: time picks up a little, so the tumble reads, for `flight` sim seconds after the kill. */
+  scaleFlight: 0.32,
+  flightRamp: 0.1,
+  flight: 0.55,
   /** Sim seconds over which time returns to normal. */
   recover: 0.3,
   fov: 34,
@@ -120,21 +124,22 @@ export class KillCam {
 
   /** How fast sim time runs right now: eases down into the blow, holds, then recovers. */
   timeScale(): number {
-    const { scaleLead, scaleImpact, impactLead, impactHold, recover } = KILL_CAM;
+    const { scaleLead, scaleImpact, scaleFlight, impactLead, impactHold, flightRamp, flight, recover } = KILL_CAM;
     const slowFrom = this.length - impactLead;
     const s = this.simTime;
     if (s < slowFrom) {
       const k = s / slowFrom;
       return scaleLead + (scaleImpact - scaleLead) * k * k;
     }
-    if (s < this.length + impactHold) return scaleImpact;
-    const k = Math.min(1, (s - this.length - impactHold) / recover);
-    return scaleImpact + (1 - scaleImpact) * k;
+    const after = s - this.length;
+    if (after < impactHold) return scaleImpact;
+    if (after < flight) return scaleImpact + (scaleFlight - scaleImpact) * Math.min(1, (after - impactHold) / flightRamp);
+    return scaleFlight + (1 - scaleFlight) * Math.min(1, (after - flight) / recover);
   }
 
   /** True once time is back to normal speed. */
   get settled(): boolean {
-    return this.simTime >= this.length + KILL_CAM.impactHold + KILL_CAM.recover;
+    return this.simTime >= this.length + KILL_CAM.flight + KILL_CAM.recover;
   }
 
   /** Re-simulates one recorded tick. */
