@@ -15,7 +15,7 @@ const DIFFICULTY_NAMES: Record<BotDifficulty, string> = { easy: "лёгкий", 
 
 const defaultChampion = (): ChampionId => {
   const id = playableChampions[0]!.id;
-  return isChampionId(id) ? id : "ember";
+  return isChampionId(id) ? id : "pyra";
 };
 
 export function App() {

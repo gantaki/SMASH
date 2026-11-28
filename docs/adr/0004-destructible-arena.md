@@ -18,7 +18,7 @@ The mechanic has to live in the deterministic simulation (it decides who dies), 
 4. **Falling is a separate system that runs after all movement** (`terrain.ts`, last before the round check): drop the tiles whose time is up, then anything left without floor under its centre goes: wall sections, obstacles, units. A unit that falls is killed outright (`kill`), bypassing `hurt`, so shields and counters do not apply; the unit's current knockback or pull gives the credit.
 5. **A broken tile stays solid while it crumbles.** The telegraph is part of the rule, not of the presentation: `solidAt` is true for a crumbling tile, `safeAt` is not (bots and companions use `safeAt`).
 6. **The client draws the floor from state, not from events.** Events only trigger dust, sound and camera shake. The kill cam re-simulates the last moments from an earlier state, so tiles have to be able to come back; a state-driven view gets that for free.
-7. **Bots avoid holes by predicting their own path** with the same acceleration model as walking, rather than by a repulsion force: a force lets momentum carry a bot over the corner of a missing tile (measured over 60 Ember mirror matches: 73 bots walked into a hole with two look-ahead points on a straight line, none with path prediction).
+7. **Bots avoid holes by predicting their own path** with the same acceleration model as walking, rather than by a repulsion force: a force lets momentum carry a bot over the corner of a missing tile (measured over 60 Pyra mirror matches: 73 bots walked into a hole with two look-ahead points on a straight line, none with path prediction).
 
 ## Consequences
 

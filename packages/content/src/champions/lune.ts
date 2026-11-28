@@ -4,9 +4,9 @@ import type { Champion } from "../types.ts";
 const LILAC = "#b9a4ff";
 
 /** Moon priestess. Barely hits by herself: she moves the enemy, the objects on the field and herself. */
-export const tide: Champion = {
-  id: "tide",
-  name: "Tide",
+export const lune: Champion = {
+  id: "lune",
+  name: "Lune",
   roleRu: "Лунная жрица · манипулятор",
   blurbRu: "Почти не бьёт сама: двигает соперника, предметы и себя. Самая хрупкая.",
   playable: true,
@@ -18,7 +18,7 @@ export const tide: Champion = {
   abilities: {
     primary: {
       kind: "projectile",
-      id: "tide.moonshard",
+      id: "lune.moonshard",
       name: "Moonshard",
       nameRu: "Лунный осколок",
       descriptionRu: "быстрый снаряд: 10 урона и короткое затухающее замедление",
@@ -37,7 +37,7 @@ export const tide: Champion = {
     },
     secondary: {
       kind: "lift",
-      id: "tide.lift",
+      id: "lune.lift",
       name: "Lift",
       nameRu: "Подъём",
       descriptionRu: "поднимает ящик у курсора; второе нажатие бросает его по прицелу: 12 урона и отбрасывание. Без ящика не срабатывает",
@@ -54,7 +54,7 @@ export const tide: Champion = {
     },
     mobility: {
       kind: "swap",
-      id: "tide.shift",
+      id: "lune.shift",
       name: "Shift",
       nameRu: "Смена",
       descriptionRu: "меняется местами с бойцом, компаньоном или ящиком у курсора (до 8 м, в прямой видимости). Без цели не срабатывает",
@@ -69,7 +69,7 @@ export const tide: Champion = {
     },
     q: {
       kind: "hover",
-      id: "tide.float",
+      id: "lune.float",
       name: "Float",
       nameRu: "Невесомость",
       descriptionRu: "1,5 с парит: её не отбросить и не притянуть, дыры и ящики не помеха. Колдовать в это время нельзя",
@@ -82,7 +82,7 @@ export const tide: Champion = {
     },
     e: {
       kind: "cone",
-      id: "tide.surge",
+      id: "lune.surge",
       name: "Surge",
       nameRu: "Волна",
       descriptionRu: "конус на 3 м: 10 урона, соперников отбрасывает на 3,5 м, ящики швыряет вдвое дальше",
@@ -100,7 +100,7 @@ export const tide: Champion = {
     },
     companion: {
       kind: "companionCommand",
-      id: "tide.moon",
+      id: "lune.moon",
       name: "Moon",
       nameRu: "Луна",
       descriptionRu: "луна летит к точке и 3 с тянет к себе: соперников медленно, ящики быстро",
@@ -112,7 +112,7 @@ export const tide: Champion = {
     },
     ultimate: {
       kind: "groundAoe",
-      id: "tide.maelstrom",
+      id: "lune.maelstrom",
       name: "Maelstrom",
       nameRu: "Водоворот",
       descriptionRu: "ульта: 0,9 с стягивает всех к точке, затем 26 урона и приковывает; пол в центре обрушивается",

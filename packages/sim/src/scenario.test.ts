@@ -1,6 +1,6 @@
 // Scripted scenarios: each gameplay rule gets a small deterministic situation (CLAUDE.md rule 5).
 import { describe, expect, it } from "vitest";
-import { arena, boulder, ember, fang, hound, moon, rook, rules, tide, training, wisp, type AbilitySlot } from "@smash/content";
+import { arena, boulder, pyra, grakk, hound, moon, cairn, rules, lune, training, wisp, type AbilitySlot } from "@smash/content";
 import {
   TICK_DT,
   championOfSlot,
@@ -36,7 +36,7 @@ interface Scene {
 }
 
 /** Two human-controlled champions, countdown skipped, companions parked far away unless asked for. */
-function scene(champA = "ember", champB = "fang", opts: { mode?: MatchMode; companions?: boolean } = {}): Scene {
+function scene(champA = "pyra", champB = "grakk", opts: { mode?: MatchMode; companions?: boolean } = {}): Scene {
   const state = createMatch({
     seed: 7,
     mode: opts.mode ?? "duel",
@@ -98,15 +98,15 @@ const of = <T extends SimEvent["t"]>(events: SimEvent[], t: T) => events.filter(
 
 describe("determinism", () => {
   it("replays a bot match identically from the same seed", () => {
-    const a = runBotMatch({ seed: 99, champions: ["ember", "fang"] });
-    const b = runBotMatch({ seed: 99, champions: ["ember", "fang"] });
+    const a = runBotMatch({ seed: 99, champions: ["pyra", "grakk"] });
+    const b = runBotMatch({ seed: 99, champions: ["pyra", "grakk"] });
     expect(a).toEqual(b);
     expect(a.winner).not.toBe(-1);
   });
 
   it("continues identically from a JSON copy of the state (snapshot / rollback ready)", () => {
     const mk = () =>
-      createMatch({ seed: 5, mode: "duel", players: [{ champion: "ember", controller: "bot" }, { champion: "fang", controller: "bot" }] });
+      createMatch({ seed: 5, mode: "duel", players: [{ champion: "pyra", controller: "bot" }, { champion: "grakk", controller: "bot" }] });
     const live = mk();
     for (let i = 0; i < 900; i++) step(live, [null, null]);
     const copy = JSON.parse(JSON.stringify(live)) as MatchState;
@@ -124,7 +124,7 @@ describe("movement", () => {
     place(s.a, 0, 14);
     s.inputs[0].move = { x: 1, z: 0 };
     s.run(rules.movement.accelTime + 2 * TICK_DT);
-    expect(s.a.vx).toBeCloseTo(ember.stats.moveSpeed, 3);
+    expect(s.a.vx).toBeCloseTo(pyra.stats.moveSpeed, 3);
     s.inputs[0].move = { x: 0, z: 0 };
     s.run(rules.movement.decelTime + 2 * TICK_DT);
     expect(s.a.vx).toBe(0);
@@ -135,7 +135,7 @@ describe("movement", () => {
     place(s.a, 0, 14);
     s.inputs[0].move = { x: 1, z: 1 };
     s.run(0.5);
-    expect(Math.hypot(s.a.vx, s.a.vz)).toBeCloseTo(ember.stats.moveSpeed, 3);
+    expect(Math.hypot(s.a.vx, s.a.vz)).toBeCloseTo(pyra.stats.moveSpeed, 3);
   });
 
   it("slows down while winding up and cannot move while stunned", () => {
@@ -145,7 +145,7 @@ describe("movement", () => {
     s.press(0, "secondary", 0, -10);
     s.run(0.3);
     expect(s.a.cast?.slot).toBe("secondary");
-    expect(s.a.vx).toBeCloseTo(ember.stats.moveSpeed * ember.abilities.secondary!.castMoveMultiplier!, 3);
+    expect(s.a.vx).toBeCloseTo(pyra.stats.moveSpeed * pyra.abilities.secondary!.castMoveMultiplier!, 3);
     s.a.stun = 1;
     s.run(0.1);
     expect(s.a.vx).toBe(0);
@@ -155,7 +155,7 @@ describe("movement", () => {
 describe("casting", () => {
   it("fires after the wind-up, and starts the cooldown only then", () => {
     const s = scene();
-    const bolt = ember.abilities.primary!;
+    const bolt = pyra.abilities.primary!;
     s.press(0, "primary", s.b.x, s.b.z);
     s.run(bolt.castTime! - 2 * TICK_DT);
     expect(s.state.projectiles).toHaveLength(0);
@@ -214,7 +214,7 @@ describe("cancelling a cast", () => {
   });
 
   it("stops a channel but does not refund it", () => {
-    const s = scene("fang", "ember");
+    const s = scene("grakk", "pyra");
     s.a.energy = 100;
     s.press(0, "ultimate", 0, 0);
     s.run(0.3);
@@ -226,7 +226,7 @@ describe("cancelling a cast", () => {
   });
 
   it("reports stuns as interruptions, not cancels", () => {
-    const s = scene("fang", "ember");
+    const s = scene("grakk", "pyra");
     place(s.a, 5, 10);
     place(s.b, 5, 8);
     s.press(1, "secondary", 5, 10);
@@ -239,8 +239,8 @@ describe("cancelling a cast", () => {
 
 describe("slows", () => {
   it("a fading snare starts at full strength and wears off linearly", () => {
-    const s = scene("fang", "ember");
-    const cleave = fang.abilities.primary!;
+    const s = scene("grakk", "pyra");
+    const cleave = grakk.abilities.primary!;
     if (cleave.kind !== "cone" || !cleave.onHit.slow) throw new Error("expected a cone with a slow");
     const { amount, duration } = cleave.onHit.slow;
     place(s.a, 5, 14);
@@ -254,11 +254,11 @@ describe("slows", () => {
     s.inputs[1].move = { x: 1, z: 0 };
     s.run(duration / 2 + 0.2);
     expect(currentSlow(s.b)).toBe(0);
-    expect(s.b.vx).toBeCloseTo(ember.stats.moveSpeed, 3);
+    expect(s.b.vx).toBeCloseTo(pyra.stats.moveSpeed, 3);
   });
 
   it("a light snare does not replace a heavier slow", () => {
-    const s = scene("fang", "ember");
+    const s = scene("grakk", "pyra");
     place(s.a, 5, 14);
     place(s.b, 5, 12);
     Object.assign(s.b, { slow: 1.5, slowAmount: 0.5, slowTotal: 1.5, slowFading: false });
@@ -275,7 +275,7 @@ describe("projectiles", () => {
     const s = scene();
     place(s.a, 5.1, 6);
     place(s.b, 5.1, -4);
-    const bolt = ember.abilities.primary!;
+    const bolt = pyra.abilities.primary!;
     if (bolt.kind !== "projectile") throw new Error("expected projectile");
     s.press(0, "primary", 5.1, -4);
     const ev = s.run(bolt.castTime! + 10 / bolt.speed + 0.1);
@@ -317,8 +317,8 @@ describe("projectiles", () => {
     expect(wall.hp).toBe(wall.maxHp);
   });
 
-  it("split into three when Ember's Fireball passes through her Wisp", () => {
-    const s = scene("ember", "fang", { companions: true });
+  it("split into three when Pyra's Fireball passes through her Wisp", () => {
+    const s = scene("pyra", "grakk", { companions: true });
     place(s.a, -10, 14);
     place(s.b, 10, -14);
     const wisp = out(companionOf(s.state, s.a)!);
@@ -334,8 +334,8 @@ describe("projectiles", () => {
     expect(of(ev, "projectileSpawn").filter((e) => e.owner === s.a.id)).toHaveLength(4);
   });
 
-  it("pull Fang to his Hound when the Harpoon hits it", () => {
-    const s = scene("fang", "ember", { companions: true });
+  it("pull Grakk to his Hound when the Harpoon hits it", () => {
+    const s = scene("grakk", "pyra", { companions: true });
     place(s.a, 0, 14);
     place(s.b, 14, -10);
     const hound = out(companionOf(s.state, s.a)!);
@@ -350,7 +350,7 @@ describe("projectiles", () => {
 
 describe("energy and weight", () => {
   it("a companion command needs a quarter of the energy bar, spends it and starts its cooldown", () => {
-    const s = scene("ember", "fang", { companions: true });
+    const s = scene("pyra", "grakk", { companions: true });
     place(s.a, 0, 10);
     place(s.b, 0, -10);
     const fired = (ev: SimEvent[]) => of(ev, "abilityFire").filter((e) => e.unit === s.a.id && e.slot === "companion");
@@ -375,12 +375,12 @@ describe("energy and weight", () => {
   });
 
   it("the same shove moves a heavy champion less than a light one", () => {
-    const bash = fang.abilities.e!;
+    const bash = grakk.abilities.e!;
     if (bash.kind !== "cone" || !bash.onHit.knockback) throw new Error("expected a knockback cone");
     const distance = bash.onHit.knockback.distance;
     // Out in the open: nothing to slam into.
-    const shove = (target: "ember" | "fang") => {
-      const s = scene("fang", target);
+    const shove = (target: "pyra" | "grakk") => {
+      const s = scene("grakk", target);
       place(s.a, 2, 10);
       place(s.b, 2, 12);
       s.press(0, "e", 2, 12);
@@ -388,11 +388,11 @@ describe("energy and weight", () => {
       expect(of(ev, "slam")).toHaveLength(0);
       return s.b.z - 12;
     };
-    const light = shove("ember");
-    const heavy = shove("fang");
-    expect(ember.stats.weight).toBeLessThan(fang.stats.weight);
-    expect(Math.abs(light - distance / ember.stats.weight)).toBeLessThan(0.15);
-    expect(Math.abs(heavy - distance / fang.stats.weight)).toBeLessThan(0.15);
+    const light = shove("pyra");
+    const heavy = shove("grakk");
+    expect(pyra.stats.weight).toBeLessThan(grakk.stats.weight);
+    expect(Math.abs(light - distance / pyra.stats.weight)).toBeLessThan(0.15);
+    expect(Math.abs(heavy - distance / grakk.stats.weight)).toBeLessThan(0.15);
     expect(heavy).toBeLessThan(light);
   });
 });
@@ -411,7 +411,7 @@ describe("damage events", () => {
   });
 
   it("report a companion's bite from the companion, while its owner gets the credit", () => {
-    const s = scene("fang", "ember", { companions: true });
+    const s = scene("grakk", "pyra", { companions: true });
     // Owner to the left of the victim, hound on its right (within the hound's leash).
     place(s.a, -2, -2);
     place(s.b, 6, -2);
@@ -436,8 +436,8 @@ describe("damage events", () => {
 });
 
 describe("melee and control", () => {
-  it("Cleave hits what is in front of Fang, not behind him", () => {
-    const s = scene("fang", "ember");
+  it("Cleave hits what is in front of Grakk, not behind him", () => {
+    const s = scene("grakk", "pyra");
     place(s.a, 0, 14);
     place(s.b, 0, 12);
     s.press(0, "primary", 0, 0);
@@ -451,7 +451,7 @@ describe("melee and control", () => {
   });
 
   it("Shield Bash into the arena wall is a slam: longer stun and extra damage", () => {
-    const s = scene("fang", "ember");
+    const s = scene("grakk", "pyra");
     const edge = arena.radius - arena.wallMargin;
     place(s.a, 0, edge - 2.4);
     place(s.b, 0, edge - 0.5);
@@ -463,7 +463,7 @@ describe("melee and control", () => {
   });
 
   it("Counter negates the hit, stuns the attacker and empowers the next Cleave", () => {
-    const s = scene("fang", "ember");
+    const s = scene("grakk", "pyra");
     place(s.a, 5, 10);
     place(s.b, 5, 4);
     s.press(0, "q", 5, 4);
@@ -479,7 +479,7 @@ describe("melee and control", () => {
     const s = scene();
     place(s.a, 0, 8);
     place(s.b, 0, 0.5);
-    const ring = ember.abilities.e!;
+    const ring = pyra.abilities.e!;
     if (ring.kind !== "groundAoe") throw new Error("expected groundAoe");
     s.press(0, "e", 0, 0.5);
     s.run(ring.castTime! + ring.delay - 0.1);
@@ -490,7 +490,7 @@ describe("melee and control", () => {
   });
 
   it("a rooted champion cannot use mobility but can still attack", () => {
-    const s = scene("fang", "ember");
+    const s = scene("grakk", "pyra");
     place(s.a, 0, 14);
     place(s.b, 0, 12);
     s.a.root = 1;
@@ -502,8 +502,8 @@ describe("melee and control", () => {
     expect(s.b.hp).toBeLessThan(s.b.maxHp);
   });
 
-  it("Whirlwind makes Fang unstoppable", () => {
-    const s = scene("fang", "ember");
+  it("Whirlwind makes Grakk unstoppable", () => {
+    const s = scene("grakk", "pyra");
     place(s.a, 0, 10);
     place(s.b, 0, 8);
     s.a.energy = 100;
@@ -645,7 +645,7 @@ describe("destructible arena", () => {
     s.state.floor.hp[tileAt(x, z)] = 0;
   };
   const intact = (s: Scene) => s.state.floor.hp.every((hp) => hp === arena.floor.hp);
-  const ring = ember.abilities.e!;
+  const ring = pyra.abilities.e!;
   if (ring.kind !== "groundAoe") throw new Error("expected groundAoe");
 
   it("lays the floor out in rings: every point of the arena is on exactly one tile, point-symmetrically", () => {
@@ -711,12 +711,12 @@ describe("destructible arena", () => {
 
   it("only what strikes the ground hurts the floor: projectiles, melee, novas and channels do not", () => {
     const cases: [string, string, AbilitySlot][] = [
-      ["ember", "fang", "primary"],
-      ["ember", "fang", "secondary"],
-      ["ember", "fang", "q"],
-      ["fang", "ember", "primary"],
-      ["fang", "ember", "e"],
-      ["fang", "ember", "ultimate"],
+      ["pyra", "grakk", "primary"],
+      ["pyra", "grakk", "secondary"],
+      ["pyra", "grakk", "q"],
+      ["grakk", "pyra", "primary"],
+      ["grakk", "pyra", "e"],
+      ["grakk", "pyra", "ultimate"],
     ];
     for (const [caster, target, slot] of cases) {
       const s = scene(caster, target);
@@ -732,8 +732,8 @@ describe("destructible arena", () => {
   });
 
   it("a leap landing strikes the ground: the third one on the same spot goes through", () => {
-    const s = scene("fang", "ember");
-    const leap = fang.abilities.mobility!;
+    const s = scene("grakk", "pyra");
+    const leap = grakk.abilities.mobility!;
     if (leap.kind !== "leap") throw new Error("expected leap");
     place(s.b, 10, -10);
     const broke: boolean[] = [];
@@ -748,7 +748,7 @@ describe("destructible arena", () => {
 
   it("a projectile hits the arena wall, breaks its section, and the next one flies out through the gap", () => {
     const s = scene();
-    const bolt = ember.abilities.primary!;
+    const bolt = pyra.abilities.primary!;
     if (bolt.kind !== "projectile") throw new Error("expected projectile");
     // Straight at the middle of a section, from 6 m away.
     const section = 2;
@@ -779,7 +779,7 @@ describe("destructible arena", () => {
   it("a slam damages the wall section; with the section gone the same shove is a ring-out, credited to the pusher", () => {
     const edge = arena.radius - arena.wallMargin;
     const bash = (prepare: (s: Scene) => void) => {
-      const s = scene("fang", "ember");
+      const s = scene("grakk", "pyra");
       place(s.a, 0.5, edge - 2.4);
       place(s.b, 0.5, edge - 0.5);
       prepare(s);
@@ -802,7 +802,7 @@ describe("destructible arena", () => {
   });
 
   it("a knockback or a pull across a hole ends in it; a shield does not help", () => {
-    const s = scene("fang", "ember");
+    const s = scene("grakk", "pyra");
     place(s.a, 4, 2);
     place(s.b, 4, 4);
     s.b.shield = 100;
@@ -813,7 +813,7 @@ describe("destructible arena", () => {
     expect(of(ev, "fall")[0]).toMatchObject({ unit: s.b.id, by: s.a.id });
     expect(s.b.dead).toBe(true);
 
-    const h = scene("fang", "ember");
+    const h = scene("grakk", "pyra");
     place(h.a, -5, 1);
     place(h.b, -5, 9);
     hole(h, -5, 5);
@@ -823,7 +823,7 @@ describe("destructible arena", () => {
   });
 
   it("a leap carries over a hole, but coming down in one is a fall (and no landing blow)", () => {
-    const over = scene("fang", "ember");
+    const over = scene("grakk", "pyra");
     place(over.a, 0, 12);
     place(over.b, 10, -10);
     hole(over, 0, 9);
@@ -832,7 +832,7 @@ describe("destructible arena", () => {
     expect(of(ev, "leapLand")).toHaveLength(1);
     expect(over.a.dead).toBe(false);
 
-    const into = scene("fang", "ember");
+    const into = scene("grakk", "pyra");
     place(into.a, 0, 12);
     place(into.b, 0.5, 6);
     hole(into, 0, 7);
@@ -895,7 +895,7 @@ describe("destructible arena", () => {
   });
 
   it("a flying companion does not care about holes; a walking one falls in when thrown, but will not walk in", () => {
-    const e = scene("ember", "fang", { companions: true });
+    const e = scene("pyra", "grakk", { companions: true });
     const wisp = out(companionOf(e.state, e.a)!);
     const hound = out(companionOf(e.state, e.b)!);
     Object.assign(wisp, { mode: "sentry", modeTime: 99, tx: 3, tz: 12 });
@@ -911,8 +911,8 @@ describe("destructible arena", () => {
     expect(hound.dead).toBe(true);
     expect(wisp.dead).toBe(false);
 
-    // A moat between Fang and the point the Hound is sent to: it stops at the edge.
-    const f = scene("fang", "ember", { companions: true });
+    // A moat between Grakk and the point the Hound is sent to: it stops at the edge.
+    const f = scene("grakk", "pyra", { companions: true });
     const dog = companionOf(f.state, f.a)!;
     place(f.a, 0, 12);
     place(f.b, -12, -8);
@@ -934,8 +934,8 @@ describe("destructible arena", () => {
       seed: 3,
       mode: "duel",
       players: [
-        { champion: "fang", controller: "bot", difficulty: "hard" },
-        { champion: "ember", controller: "human" },
+        { champion: "grakk", controller: "bot", difficulty: "hard" },
+        { champion: "pyra", controller: "human" },
       ],
     });
     const bot = championOfTeam(state, 0);
@@ -988,7 +988,7 @@ describe("crates", () => {
     const crate = s.state.obstacles.find((o) => o.kind === "crate" && o.x > 3 && o.z === 0)!;
     place(s.a, crate.x, 6);
     place(s.b, -12, -12);
-    const bolt = ember.abilities.primary!;
+    const bolt = pyra.abilities.primary!;
     if (bolt.kind !== "projectile") throw new Error("expected projectile");
     crate.hp = bolt.onHit.damage + 1;
     s.press(0, "primary", crate.x, 0);
@@ -1006,7 +1006,7 @@ describe("crates", () => {
 
 describe("companions are summoned", () => {
   it("is not on the field until commanded, appears beside its owner, does its job and leaves", () => {
-    const s = scene("ember", "fang", { companions: true });
+    const s = scene("pyra", "grakk", { companions: true });
     const pet = companionOf(s.state, s.a)!;
     place(s.a, -4.5, 12);
     place(s.b, -4.5, 2);
@@ -1026,7 +1026,7 @@ describe("companions are summoned", () => {
   });
 
   it("a flying sentry sent onto a wall takes a spot beside it, from where it can see", () => {
-    const s = scene("ember", "fang", { companions: true });
+    const s = scene("pyra", "grakk", { companions: true });
     const pet = companionOf(s.state, s.a)!;
     place(s.a, 0, 12);
     place(s.b, 0, 9);
@@ -1041,7 +1041,7 @@ describe("companions are summoned", () => {
   });
 
   it("cannot be summoned for a while after it is killed, and is away again when the next round starts", () => {
-    const s = scene("fang", "ember", { companions: true });
+    const s = scene("grakk", "pyra", { companions: true });
     const pet = companionOf(s.state, s.a)!;
     place(s.a, -4.5, 13);
     place(s.b, -4.5, 3);
@@ -1071,7 +1071,7 @@ describe("2v2", () => {
     createMatch({
       seed: 11,
       mode: "duel",
-      players: ["ember", "fang", "rook", "tide"].map((champion) => ({ champion, controller })),
+      players: ["pyra", "grakk", "cairn", "lune"].map((champion) => ({ champion, controller })),
     });
 
   it("puts even slots on team 0 and odd ones on team 1, side by side at their spawn", () => {
@@ -1111,17 +1111,17 @@ describe("2v2", () => {
   });
 
   it("bots finish a 2v2 match", () => {
-    const r = runBotMatch({ seed: 21, champions: ["ember", "fang", "rook", "tide"], difficulty: "hard" });
+    const r = runBotMatch({ seed: 21, champions: ["pyra", "grakk", "cairn", "lune"], difficulty: "hard" });
     expect(r.winner).not.toBe(-1);
     expect(Math.max(...r.score)).toBe(rules.roundsToWin);
   });
 });
 
-describe("Rook", () => {
+describe("Cairn", () => {
   it("is a melee champion: the maul hits what is in front of him and bats a crate away", () => {
-    const maul = rook.abilities.primary!;
+    const maul = cairn.abilities.primary!;
     if (maul.kind !== "cone") throw new Error("expected a melee cone");
-    const s = scene("rook", "ember");
+    const s = scene("cairn", "pyra");
     place(s.a, -4.5, 12);
     place(s.b, -4.5, 12 - maul.range + 0.5);
     const crate = s.state.obstacles.find((o) => o.kind === "crate")!;
@@ -1143,16 +1143,16 @@ describe("Rook", () => {
     expect(s.b.hp).toBe(hp);
   });
 
-  const wallA = rook.abilities.secondary!;
-  const ram = rook.abilities.mobility!;
-  const skin = rook.abilities.q!;
-  const shatter = rook.abilities.e!;
-  const colosseum = rook.abilities.ultimate!;
-  if (wallA.kind !== "wall" || ram.kind !== "dash" || skin.kind !== "brace" || shatter.kind !== "line" || colosseum.kind !== "ring") throw new Error("unexpected Rook kit");
+  const wallA = cairn.abilities.secondary!;
+  const ram = cairn.abilities.mobility!;
+  const skin = cairn.abilities.q!;
+  const shatter = cairn.abilities.e!;
+  const colosseum = cairn.abilities.ultimate!;
+  if (wallA.kind !== "wall" || ram.kind !== "dash" || skin.kind !== "brace" || shatter.kind !== "line" || colosseum.kind !== "ring") throw new Error("unexpected Cairn kit");
   const walls = (s: Scene) => s.state.obstacles.filter((o) => o.kind === "wall");
 
   it("raises a wall across his aim that stops shots, keeps at most two, and lets them crumble in time", () => {
-    const s = scene("rook", "ember");
+    const s = scene("cairn", "pyra");
     place(s.a, -4.5, 12);
     place(s.b, -4.5, 2);
     s.press(0, "secondary", -4.5, 8);
@@ -1160,7 +1160,7 @@ describe("Rook", () => {
     expect(walls(s)).toHaveLength(1);
     const w = walls(s)[0]!;
     expect(w.z).toBeCloseTo(8);
-    // Ember's bolt at Rook is stopped by it.
+    // Pyra's bolt at Cairn is stopped by it.
     s.press(1, "primary", -4.5, 12);
     const shot = s.run(1);
     expect(of(shot, "projectileEnd")[0]!.reason).toBe("blocked");
@@ -1180,7 +1180,7 @@ describe("Rook", () => {
   });
 
   it("rams an enemy along: into a wall it is a slam, over a hole it is a fall", () => {
-    const s = scene("rook", "ember");
+    const s = scene("cairn", "pyra");
     place(s.a, -4.5, 12);
     place(s.b, -4.5, 9.5);
     s.press(0, "secondary", -4.5, 6.5);
@@ -1192,7 +1192,7 @@ describe("Rook", () => {
     expect(s.b.hp).toBe(s.b.maxHp - ram.onHit.damage - (rules.slam.damage + ram.carry.slamDamage!));
     expect(s.a.z).toBeGreaterThan(7);
 
-    const h = scene("rook", "ember");
+    const h = scene("cairn", "pyra");
     place(h.a, -4.5, 12);
     place(h.b, -4.5, 9.5);
     h.state.floor.hp[tileAt(-4.5, 5.2)] = 0;
@@ -1203,7 +1203,7 @@ describe("Rook", () => {
   });
 
   it("is untouchable while braced, then throws everyone around back", () => {
-    const s = scene("rook", "fang");
+    const s = scene("cairn", "grakk");
     place(s.a, -4.5, 8);
     place(s.b, -4.5, 6);
     s.press(0, "q", -4.5, 6);
@@ -1221,7 +1221,7 @@ describe("Rook", () => {
   });
 
   it("holds his ground while braced: walking into him pushes the walker back, not him", () => {
-    const s = scene("rook", "fang");
+    const s = scene("cairn", "grakk");
     place(s.a, -4.5, 8);
     place(s.b, -4.5, 5);
     s.press(0, "q", -4.5, 5);
@@ -1233,7 +1233,7 @@ describe("Rook", () => {
   });
 
   it("cracks the floor along a line, and bursts his own wall on it into shards", () => {
-    const s = scene("rook", "ember");
+    const s = scene("cairn", "pyra");
     place(s.a, -4.5, 13);
     place(s.b, 10, -10);
     s.press(0, "e", -4.5, 0);
@@ -1244,7 +1244,7 @@ describe("Rook", () => {
     expect(s.state.floor.hp[tileAt(-4.5, 13 - shatter.range - 2)]).toBe(arena.floor.hp);
     expect(s.state.floor.hp[tileAt(-1, 9)]).toBe(arena.floor.hp);
 
-    const w = scene("rook", "ember");
+    const w = scene("cairn", "pyra");
     place(w.a, -4.5, 13);
     place(w.b, -2.3, 8);
     w.press(0, "secondary", -4.5, 9);
@@ -1260,7 +1260,7 @@ describe("Rook", () => {
   });
 
   it("rolls his Boulder through an enemy, bounces it off a wall, and leaves it as cover for a while", () => {
-    const s = scene("rook", "ember", { companions: true });
+    const s = scene("cairn", "pyra", { companions: true });
     const pet = companionOf(s.state, s.a)!;
     place(s.a, -4.5, 13);
     place(s.b, -4.5, 7);
@@ -1276,7 +1276,7 @@ describe("Rook", () => {
     const rest = s.run(boulder.command.coverTime + 0.2);
     expect(of(rest, "companionLeave")).toHaveLength(1);
 
-    const b = scene("rook", "ember", { companions: true });
+    const b = scene("cairn", "pyra", { companions: true });
     place(b.a, 2, 15);
     place(b.b, -12, -12);
     b.a.energy = rules.energy.max;
@@ -1288,7 +1288,7 @@ describe("Rook", () => {
   });
 
   it("raises a Colosseum: a ring of walls where a slam hits twice as hard", () => {
-    const s = scene("rook", "ember");
+    const s = scene("cairn", "pyra");
     place(s.a, -4.5, 10);
     place(s.b, -4.5, 7.5);
     s.a.energy = rules.energy.max;
@@ -1308,7 +1308,7 @@ describe("Rook", () => {
     expect(s.state.arenas).toHaveLength(0);
 
     // At the edge of the arena only the pieces that have floor under them go up; none is raised just to fall.
-    const e = scene("rook", "ember");
+    const e = scene("cairn", "pyra");
     place(e.a, 0.5, 12);
     place(e.b, -10, -10);
     e.a.energy = rules.energy.max;
@@ -1322,13 +1322,13 @@ describe("Rook", () => {
   });
 });
 
-describe("Tide", () => {
-  const lift = tide.abilities.secondary!;
-  const shift = tide.abilities.mobility!;
-  const float = tide.abilities.q!;
-  const surge = tide.abilities.e!;
-  const maelstrom = tide.abilities.ultimate!;
-  if (lift.kind !== "lift" || shift.kind !== "swap" || float.kind !== "hover" || surge.kind !== "cone" || maelstrom.kind !== "groundAoe") throw new Error("unexpected Tide kit");
+describe("Lune", () => {
+  const lift = lune.abilities.secondary!;
+  const shift = lune.abilities.mobility!;
+  const float = lune.abilities.q!;
+  const surge = lune.abilities.e!;
+  const maelstrom = lune.abilities.ultimate!;
+  if (lift.kind !== "lift" || shift.kind !== "swap" || float.kind !== "hover" || surge.kind !== "cone" || maelstrom.kind !== "groundAoe") throw new Error("unexpected Lune kit");
   const crateAt = (s: Scene, x: number, z: number) => {
     const c = s.state.obstacles.find((o) => o.kind === "crate")!;
     c.x = x;
@@ -1337,7 +1337,7 @@ describe("Tide", () => {
   };
 
   it("lifts a crate and throws it; without a crate under the cursor nothing happens and nothing is paid", () => {
-    const s = scene("tide", "fang");
+    const s = scene("lune", "grakk");
     place(s.a, -4.5, 12);
     place(s.b, -4.5, 4);
     s.press(0, "secondary", -9, 9);
@@ -1361,7 +1361,7 @@ describe("Tide", () => {
   });
 
   it("puts the crate down if it is not thrown in time", () => {
-    const s = scene("tide", "fang");
+    const s = scene("lune", "grakk");
     place(s.a, -4.5, 12);
     place(s.b, 10, -10);
     const crate = crateAt(s, -8, 11);
@@ -1374,7 +1374,7 @@ describe("Tide", () => {
   });
 
   it("never passes a crate through the arena wall: held at the wall, it is put down beside her", () => {
-    const s = scene("tide", "fang");
+    const s = scene("lune", "grakk");
     const edge = arena.radius - arena.wallMargin;
     place(s.a, 0.5, edge - 2);
     place(s.b, 10, -10);
@@ -1393,7 +1393,7 @@ describe("Tide", () => {
   });
 
   it("trades places with an enemy or a crate in sight, and does not fire without a target", () => {
-    const s = scene("tide", "fang");
+    const s = scene("lune", "grakk");
     place(s.a, -4.5, 12);
     place(s.b, -4.5, 6);
     s.press(0, "mobility", 0, 12);
@@ -1405,7 +1405,7 @@ describe("Tide", () => {
     expect(s.a.z).toBeCloseTo(6, 0);
     expect(s.b.z).toBeCloseTo(12, 0);
 
-    const c = scene("tide", "fang");
+    const c = scene("lune", "grakk");
     place(c.a, -4.5, 12);
     place(c.b, 10, -10);
     const crate = crateAt(c, -10, 9);
@@ -1416,7 +1416,7 @@ describe("Tide", () => {
   });
 
   it("floats: cannot be shoved, passes over a hole, cannot cast, and comes down where the float ends", () => {
-    const s = scene("tide", "fang");
+    const s = scene("lune", "grakk");
     place(s.a, -4.5, 8);
     place(s.b, -4.5, 6);
     s.press(0, "q", -4.5, 6);
@@ -1430,7 +1430,7 @@ describe("Tide", () => {
     s.press(0, "primary", -4.5, 6);
     expect(of(s.run(0.2), "castStart").filter((e) => e.unit === s.a.id)).toHaveLength(0);
 
-    const h = scene("tide", "fang");
+    const h = scene("lune", "grakk");
     place(h.a, -4.5, 8);
     place(h.b, 10, -10);
     h.press(0, "q", -4.5, 6);
@@ -1450,19 +1450,19 @@ describe("Tide", () => {
   });
 
   it("Surge throws an enemy back and a crate about twice as far", () => {
-    const s = scene("tide", "fang");
+    const s = scene("lune", "grakk");
     place(s.a, -4.5, 4);
     place(s.b, -3.7, 2);
     const crate = crateAt(s, -5.3, 2);
     s.press(0, "e", -4.5, 2);
     s.run(2);
-    const shove = surge.onHit.knockback!.distance / fang.stats.weight;
+    const shove = surge.onHit.knockback!.distance / grakk.stats.weight;
     expect(Math.hypot(s.b.x + 3.7, s.b.z - 2)).toBeCloseTo(shove, 0);
     expect(Math.hypot(crate.x + 5.3, crate.z - 2)).toBeGreaterThan(shove * 1.8);
   });
 
   it("sends the Moon to open a gravity well: enemies drift in, crates fly in and hit what is in their way", () => {
-    const s = scene("tide", "fang", { companions: true });
+    const s = scene("lune", "grakk", { companions: true });
     const pet = companionOf(s.state, s.a)!;
     place(s.a, -4.5, 13);
     place(s.b, -4.5, 3);
@@ -1480,7 +1480,7 @@ describe("Tide", () => {
   });
 
   it("gets the credit for a fall she drags someone into, with the Maelstrom or the Moon", () => {
-    const s = scene("tide", "fang");
+    const s = scene("lune", "grakk");
     place(s.a, -4.5, 13);
     place(s.b, -4.5 + 3, 5);
     // A hole between the enemy and the middle of the whirl.
@@ -1492,7 +1492,7 @@ describe("Tide", () => {
   });
 
   it("Maelstrom drags enemies to its middle, then the middle of the floor goes", () => {
-    const s = scene("tide", "fang");
+    const s = scene("lune", "grakk");
     place(s.a, -4.5, 13);
     place(s.b, -4.5 + 3, 5);
     s.a.energy = rules.energy.max;
@@ -1509,7 +1509,7 @@ describe("Tide", () => {
 
 describe("training mode", () => {
   it("has no countdown, a dummy that heals back, and no round end", () => {
-    const s = scene("ember", "dummy", { mode: "training" });
+    const s = scene("pyra", "dummy", { mode: "training" });
     expect(s.b.controller).toBe("dummy");
     s.b.hp = 5;
     s.b.lastHurtAt = s.state.roundTime;
@@ -1527,7 +1527,7 @@ describe("training mode", () => {
   });
 
   it("stands a fallen champion back up on floor that is still there, and the arena reset mends the floor", () => {
-    const s = scene("ember", "dummy", { mode: "training" });
+    const s = scene("pyra", "dummy", { mode: "training" });
     place(s.a, 0, 12);
     for (let i = 0; i < floorTiles.length; i++) if (Math.hypot(floorTiles[i]!.x, floorTiles[i]!.z - 12) < 3) s.state.floor.hp[i] = 0;
     const ev = s.run(training.respawn + 0.2);
@@ -1542,7 +1542,7 @@ describe("training mode", () => {
   });
 
   it("does not start sudden death on its own, but the range can toggle it", () => {
-    const s = scene("fang", "dummy", { mode: "training" });
+    const s = scene("grakk", "dummy", { mode: "training" });
     s.state.roundTime = arena.suddenDeath.startAt + 5;
     s.run(0.5);
     expect(s.state.suddenDeath.active).toBe(false);
@@ -1554,12 +1554,12 @@ describe("training mode", () => {
   });
 
   it("applies tuning multipliers and ignores commands in a real match", () => {
-    const s = scene("ember", "dummy", { mode: "training" });
+    const s = scene("pyra", "dummy", { mode: "training" });
     trainingCommand(s.state, { t: "setTuning", tuning: { moveSpeed: 0.5 } });
     place(s.a, 0, 14);
     s.inputs[0].move = { x: 1, z: 0 };
     s.run(0.5);
-    expect(s.a.vx).toBeCloseTo(ember.stats.moveSpeed * 0.5, 3);
+    expect(s.a.vx).toBeCloseTo(pyra.stats.moveSpeed * 0.5, 3);
     const duel = scene();
     trainingCommand(duel.state, { t: "fillEnergy" });
     expect(duel.a.energy).toBeLessThan(rules.energy.max);
@@ -1567,7 +1567,7 @@ describe("training mode", () => {
 });
 
 describe("bots", () => {
-  const ids = ["ember", "fang", "rook", "tide"] as const;
+  const ids = ["pyra", "grakk", "cairn", "lune"] as const;
   for (const a of ids) {
     for (const b of ids) {
       it(`${a} vs ${b} finishes a match`, () => {

@@ -8,7 +8,7 @@ import { ChampionView } from "./Units.ts";
 const world: RagdollWorld = { collide: () => null, impact: () => undefined };
 
 function setup() {
-  const state = createMatch({ seed: 1, mode: "duel", players: [{ champion: "fang", controller: "bot" }, { champion: "ember", controller: "bot" }] });
+  const state = createMatch({ seed: 1, mode: "duel", players: [{ champion: "grakk", controller: "bot" }, { champion: "pyra", controller: "bot" }] });
   const unit = championOfTeam(state, 1);
   const scene = new THREE.Scene();
   const view = new ChampionView(unit, false, new Particles());

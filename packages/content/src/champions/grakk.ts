@@ -3,9 +3,9 @@ import type { Champion } from "../types.ts";
 
 const GOLD = "#ffc93c";
 
-export const fang: Champion = {
-  id: "fang",
-  name: "Fang",
+export const grakk: Champion = {
+  id: "grakk",
+  name: "Grakk",
   roleRu: "Воин · ближний бой",
   blurbRu: "Сокращает дистанцию, ловит гарпуном и не отпускает. Много здоровья.",
   playable: true,
@@ -17,7 +17,7 @@ export const fang: Champion = {
   abilities: {
     primary: {
       kind: "cone",
-      id: "fang.cleave",
+      id: "grakk.cleave",
       name: "Cleave",
       nameRu: "Рассечение",
       descriptionRu: "замах 0,3 с, удар топором по дуге: 14 урона и затухающее замедление",
@@ -35,7 +35,7 @@ export const fang: Champion = {
     },
     secondary: {
       kind: "projectile",
-      id: "fang.harpoon",
+      id: "grakk.harpoon",
       name: "Harpoon",
       nameRu: "Гарпун",
       descriptionRu: "притягивает врага или ящик, 10 урона. Попадание в свою Гончую — рывок к ней",
@@ -55,7 +55,7 @@ export const fang: Champion = {
     },
     mobility: {
       kind: "leap",
-      id: "fang.leap",
+      id: "grakk.leap",
       name: "Leap",
       nameRu: "Прыжок",
       descriptionRu: "прыжок до 8 м: 14 урона и замедление при приземлении; третий прыжок в одно место проламывает пол",
@@ -70,7 +70,7 @@ export const fang: Champion = {
     },
     e: {
       kind: "cone",
-      id: "fang.shieldBash",
+      id: "grakk.shieldBash",
       name: "Shield Bash",
       nameRu: "Удар щитом",
       descriptionRu: "отбрасывает на 3 м и оглушает на 0,5 с, 10 урона; об стену — 1,2 с и +10 урона",
@@ -87,7 +87,7 @@ export const fang: Champion = {
     },
     q: {
       kind: "counter",
-      id: "fang.counter",
+      id: "grakk.counter",
       name: "Counter",
       nameRu: "Контрудар",
       descriptionRu: "стойка на 1 с: блок урона, оглушение атакующего, усиленный ЛКМ",
@@ -103,7 +103,7 @@ export const fang: Champion = {
     },
     companion: {
       kind: "companionCommand",
-      id: "fang.hound",
+      id: "grakk.hound",
       name: "Hound",
       nameRu: "Гончая",
       descriptionRu: "компаньон: охраняет и кусает; по команде бросается и прижимает врага к месту на 0,8 с",
@@ -115,7 +115,7 @@ export const fang: Champion = {
     },
     ultimate: {
       kind: "channel",
-      id: "fang.whirlwind",
+      id: "grakk.whirlwind",
       name: "Whirlwind",
       nameRu: "Вихрь",
       descriptionRu: "ульта: 2,4 с вращения, урон всем рядом, нельзя остановить",

@@ -23,7 +23,7 @@ export const SOUNDS: Record<string, SoundDef> = {
   windup_swing: s("windup_swing", 0.32, 0.08),
   windup_bash: s("windup_bash", 0.4, 0.05),
   cast_cancel: s("cast_cancel", 0.45, 0.05),
-  // Ember
+  // Pyra
   fire_bolt: s("fire_bolt", 0.4, 0.08, 50),
   fire_hit: s("fire_hit", 0.45, 0.1, 50),
   fire_charge: s("fire_charge", 0.55, 0.04),
@@ -35,7 +35,7 @@ export const SOUNDS: Record<string, SoundDef> = {
   meteor_fall: s("meteor_fall", 0.85),
   meteor_impact: s("meteor_impact", 1),
   ult_cast: s("ult_cast", 0.9),
-  // Fang
+  // Grakk
   cleave: s("cleave", 0.4, 0.08, 60),
   blade_hit: s("blade_hit", 0.45, 0.1, 50),
   hook_windup: s("hook_windup", 0.5, 0.04),

@@ -47,8 +47,8 @@ describe("RoomRegistry", () => {
     const r = registry();
     r.create("a", "A");
     expect(r.setReady("a", true)?.players[0]?.ready).toBe(false);
-    r.pick("a", "ember");
+    r.pick("a", "pyra");
     expect(r.setReady("a", true)?.players[0]?.ready).toBe(true);
-    expect(r.pick("a", "fang")?.players[0]?.ready).toBe(false);
+    expect(r.pick("a", "grakk")?.players[0]?.ready).toBe(false);
   });
 });

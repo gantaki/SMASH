@@ -5,8 +5,8 @@ import { REPLAY_TICKS } from "./replay.ts";
 
 const CFG: OnlineMatchConfig = {
   seed: 123456,
-  hostChampion: "ember",
-  guestChampion: "fang",
+  hostChampion: "pyra",
+  guestChampion: "grakk",
 };
 
 const moveInput = (x: number, z: number, aimX = 0, aimZ = 0): PlayerInput => ({

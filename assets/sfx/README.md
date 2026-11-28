@@ -16,7 +16,7 @@ Post-processing (ffmpeg): leading/trailing silence trimmed at −42 dB, gain set
 
 | Group | Id | Intent |
 |---|---|---|
-| Ember | `fire_bolt` | small fire dart launch |
+| Pyra | `fire_bolt` | small fire dart launch |
 | | `fire_hit` | small fire impact |
 | | `fire_charge` | rising charge-up (Fireball cast) |
 | | `fireball` | big fireball launch |
@@ -27,7 +27,7 @@ Post-processing (ffmpeg): leading/trailing silence trimmed at −42 dB, gain set
 | | `meteor_fall` | descending whoosh |
 | | `meteor_impact` | huge impact |
 | | `ult_cast` | ultimate activation swell |
-| Fang | `cleave` | axe swing |
+| Grakk | `cleave` | axe swing |
 | | `blade_hit` | blade hit |
 | | `hook_windup` | chain wind-up |
 | | `hook_throw` | harpoon thrown |

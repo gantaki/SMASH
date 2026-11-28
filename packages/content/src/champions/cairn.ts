@@ -4,9 +4,9 @@ import type { Champion } from "../types.ts";
 const MOSS = "#8fc46b";
 
 /** Mason, melee. Rebuilds the arena to suit him (walls, a ring of walls, a rolling boulder) and drives the enemy into it. */
-export const rook: Champion = {
-  id: "rook",
-  name: "Rook",
+export const cairn: Champion = {
+  id: "cairn",
+  name: "Cairn",
   roleRu: "Каменщик · ближний бой",
   blurbRu: "Перестраивает арену под себя и вбивает в неё соперника. Тяжёлый и медленный.",
   playable: true,
@@ -18,7 +18,7 @@ export const rook: Champion = {
   abilities: {
     primary: {
       kind: "cone",
-      id: "rook.maul",
+      id: "cairn.maul",
       name: "Maul",
       nameRu: "Кувалда",
       descriptionRu: "замах 0,32 с, удар кувалдой по дуге: 16 урона и затухающее замедление; ящики отлетают",
@@ -36,7 +36,7 @@ export const rook: Champion = {
     },
     secondary: {
       kind: "wall",
-      id: "rook.raiseWall",
+      id: "cairn.raiseWall",
       name: "Raise Wall",
       nameRu: "Стена",
       descriptionRu: "стена 3 м поперёк прицела на 5 с: закрывает от снарядов, о неё можно ударить соперника. Не больше двух сразу",
@@ -55,7 +55,7 @@ export const rook: Champion = {
     },
     mobility: {
       kind: "dash",
-      id: "rook.ram",
+      id: "cairn.ram",
       name: "Ram",
       nameRu: "Таран",
       descriptionRu: "рывок до 6 м: первого соперника тащит перед собой. Упёрлись в стену — удар о стену, оказалась дыра — он в ней",
@@ -72,7 +72,7 @@ export const rook: Champion = {
     },
     q: {
       kind: "brace",
-      id: "rook.stoneskin",
+      id: "cairn.stoneskin",
       name: "Stoneskin",
       nameRu: "Каменная кожа",
       descriptionRu: "1 с неуязвим и неподвижен, затем отталкивает всех рядом на 3 м",
@@ -87,7 +87,7 @@ export const rook: Champion = {
     },
     e: {
       kind: "line",
-      id: "rook.shatter",
+      id: "cairn.shatter",
       name: "Shatter",
       nameRu: "Раскол",
       descriptionRu: "волна по земле на 8 м: 22 урона и замедление, плиты на линии трескаются. Своя стена на пути взрывается осколками",
@@ -107,7 +107,7 @@ export const rook: Champion = {
     },
     companion: {
       kind: "companionCommand",
-      id: "rook.boulder",
+      id: "cairn.boulder",
       name: "Boulder",
       nameRu: "Валун",
       descriptionRu: "валун катится к точке, отскакивая от стен до двух раз: 14 урона и отбрасывание на 3 м, затем 4 с лежит укрытием",
@@ -119,10 +119,10 @@ export const rook: Champion = {
     },
     ultimate: {
       kind: "ring",
-      id: "rook.colosseum",
+      id: "cairn.colosseum",
       name: "Colosseum",
       nameRu: "Колизей",
-      descriptionRu: "ульта: кольцо стен вокруг точки на 5 с. Внутри удар о стену бьёт вдвое сильнее — по всем, и по Rook тоже",
+      descriptionRu: "ульта: кольцо стен вокруг точки на 5 с. Внутри удар о стену бьёт вдвое сильнее — по всем, и по Cairn тоже",
       icon: "colosseum",
       cooldown: 0,
       energyCost: 100,

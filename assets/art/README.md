@@ -27,7 +27,7 @@ with references attached:
 - a new **portrait** gets an existing portrait as the style guide;
 - a **select tile** gets its own champion's portrait ("draw the same character again … as a close-up");
 - a new **icon** gets an existing icon as the style guide, plus its own champion's portrait when the icon shows that
-  champion's gear (Fang's axe and shield).
+  champion's gear (Grakk's axe and shield).
 
 A reference of another champion carries that champion's palette with it, so the prompt always states the new
 champion's palette as strict and names what is forbidden ("no fire, no orange, no red").
@@ -79,13 +79,13 @@ then the rules as a list, word for word:
 
 then `Subject: <one object, its direction, and "Nothing else.">` and the colour line:
 
-- Ember: "Colours: ember orange, flame yellow and crimson, with black ink. Background: flat deep wine-maroon
+- Pyra: "Colours: ember orange, flame yellow and crimson, with black ink. Background: flat deep wine-maroon
   (#3a0d14)."
-- Fang: "Colours: cold light steel, deep navy blue and gold, with black ink. Background: flat dark slate-navy
+- Grakk: "Colours: cold light steel, deep navy blue and gold, with black ink. Background: flat dark slate-navy
   (#141d33). No fire, no orange, no red."
-- Rook: "Colours: moss green, weathered sandstone grey-beige and bronze, with black ink. Background: flat dark moss
+- Cairn: "Colours: moss green, weathered sandstone grey-beige and bronze, with black ink. Background: flat dark moss
   green (#16241a). No fire, no orange, no red, no blue, no purple, no gold-yellow."
-- Tide: "Colours: lilac, moon-white and silver, with black ink. Background: flat dark indigo (#1a1730). No fire, no
+- Lune: "Colours: lilac, moon-white and silver, with black ink. Background: flat dark indigo (#1a1730). No fire, no
   orange, no red, no gold, no yellow, no green, no brown."
 
 A motion ability names its single trail in the subject and marks it "(asked for)": "ONE clean crescent swing arc
@@ -95,16 +95,16 @@ behind the blade (asked for)". Without that the model either drops the trail or 
 portrait, livelier and more colourful than a normal ability icon. The creature's head and shoulders, centred, filling
 about 85% of the frame, looking at the viewer, full of character, with a thick black ink outline. Full colour: four
 or five saturated colours plus black ink and one highlight. Background: one flat, BRIGHT, saturated colour filling
-the whole square: <colour>. Plain, nothing else in it." Ember: bright violet-purple. Fang: bright gold-yellow.
-Rook: bright spring green. Tide: bright periwinkle blue.
+the whole square: <colour>. Plain, nothing else in it." Pyra: bright violet-purple. Grakk: bright gold-yellow.
+Cairn: bright spring green. Lune: bright periwinkle blue.
 
 **Ultimate icon** (X): "Square icon of a hero's ULTIMATE ability … It must look much heavier, brighter and more
 powerful than a normal ability icon. One big object, centred, filling about 85% of the frame, with a solid closed
 silhouette and an extra-thick black ink outline. Full, rich colour: four or five saturated colours plus black ink and
 a white-hot highlight. Background: BRIGHT and saturated, filling the whole square: a bold hand-inked sunburst of wide
 alternating rays behind the object, in <colours>. The background is clearly lighter than the object's outline, never
-dark. No small clutter … The sunburst rays are the only thing besides the object." Ember: hot yellow and bright
-orange rays. Fang: bright gold and pale yellow rays. Rook: bright lime green and pale yellow-green rays. Tide: bright
+dark. No small clutter … The sunburst rays are the only thing besides the object." Pyra: hot yellow and bright
+orange rays. Grakk: bright gold and pale yellow rays. Cairn: bright lime green and pale yellow-green rays. Lune: bright
 lilac and pale silver-white rays.
 
 **Interface icon**: the plain icon rules with "Three or four flat colours plus black ink" and, instead of the

@@ -14,7 +14,7 @@ export const ABILITY_ICONS: Record<string, string> = {
   counter: '<circle cx="12" cy="12" r="9"/><path d="M8 8l8 8M16 8l-8 8"/>',
   whirl: '<path d="M12 12a2 2 0 1 1 2 2 4 4 0 1 1-4-6 6 6 0 1 1-6 6"/>',
   wisp: '<path d="M12 21c-4 0-6-3-6-6 0-4 4-5 4-10 3 2 4 4 4 7 1-1 2-2 2-4 2 2 2 4 2 7 0 3-2 6-6 6z"/><circle cx="12" cy="16" r="1.6"/>',
-  // Rook
+  // Cairn
   maul: '<path d="M4 20 14 10"/><path d="M11 7l6-4 4 4-4 6z"/>',
   wall: '<path d="M3 8h18v10H3z"/><path d="M3 13h18M9 8v5M15 8v5M12 13v5"/>',
   ram: '<path d="M3 12h13"/><path d="M11 6l6 6-6 6"/><path d="M21 5v14"/>',
@@ -22,7 +22,7 @@ export const ABILITY_ICONS: Record<string, string> = {
   shatter: '<path d="M3 19 21 5"/><path d="M9 14l-2-4M13 11l4 2M6 17l-3-1M16 9l1-4"/>',
   boulder: '<circle cx="12" cy="13" r="7"/><path d="M8 10l3 2-1 3M14 9l2 3"/>',
   colosseum: '<circle cx="12" cy="12" r="8.5" stroke-dasharray="4 2.6"/><circle cx="12" cy="12" r="2"/>',
-  // Tide
+  // Lune
   shard: '<path d="M4 20 13 11"/><path d="M11 4c5 1 8 4 9 9-4-1-7-4-9-9z"/>',
   lift: '<path d="M6 21h12v-8H6z"/><path d="M12 9V3M9 6l3-3 3 3"/>',
   swap: '<path d="M4 8h13l-3-3M20 16H7l3 3"/>',
@@ -34,11 +34,11 @@ export const ABILITY_ICONS: Record<string, string> = {
 };
 
 export const CHAMPION_EMBLEMS: Record<string, string> = {
-  ember:
+  pyra:
     '<path d="M24 42c-8 0-13-5-13-12 0-8 7-11 8-19 4 3 6 7 6 11 2-2 3-5 3-8 5 4 9 9 9 16 0 7-5 12-13 12z"/><path d="M24 42c-3 0-5-2-5-5 0-4 4-5 5-9 2 2 5 5 5 9 0 3-2 5-5 5z"/>',
-  rook: '<path d="M13 41h22M16 41l2-18h12l2 18"/><path d="M14 23V9h5v5h3V9h4v5h3V9h5v14z"/>',
-  tide: '<path d="M30 6a18 18 0 1 0 12 26 14 14 0 0 1-12-26z"/><circle cx="34" cy="14" r="2.2"/>',
-  fang: '<path d="M14 40 34 14"/><path d="M30 8c6 1 10 5 11 11l-7 2-6-6z"/><path d="M10 22c0-6 4-10 10-11v12c0 5-3 9-10 11z"/>',
+  cairn: '<path d="M13 41h22M16 41l2-18h12l2 18"/><path d="M14 23V9h5v5h3V9h4v5h3V9h5v14z"/>',
+  lune: '<path d="M30 6a18 18 0 1 0 12 26 14 14 0 0 1-12-26z"/><circle cx="34" cy="14" r="2.2"/>',
+  grakk: '<path d="M14 40 34 14"/><path d="M30 8c6 1 10 5 11 11l-7 2-6-6z"/><path d="M10 22c0-6 4-10 10-11v12c0 5-3 9-10 11z"/>',
 };
 
 /** Key shown for each ability slot. The bindings themselves are `KEY_SLOTS` in game/Game.ts: change both together. */

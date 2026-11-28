@@ -52,9 +52,9 @@ interface Rig {
   swingAxis: "x" | "y";
 }
 
-function buildEmber(body: THREE.Object3D, mats: Mats): Rig {
+function buildPyra(body: THREE.Object3D, mats: Mats): Rig {
   const { M, add } = builder(body, mats);
-  // Copper, not gold: gold belongs to Fang's palette (docs/ART_STYLE.md §3).
+  // Copper, not gold: gold belongs to Grakk's palette (docs/ART_STYLE.md §3).
   const copper = M(0xc8733a, { metalness: 0.55, roughness: 0.35 });
   add(new THREE.CylinderGeometry(0.3, 0.7, 1.3, 16), M(0x9b2f1f), 0, 0.65, 0);
   add(new THREE.CylinderGeometry(0.33, 0.36, 0.14, 16), copper, 0, 1.02, 0);
@@ -81,12 +81,12 @@ function buildEmber(body: THREE.Object3D, mats: Mats): Rig {
   return { arm, gem, focus: new THREE.Vector3(0, 1.1, 0), swingAxis: "x" };
 }
 
-function buildFang(body: THREE.Object3D, mats: Mats): Rig {
+function buildGrakk(body: THREE.Object3D, mats: Mats): Rig {
   const { M, add } = builder(body, mats);
   const steel = M(0x8f9aa5, { metalness: 0.65, roughness: 0.35 });
   const gold = M(0xc9a04a, { metalness: 0.7, roughness: 0.3 });
   const leather = M(0x3a2a20);
-  // Navy cloth and shield: Fang's palette is steel, navy and gold (docs/ART_STYLE.md §3).
+  // Navy cloth and shield: Grakk's palette is steel, navy and gold (docs/ART_STYLE.md §3).
   const navy = M(0x24407a);
   add(G.box, leather, -0.19, 0.38, 0, [0.24, 0.76, 0.28]);
   add(G.box, leather, 0.19, 0.38, 0, [0.24, 0.76, 0.28]);
@@ -111,9 +111,9 @@ function buildFang(body: THREE.Object3D, mats: Mats): Rig {
   return { arm, shield, focus: new THREE.Vector3(0, -0.06, 1), swingAxis: "y" };
 }
 
-function buildRook(body: THREE.Object3D, mats: Mats): Rig {
+function buildCairn(body: THREE.Object3D, mats: Mats): Rig {
   const { M, add } = builder(body, mats);
-  // Moss green, weathered stone and bronze: Rook's palette (docs/ART_STYLE.md §3). Broad and square, like a tower.
+  // Moss green, weathered stone and bronze: Cairn's palette (docs/ART_STYLE.md §3). Broad and square, like a tower.
   const stone = M(0x8d9482, { roughness: 0.95 });
   const moss = M(0x5f8a45);
   const bronze = M(0x9a6b3a, { metalness: 0.6, roughness: 0.4 });
@@ -140,9 +140,9 @@ function buildRook(body: THREE.Object3D, mats: Mats): Rig {
   return { arm, focus: new THREE.Vector3(0, -0.1, 1.05), swingAxis: "y" };
 }
 
-function buildTide(body: THREE.Object3D, mats: Mats): Rig {
+function buildLune(body: THREE.Object3D, mats: Mats): Rig {
   const { M, add } = builder(body, mats);
-  // Lilac, deep indigo and silver: Tide's palette (docs/ART_STYLE.md §3). Slim, with a crescent over her head.
+  // Lilac, deep indigo and silver: Lune's palette (docs/ART_STYLE.md §3). Slim, with a crescent over her head.
   const robe = M(0x3a2f7a);
   const lilac = M(0xb9a4ff);
   const silver = M(0xd7dbe8, { metalness: 0.75, roughness: 0.25 });
@@ -195,7 +195,7 @@ function buildDummy(body: THREE.Object3D, mats: Mats): Rig {
   return { arm, focus: new THREE.Vector3(0, 1.2, 0.4), swingAxis: "x" };
 }
 
-const RIGS: Record<string, (body: THREE.Object3D, mats: Mats) => Rig> = { ember: buildEmber, fang: buildFang, rook: buildRook, tide: buildTide, dummy: buildDummy };
+const RIGS: Record<string, (body: THREE.Object3D, mats: Mats) => Rig> = { pyra: buildPyra, grakk: buildGrakk, cairn: buildCairn, lune: buildLune, dummy: buildDummy };
 
 export class ChampionView {
   readonly root = new THREE.Group();

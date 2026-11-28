@@ -13,7 +13,7 @@ import {
 
 describe("protocol", () => {
   it("round-trips messages", () => {
-    const msg: ClientMessage = { t: "pick", champion: "fang" };
+    const msg: ClientMessage = { t: "pick", champion: "grakk" };
     expect(decode<ClientMessage>(encode(msg))).toEqual(msg);
   });
 

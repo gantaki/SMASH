@@ -3,9 +3,9 @@ import type { Champion } from "../types.ts";
 
 const FIRE = "#ff7a2b";
 
-export const ember: Champion = {
-  id: "ember",
-  name: "Ember",
+export const pyra: Champion = {
+  id: "pyra",
+  name: "Pyra",
   roleRu: "Маг огня · дальний бой",
   blurbRu: "Держит дистанцию, поджигает и наказывает за плохую позицию. Мало здоровья.",
   playable: true,
@@ -17,7 +17,7 @@ export const ember: Champion = {
   abilities: {
     primary: {
       kind: "projectile",
-      id: "ember.fireBolt",
+      id: "pyra.fireBolt",
       name: "Fire Bolt",
       nameRu: "Огненная стрела",
       descriptionRu: "замах 0,3 с, затем снаряд: 11 урона и короткое затухающее замедление",
@@ -36,7 +36,7 @@ export const ember: Champion = {
     },
     secondary: {
       kind: "projectile",
-      id: "ember.fireball",
+      id: "pyra.fireball",
       name: "Fireball",
       nameRu: "Огненный шар",
       descriptionRu: "каст 0,6 с: 20 урона и поджог на 3 с. Сквозь Огонька раскалывается на три",
@@ -68,7 +68,7 @@ export const ember: Champion = {
     },
     mobility: {
       kind: "blink",
-      id: "ember.blink",
+      id: "pyra.blink",
       name: "Blink",
       nameRu: "Скачок",
       descriptionRu: "телепорт к курсору до 7 м",
@@ -81,7 +81,7 @@ export const ember: Champion = {
     },
     e: {
       kind: "groundAoe",
-      id: "ember.ringOfFire",
+      id: "pyra.ringOfFire",
       name: "Ring of Fire",
       nameRu: "Кольцо пламени",
       descriptionRu: "взрыв в точке через 1 с: 18 урона, оглушение 0,8 с; ломает пол со второго попадания",
@@ -100,7 +100,7 @@ export const ember: Champion = {
     },
     q: {
       kind: "nova",
-      id: "ember.flameShield",
+      id: "pyra.flameShield",
       name: "Flame Shield",
       nameRu: "Пламенный щит",
       descriptionRu: "отталкивает врагов и ящики рядом, щит на 25 урона; об стену — оглушение",
@@ -116,7 +116,7 @@ export const ember: Champion = {
     },
     companion: {
       kind: "companionCommand",
-      id: "ember.wisp",
+      id: "pyra.wisp",
       name: "Wisp",
       nameRu: "Огонёк",
       descriptionRu: "компаньон: стреляет искрами; по команде летит в точку и 6 с держит её",
@@ -128,7 +128,7 @@ export const ember: Champion = {
     },
     ultimate: {
       kind: "groundAoe",
-      id: "ember.meteor",
+      id: "pyra.meteor",
       name: "Meteor",
       nameRu: "Метеор",
       descriptionRu: "ульта: через 1,5 с огромный взрыв на 45 урона; пол под ним обрушивается",

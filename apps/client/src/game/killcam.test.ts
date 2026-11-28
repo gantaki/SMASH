@@ -5,7 +5,7 @@ import { ReplayRecorder, type Replay } from "../net/replay.ts";
 import { KILL_CAM, KillCam, frameKill, killCamDuration, planKillCam } from "./killcam.ts";
 
 const duel = (seed = 11): MatchState =>
-  createMatch({ seed, mode: "duel", players: [{ champion: "ember", controller: "bot" }, { champion: "fang", controller: "bot" }] });
+  createMatch({ seed, mode: "duel", players: [{ champion: "pyra", controller: "bot" }, { champion: "grakk", controller: "bot" }] });
 
 describe("kill cam replay", () => {
   it("re-simulates the final moments into exactly the live state", () => {

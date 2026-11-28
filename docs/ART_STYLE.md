@@ -28,10 +28,10 @@ accents) all come from it.
 
 | Champion | Colours | Metal | Icon and tile background | Signature `color` |
 |---|---|---|---|---|
-| Ember | crimson, ember orange, flame yellow; violet lining | dark copper | deep wine-maroon `#3a0d14` | `#ff7a2b` |
-| Fang | cold steel, deep navy blue | polished gold | dark slate-navy `#141d33` | `#ffc93c` |
-| Rook | moss green, weathered sandstone grey | bronze | dark moss `#16241a` | `#8fc46b` |
-| Tide | lilac, deep indigo; moon-white hair | silver | dark indigo `#1a1730` | `#b9a4ff` |
+| Pyra | crimson, ember orange, flame yellow; violet lining | dark copper | deep wine-maroon `#3a0d14` | `#ff7a2b` |
+| Grakk | cold steel, deep navy blue | polished gold | dark slate-navy `#141d33` | `#ffc93c` |
+| Cairn | moss green, weathered sandstone grey | bronze | dark moss `#16241a` | `#8fc46b` |
+| Lune | lilac, deep indigo; moon-white hair | silver | dark indigo `#1a1730` | `#b9a4ff` |
 
 Rules for a new palette:
 
@@ -49,7 +49,7 @@ Rules for a new palette:
 - **Expression carries the character**: a smirk, a grin, a glare. No neutral faces.
 - **The art is the design; the placeholder model follows it.** A champion is designed as a character first (who they
   are, what they wear, what they carry), with the clarity of a MOBA or arena-brawler hero: one archetype readable at
-  a glance, one or two oversized signature pieces (Rook's crenellated helmet and pauldrons, Tide's crescent and
+  a glance, one or two oversized signature pieces (Cairn's crenellated helmet and pauldrons, Lune's crescent and
   floating hair). The primitive model in `apps/client/src/game/render/Units.ts` is then given the same gear and the
   palette's colours; it is never the reference for the art.
 
@@ -72,7 +72,7 @@ the tier must be readable before the picture is.
 | Tier | Slots | Background | Colour | Shape in the UI |
 |---|---|---|---|---|
 | **Plain** | LMB, RMB, Space, Q, E | The palette's dark flat background, empty | Three colours plus ink | Square |
-| **Companion** | R | One flat **bright** colour, empty (Ember: violet; Fang: gold-yellow; Rook: spring green; Tide: periwinkle blue) | Full colour, four or five | **Round** |
+| **Companion** | R | One flat **bright** colour, empty (Pyra: violet; Grakk: gold-yellow; Cairn: spring green; Lune: periwinkle blue) | Full colour, four or five | **Round** |
 | **Ultimate** | X | **Bright sunburst** of wide inked rays in the palette's hot colours | Full colour plus a white-hot highlight | **Bigger square in a gold frame** |
 
 Rules for every tier:

@@ -1,6 +1,6 @@
 # Ink Blade Hit
 
-Hit effect for Fang's Cleave. Authored in BoneGyre, exported as Spine 4.2.
+Hit effect for Grakk's Cleave. Authored in BoneGyre, exported as Spine 4.2.
 
 | File | Notes |
 |---|---|

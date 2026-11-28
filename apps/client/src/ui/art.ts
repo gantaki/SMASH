@@ -7,7 +7,7 @@ const ABILITY_ICON_IDS = [
   ...["maul", "wall", "ram", "stoneskin", "shatter", "boulder", "colosseum"],
   ...["shard", "lift", "swap", "float", "surge", "moon", "maelstrom"],
 ] as const;
-const PORTRAIT_IDS = ["ember", "fang", "rook", "tide"] as const;
+const PORTRAIT_IDS = ["pyra", "grakk", "cairn", "lune"] as const;
 
 const index = (dir: string, ids: readonly string[]): Record<string, string> => Object.fromEntries(ids.map((id) => [id, `/art/${dir}/${id}.webp`]));
 

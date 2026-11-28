@@ -143,10 +143,10 @@ Each champion has a **unique companion** (more per champion later). Design rule:
 
 | Companion | Owner | HP | Command | Synergy |
 |---|---|---|---|---|
-| **Wisp** (Огонёк), flies | Ember | 40 | Flies to a point (max 11 m) and holds it for 6 s as a sentry, shooting sparks (4 dmg every 0.8 s, range 9 m). cd 4.4 s | **Fireball through the Wisp splits into 3** (12 dmg + burn 3/s for 2 s each) |
-| **Hound** (Гончая) | Fang | 55 | Sprints to a point (max 11 m); on contact bites 8 dmg and **pins (root) 0.8 s**, then fights for 3 s (5 dmg/s). cd 6 s | **Harpoon hitting the Hound pulls Fang to it** (gap closer) |
-| **Boulder** (Валун) | Rook | 80 | Rolls in a straight line to a point (max 12 m), bouncing off walls up to twice (each bounce adds 4 m): 14 dmg and a 3 m knockback (slam) to whoever it runs over; then lies there as cover for 4 s. cd 6 s | **Billiards**: a wall raised at an angle sends it round a corner into the enemy, and the enemy into something solid |
-| **Moon** (Луна), flies | Tide | 45 | Flies to a point (max 11 m) and is a gravity well for 3 s, r 5 m: enemies drift toward it at 2.6 m/s, crates are flung at it at 10 m/s and hit who is in the way. cd 6 s | Drags the enemy off the spot they chose, toward a hole, into a Maelstrom, or into the path of the crates it pulls |
+| **Wisp** (Огонёк), flies | Pyra | 40 | Flies to a point (max 11 m) and holds it for 6 s as a sentry, shooting sparks (4 dmg every 0.8 s, range 9 m). cd 4.4 s | **Fireball through the Wisp splits into 3** (12 dmg + burn 3/s for 2 s each) |
+| **Hound** (Гончая) | Grakk | 55 | Sprints to a point (max 11 m); on contact bites 8 dmg and **pins (root) 0.8 s**, then fights for 3 s (5 dmg/s). cd 6 s | **Harpoon hitting the Hound pulls Grakk to it** (gap closer) |
+| **Boulder** (Валун) | Cairn | 80 | Rolls in a straight line to a point (max 12 m), bouncing off walls up to twice (each bounce adds 4 m): 14 dmg and a 3 m knockback (slam) to whoever it runs over; then lies there as cover for 4 s. cd 6 s | **Billiards**: a wall raised at an angle sends it round a corner into the enemy, and the enemy into something solid |
+| **Moon** (Луна), flies | Lune | 45 | Flies to a point (max 11 m) and is a gravity well for 3 s, r 5 m: enemies drift toward it at 2.6 m/s, crates are flung at it at 10 m/s and hit who is in the way. cd 6 s | Drags the enemy off the spot they chose, toward a hole, into a Maelstrom, or into the path of the crates it pulls |
 
 ### 2.2 Obstacles (prototype, under playtest)
 
@@ -156,8 +156,8 @@ Material tells the rule at a glance:
 |---|---|
 | **Stone** pillars (120 HP) | Block movement, projectiles and line of sight. Take damage like wood, darken as HP drops, and break **for the rest of the round**. |
 | **Wood** walls (60 HP) | Take damage from projectiles, AoEs, melee, slams and flying crates; look damaged as HP drops; break **for the rest of the round**. |
-| **Crates** (40 HP) | Movable. Pushed by knockback abilities, pulled by Harpoon and by the Moon, picked up and thrown by Tide. A crate moving faster than 3.5 m/s hits an enemy for 12 dmg and knocks them back 2.5 m (which can chain into a slam). Everything that hits a crate also damages it; a broken crate is **gone for the rest of the round**, so crates are ammunition that runs out. |
-| **Raised walls** (40 HP) | Made by abilities (Rook). Stand for a few seconds, block both sides, can be broken and slammed into, then crumble. |
+| **Crates** (40 HP) | Movable. Pushed by knockback abilities, pulled by Harpoon and by the Moon, picked up and thrown by Lune. A crate moving faster than 3.5 m/s hits an enemy for 12 dmg and knocks them back 2.5 m (which can chain into a slam). Everything that hits a crate also damages it; a broken crate is **gone for the rest of the round**, so crates are ammunition that runs out. |
+| **Raised walls** (40 HP) | Made by abilities (Cairn). Stand for a few seconds, block both sides, can be broken and slammed into, then crumble. |
 
 Every obstacle **drops into the abyss when the floor tile under its centre goes** (§2.4): a pillar can be removed by breaking the floor it stands on, a crate that slides over a hole or out through a gap in the wall is gone.
 
@@ -183,7 +183,7 @@ Rules that keep it fair:
 
 - **Every kit can move an enemy** at least once (a knockback or a pull), and every kit has an answer: a mobility skill on Space and a defensive skill on Q (§3). `content.test.ts` checks the first half.
 - Knockbacks are telegraphed like every other attack: a wind-up, a cone or circle on the ground, a sound.
-- `weight` divides the distance: Fang (1.2) flies 17% less than the number on the ability, Ember (0.9) 11% further. `unstoppable` ignores knockback and pull entirely.
+- `weight` divides the distance: Grakk (1.2) flies 17% less than the number on the ability, Pyra (0.9) 11% further. `unstoppable` ignores knockback and pull entirely.
 - Forced movement cancels a cast in progress, so a shove is also an interrupt.
 - Typical distance is 3–5 m: enough to cross one hazard line, not enough to cross the arena.
 - Arenas are built for it: something to be pushed into should be within about 6 m of any spot where fights happen (pillars, walls, later edges and pits).
@@ -238,7 +238,7 @@ Design intent: fights wear the arena down where they happen. The first exchanges
 
 A champion is **four core stats plus a kit**. Data lives in `packages/content/src/champions/<id>.ts`.
 
-**Names.** A champion's name is an English proper noun and is shown as it is in the Russian interface (Ember, Fang, Rook, Tide): one short word, one or two syllables, that says what the champion does to the enemy or to the arena. Everything else the player reads (roles, ability names, descriptions, companions' names) is Russian.
+**Names.** A champion's name is an English proper noun and is shown as it is in the Russian interface (Pyra, Grakk, Cairn, Lune): one short word, one or two syllables, that says what the champion does to the enemy or to the arena. Everything else the player reads (roles, ability names, descriptions, companions' names) is Russian.
 
 | Stat | Meaning | Reference range |
 |---|---|---|
@@ -259,9 +259,9 @@ Every kit fills the same seven slots, and a slot means the same thing on every c
 | companion | R | One command for the companion; costs a quarter of the energy bar (25) | sentry, pounce | 4.5–6 s |
 | ultimate | X | Costs the whole energy bar (100) | big AoE, channel | none |
 
-Where the knockback sits is a choice: usually on E (Fang's Shield Bash), sometimes on the defensive Q as a "get off me" (Ember's Flame Shield pushes while it shields, so her E is free to be a stun). What matters is that the kit has one (§2.3).
+Where the knockback sits is a choice: usually on E (Grakk's Shield Bash), sometimes on the defensive Q as a "get off me" (Pyra's Flame Shield pushes while it shields, so her E is free to be a stun). What matters is that the kit has one (§2.3).
 
-### Ember — Fire Mage, ranged
+### Pyra — Fire Mage, ranged
 
 HP 170 · speed 6.0 m/s · weight 0.9 (light: shoved 11% further). Kites, applies burn, punishes bad positioning.
 
@@ -275,21 +275,21 @@ HP 170 · speed 6.0 m/s · weight 0.9 (light: shoved 11% further). Kites, applie
 | R | Wisp | Companion command | See §2.1 |
 | X | Meteor | Big delayed AoE | 100 energy, wind-up 0.3 s, max range 13 m, r 3.6 m, delay 1.2 s, 45 dmg + stun 0.5 s, **floor 100** (the crater drops) |
 
-### Fang — Warrior, melee
+### Grakk — Warrior, melee
 
 HP 220 · speed 6.4 m/s · weight 1.2 (heavy: shoved 17% less). Closes distance, hooks, doesn't let go.
 
 | Slot | Ability | Behaviour | Starting values |
 |---|---|---|---|
 | LMB | Cleave | Melee cone | Wind-up 0.28 s (move ×0.8), range 2.9 m, ±60°, 14 dmg + fading snare 25% over 0.6 s, cd 0.37 s. Empowered: 26 dmg + slow 50% 1.5 s. On-hit VFX: **Ink Blade Hit** (Spine) |
-| RMB | Harpoon | Hook | Wind-up 0.35 s (move ×0.4), 17.4 m/s, range 11 m, 10 dmg, pulls target to 1.5 m, cd 6 s. Pulls crates; hitting the Hound pulls Fang to it |
+| RMB | Harpoon | Hook | Wind-up 0.35 s (move ×0.4), 17.4 m/s, range 11 m, 10 dmg, pulls target to 1.5 m, cd 6 s. Pulls crates; hitting the Hound pulls Grakk to it |
 | Space | Leap | Arc jump | Up to 8 m in 0.55 s, landing marker shown. Landing r 2.4 m: 14 dmg + slow 40% 1.5 s, **floor 34**, cd 7 s |
 | Q | Counter | Stance | 1 s, move ×0.5. Negates a hit; attacker within 8 m: stun 1 s + 12 dmg; empowers next LMB for 3 s, cd 9.5 s |
 | E | Shield Bash | Melee cone | Wind-up 0.25 s, range 3.1 m, ±52°, 10 dmg + stun 0.5 s, knockback 3 m; **slam: stun 1.2 s, +10 dmg**; pushes crates, cd 8 s |
 | R | Hound | Companion command | See §2.1 |
 | X | Whirlwind | Channel | 100 energy, 2.4 s, move ×1.15, unstoppable, 7 dmg every 0.3 s in r 3.2 m |
 
-### Rook — Mason, melee
+### Cairn — Mason, melee
 
 HP 225 · speed 5.9 m/s · weight 1.25 (the heaviest: shoved 20% less). Rebuilds the arena to suit him and drives the enemy into it. The toughest and the slowest; no stun of his own: his damage is in his maul and in slams.
 
@@ -301,9 +301,9 @@ HP 225 · speed 5.9 m/s · weight 1.25 (the heaviest: shoved 20% less). Rebuilds
 | Q | Stoneskin | Brace | 1 s: no damage, no control, no movement; then r 3 m: 6 dmg + knockback 3 m (slam). The answer to a Leap or a Meteor, cd 9.5 s |
 | E | Shatter | Ground line | Wind-up 0.4 s, 8 m long, 1.8 m wide, 22 dmg + slow 35% 1.2 s, **floor 50** on every tile it crosses (not the one he stands on). His own wall on the line bursts: r 3 m, 14 dmg + knockback 3.5 m away from the wall. cd 8 s |
 | R | Boulder | Companion command | See §2.1 |
-| X | Colosseum | Ring of walls | 100 energy, wind-up 0.4 s, up to 9 m away, r 4.5 m, ten pieces of 40 HP, 5 s. Inside, **slam damage ×2**, for everyone, Rook included. Pieces go up only where there is floor: at the edge the arena wall closes the ring, a hole leaves a gap |
+| X | Colosseum | Ring of walls | 100 energy, wind-up 0.4 s, up to 9 m away, r 4.5 m, ten pieces of 40 HP, 5 s. Inside, **slam damage ×2**, for everyone, Cairn included. Pieces go up only where there is floor: at the edge the arena wall closes the ring, a hole leaves a gap |
 
-### Tide — Moon priestess, manipulator
+### Lune — Moon priestess, manipulator
 
 HP 170 · speed 6.5 m/s · weight 0.85 (the lightest: shoved 18% further). Barely hits by herself: she moves the enemy, the objects on the field and herself. Her kills are ring-outs and crates.
 
@@ -317,7 +317,7 @@ HP 170 · speed 6.5 m/s · weight 0.85 (the lightest: shoved 18% further). Barel
 | R | Moon | Companion command | See §2.1 |
 | X | Maelstrom | Delayed AoE | 100 energy, wind-up 0.3 s, max range 11 m, r 3.5 m; for 0.9 s enemies inside are dragged to the middle at 4.5 m/s, then 26 dmg + root 0.6 s, **floor 100 within 2.2 m**: the middle drops, the rim of it stays |
 
-Changed from the first concept sheets to fit the game as it is now: Rook is a melee champion (the Pebble shot became a maul swing); Q and E trade places on both (Q defends, E strikes); the ultimate is on X; companions have no free default behaviour (§2.1), so the Boulder does not walk beside Rook blocking shots and the Moon does not orbit Tide; Lift takes crates only (not companions, and there are no barrels); Maelstrom's hole is a real one (§2.4), so it stays for the round instead of closing after 4 s.
+Changed from the first concept sheets to fit the game as it is now: Cairn is a melee champion (the Pebble shot became a maul swing); Q and E trade places on both (Q defends, E strikes); the ultimate is on X; companions have no free default behaviour (§2.1), so the Boulder does not walk beside Cairn blocking shots and the Moon does not orbit Lune; Lift takes crates only (not companions, and there are no barrels); Maelstrom's hole is a real one (§2.4), so it stays for the round instead of closing after 4 s.
 
 ### Dummy (Манекен)
 
@@ -327,8 +327,8 @@ Training target: 300 HP, no abilities, not pickable.
 
 Rules for inventing a champion. How one is drawn (line, palettes, portraits, icons) is in [`ART_STYLE.md`](ART_STYLE.md).
 
-- **Anyone can be a champion.** Humans are not the default: beasts, constructs, spirits, undead, things with too many arms are all welcome, as long as the silhouette reads from the top-down camera and the kit fills the seven slots. (Ember and Fang happen to be human and stay human.)
-- **Start from one sentence**: what this champion does to the enemy's position. "Keeps them away and punishes where they stand" (Ember), "drags them in and doesn't let go" (Fang). The kit, the companion and the look follow from it.
+- **Anyone can be a champion.** Humans are not the default: beasts, constructs, spirits, undead, things with too many arms are all welcome, as long as the silhouette reads from the top-down camera and the kit fills the seven slots. (Pyra and Grakk happen to be human and stay human.)
+- **Start from one sentence**: what this champion does to the enemy's position. "Keeps them away and punishes where they stand" (Pyra), "drags them in and doesn't let go" (Grakk). The kit, the companion and the look follow from it.
 - **Fill the slots by their roles** (table above): LMB and RMB attack, Space escapes, Q defends, E strikes or controls. A new champion should feel familiar under the fingers in the first ten seconds.
 - **Give the kit a way to move an enemy** and decide what it combines with: a wall (slam), a hole or a gap in the wall (ring-out), a rift, the zone, a delayed AoE, the companion (§2.3). A knockback with nothing to push into is a wasted button.
 - **Decide how the kit takes the arena apart** (§2.4): which abilities strike the ground and how hard (`floorDamage`), and which only break walls. A kit with no ground strike cannot make holes and has to use the ones the enemy makes.
@@ -347,7 +347,7 @@ Rules for inventing a champion. How one is drawn (line, palettes, portraits, ico
 
 ### Bots
 
-Same rules as players, no cheating: a bot produces the same per-tick input a human does (move, aim, pressed slots) and waits out the same wind-ups. Ability usage is decided per ability kind, so a champion built from existing kinds gets a working bot. Difficulty scales reaction time, aim error, target leading, dodge chance and ability use rate. Behaviours: keep preferred range, strafe, dodge projectiles and AoEs, use mobility/counter defensively, contest the orb, avoid the zone and erupting rifts, command the companion, attack the player's companion when it is close, shoot through breakable wood cover, look for slams (Shield Bash / Flame Shield with a wall behind the target). Fang bot combos *Hound pins → Harpoon to the Hound*.
+Same rules as players, no cheating: a bot produces the same per-tick input a human does (move, aim, pressed slots) and waits out the same wind-ups. Ability usage is decided per ability kind, so a champion built from existing kinds gets a working bot. Difficulty scales reaction time, aim error, target leading, dodge chance and ability use rate. Behaviours: keep preferred range, strafe, dodge projectiles and AoEs, use mobility/counter defensively, contest the orb, avoid the zone and erupting rifts, command the companion, attack the player's companion when it is close, shoot through breakable wood cover, look for slams (Shield Bash / Flame Shield with a wall behind the target). Grakk bot combos *Hound pins → Harpoon to the Hound*.
 
 Per kind, for the newer mechanics: a wall goes behind the enemy (something to slam them into) or in front of a heavy shot being wound up; a charge is used when it ends on floor, and eagerly when the enemy would be carried into a wall or a hole; a brace answers a hit it sees coming or a Leap landing on it, never on a tile that is about to drop; a held crate is thrown as soon as there is a line; a float answers a shove or a hook being wound up; a swap gets a bot off a doomed tile by giving the tile to the enemy. In 2v2 a bot fights the nearest enemy still standing.
 
@@ -428,7 +428,7 @@ Bots and the abyss (§2.4): a bot predicts its own path a third of a second ahea
 - `game/Game.ts` runs the loop (fixed ticks + render interpolation) and input; `game/render/GameView.ts` owns the scene and maps events to effects and sounds; `render/Fx.ts` draws telegraphs, `render/Hazards.ts` the zone and rifts, `render/Floor.ts` the floor tiles and the arena wall, `render/Overlay.ts` health and cast bars; `game/Hud.ts` the HUD; `ui/` the React menu and training panel.
 - **The floor** (`render/Floor.ts`) is drawn from sim state, not from events, so a kill cam rewind or a snapshot that skips ahead always shows what the sim has. All standing tiles are one mesh sharing one painted texture (the seams in the picture are the tile edges; cracks are painted onto it as tiles lose health). A crumbling or dropping tile is taken out of that mesh and becomes a mesh of its own for as long as it shakes and falls.
 - The main menu (`ui/Menu.tsx`) has no panel over the scene: the bot-vs-bot demo fight is the backdrop and stays visible in the middle. Left: the champion picker (a row of portrait tiles that wraps as the roster grows) and the picked champion (name, role, the three stats, the kit as an icon row that mirrors the HUD slots). Right: the champion's portrait. Bottom centre: the play bar (mode, bot difficulty or the online lobby, the start button), drawn in the ink style. Switching champions is never a cut: the portrait and the text cross-fade, the outgoing portrait leaves first and the new one follows, and the demo fight cross-fades: the old fight keeps playing above the restarted one while it fades away, so the screen never goes dark and never freezes. Reference text never goes on the front page: ability descriptions show one at a time under the icon row, controls and arena rules live in the "Как играть" dialog (`ui/HowToPlay.tsx`).
-- Maps gameplay events to presentation through data, e.g. `fang.cleave.onHit → vfx: "ink_blade_hit"`.
+- Maps gameplay events to presentation through data, e.g. `grakk.cleave.onHit → vfx: "ink_blade_hit"`.
 - Camera: perspective, FOV 45°, height ~26 m, ~12.5 m back, follows the player with look-ahead toward the cursor (28%, clamped to 6 m).
 - **Kill cam** (`game/killcam.ts`): when a round is decided the client rewinds 0.6 s and **re-simulates** the final blow (the sim is deterministic and its state is plain data, so a short history of state + input is enough; in dev builds the replay is compared with the live state and a mismatch is logged). It is shown from a low side camera (1.9 m high, 8.5–13 m away, perpendicular to the line of the blow, on the side with a clear view), time eases from 0.5× down to 0.1× at the hit and back to normal, sounds are pitched down, the HUD gives way to letterbox bars. Space skips it; it is disabled with `prefers-reduced-motion`. Online (P2P): the host records the replay, sends it to the guest when the round is decided and holds the match for the kill cam's real-time length (about 6 s) while both players watch; the guest stops predicting until the host moves on.
 - **Ragdolls** (`render/Ragdoll.ts`): a champion that dies is thrown by the killing blow (speed grows with the blow's damage: a Cleave tosses the body a few meters, a Meteor across the arena), folds at the hips and neck, tumbles, bounces off the floor and slams into walls, pillars and crates; weapon and shield fly off on their own. The body flies away from where the hit physically came from (the attacker or its companion, a projectile's path, the centre of a blast), which the damage event reports separately from who gets the credit. Only a blow that landed within the last 0.4 s throws the body (the hit itself, or the wall slam right after it); when burn, the zone or a rift finishes the job later, the body just crumples. It is a four-point chain solved with position-based dynamics on the client: cosmetic only, the sim knows nothing about it. A body thrown over a hole or over the wall drops into the abyss; a champion that *fell* (the sim says so) is not thrown at all: the body tips in with the speed it had, and the kill cam watches from above, looking down into the hole. The kill cam stays in slow motion for the flight and follows the body. The model is put back together when the champion is alive again.
@@ -495,7 +495,7 @@ tests/           repo-wide guards (architecture rules)
 ## 8. Open Questions
 
 - Pacing: move speed, acceleration, projectile speed and cooldowns were set from a first playtest on the training range. Wind-up lengths are per champion and still open.
-- Round length: bot mirrors of Fang end in ≈10 s. Is time-to-kill too short once humans dodge?
+- Round length: bot mirrors of Grakk end in ≈10 s. Is time-to-kill too short once humans dodge?
 - Rifts: 8 damage per 0.3 s, two pairs open at a time, centre kept clear — pressure or noise?
 - Basic-attack snares (25%): do they make kiting or sticking too easy? Is a 1 s cancel cooldown the right price for a feint?
 - Snapshot rate for M2 (the sim ticks at 60 Hz; snapshots can be 20–30 Hz).
@@ -503,13 +503,13 @@ tests/           repo-wide guards (architecture rules)
 - Is WebSocket good enough at real-world latency, or is WebRTC needed early?
 - 3D character pipeline: who makes models and animations (Mixamo, AI-generated, outsourced)?
 - Companions are summon-only now (§2.1). Does a companion that is on the field for 3–6 s per 25 energy still feel like *your* companion, or like one more ability with a model? Should the cheapest thing it does (the Wisp's sparks) go up to make the summon worth it?
-- Crates are ammunition that runs out (40 HP, no respawn). Four per round is little for Tide, whose Lift needs one: more crates on the arena, or a crate drop during the round?
-- Rook and Tide are first drafts. In bot batches (normal, 40 matches a pairing) Rook, as a melee champion, wins 47% against Fang, 45% against Ember and 40% against Tide; Tide wins 45% against Ember and 37% against Fang. Rook mirrors end in the abyss far more than anything else (24% ring-outs, 12% falls on their own): two crossing Shatters open the floor in the first seconds. Tide bots still fall on their own in 9% of mirror rounds. Bots do not play walls, swaps or crates the way a person would, so these say more about the bots than about the kits: playtest before tuning.
-- Tide's Shift moves two units at once: a mis-predicted swap will snap on the guest in online play. Not tested online yet.
+- Crates are ammunition that runs out (40 HP, no respawn). Four per round is little for Lune, whose Lift needs one: more crates on the arena, or a crate drop during the round?
+- Cairn and Lune are first drafts. In bot batches (normal, 40 matches a pairing) Cairn, as a melee champion, wins 47% against Grakk, 45% against Pyra and 40% against Lune; Lune wins 45% against Pyra and 37% against Grakk. Cairn mirrors end in the abyss far more than anything else (24% ring-outs, 12% falls on their own): two crossing Shatters open the floor in the first seconds. Lune bots still fall on their own in 9% of mirror rounds. Bots do not play walls, swaps or crates the way a person would, so these say more about the bots than about the kits: playtest before tuning.
+- Lune's Shift moves two units at once: a mis-predicted swap will snap on the guest in online play. Not tested online yet.
 - 2v2: with four ground-strikers the floor may go too fast, and a Colosseum or a Maelstrom catches two. Is 100 HP per tile still right for four players? Should allies' walls block allies?
 - Slam frequency: with this obstacle density, are slams too common?
 - **A fall is instant death** (§2.4), by decision, for now. With it a round can end at full health from one shove, and Harpoon across a hole is a kill at 11 m. Alternatives if that proves too swingy: heavy damage plus a respawn at the edge, or a fall only being lethal below some health.
-- Destruction pacing: tile 100 HP, Ring of Fire 50, Leap 34, Meteor 100, crumble 1.5 s. In bot batches Ember loses 13–37 tiles a round, Fang mirrors lose none (they end in 10 s, and Fang needs three landings on one spot). Should every kit have a faster way to open the floor? Should basic attacks chip it?
+- Destruction pacing: tile 100 HP, Ring of Fire 50, Leap 34, Meteor 100, crumble 1.5 s. In bot batches Pyra loses 13–37 tiles a round, Grakk mirrors lose none (they end in 10 s, and Grakk needs three landings on one spot). Should every kit have a faster way to open the floor? Should basic attacks chip it?
 - Nothing is rebuilt during a round any more (wood walls used to come back after 20 s). With crates, walls and pillars all gone for good, does a long round run out of things to slam into and throw? Is that the point (the late round is about the abyss), or does the arena need more cover to start with?
 - Sudden death and destruction overlap: the message already says "the arena is collapsing", but the zone only deals damage and rifts only burn. Should sudden death drop the outer rings instead of shrinking a damage zone, and should a rift's eruption crack the tiles along it?
 - The arena wall: 36 sections of 60 HP, three slams or six Fire Bolts each. Is a gap too cheap to open, or too rare to matter (0.4–0.9 sections a round in bot batches)?
