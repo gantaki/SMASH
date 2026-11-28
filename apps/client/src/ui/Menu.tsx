@@ -1,16 +1,17 @@
-import { useState } from "react";
-import { ABILITY_SLOTS, BOT_DIFFICULTIES, arena, playableChampions, type BotDifficulty } from "@smash/content";
+import { ABILITY_SLOTS, BOT_DIFFICULTIES, arena, playableChampions, type BotDifficulty, type ChampionId } from "@smash/content";
+import type { OnlineRoomHandle } from "../net/useOnlineRoom.ts";
 import { CHAMPION_EMBLEMS, KEY_LABELS } from "./icons.ts";
 import { Lobby } from "./Lobby.tsx";
 
-export type PlayMode = "duel" | "training";
+export type PlayMode = "duel" | "online" | "training";
 
 const DIFFICULTY_LABELS: Record<BotDifficulty, string> = { easy: "Лёгкий", normal: "Средний", hard: "Сложный" };
 
 interface Props {
-  champion: string;
+  champion: ChampionId;
   mode: PlayMode;
   difficulty: BotDifficulty;
+  online: OnlineRoomHandle;
   onChampion(id: string): void;
   onMode(mode: PlayMode): void;
   onDifficulty(d: BotDifficulty): void;
@@ -18,7 +19,6 @@ interface Props {
 }
 
 export function Menu(p: Props) {
-  const [online, setOnline] = useState(() => location.pathname.startsWith("/r/"));
   const sd = arena.suddenDeath;
   return (
     <div className="screen">
@@ -60,6 +60,9 @@ export function Menu(p: Props) {
             <button aria-pressed={p.mode === "duel"} onClick={() => p.onMode("duel")}>
               Бой с ботом
             </button>
+            <button aria-pressed={p.mode === "online"} onClick={() => p.onMode("online")}>
+              Онлайн 1 на 1
+            </button>
             <button aria-pressed={p.mode === "training"} onClick={() => p.onMode("training")}>
               Тренировка
             </button>
@@ -76,10 +79,13 @@ export function Menu(p: Props) {
               </div>
             </>
           )}
-          <button className="go" onClick={p.onStart}>
-            {p.mode === "duel" ? "В бой" : "На полигон"}
-          </button>
+          {p.mode !== "online" && (
+            <button className="go" onClick={p.onStart}>
+              {p.mode === "duel" ? "В бой" : "На полигон"}
+            </button>
+          )}
         </div>
+        {p.mode === "online" && <Lobby champion={p.champion} online={p.online} />}
         <p className="keys">
           <kbd>WASD</kbd> движение · мышь — прицел · <kbd>ЛКМ</kbd> <kbd>ПКМ</kbd> <kbd>Space</kbd> <kbd>Q</kbd> <kbd>E</kbd> способности · <kbd>R</kbd> или колесо —
           команда компаньону · <kbd>F</kbd> ультимейт за 100 энергии. ЛКМ можно зажать. У каждой атаки есть замах: его видно по полосе на земле, а отменить можно клавишей <kbd>C</kbd> — перезарядка при этом не тратится.
@@ -90,12 +96,8 @@ export function Menu(p: Props) {
           трещине. Отбрасывание в препятствие или стену оглушает.
         </p>
         <p className="keys">
-          <button className="link" onClick={() => setOnline(!online)}>
-            {online ? "Скрыть онлайн-лобби" : "Онлайн-лобби (в разработке)"}
-          </button>{" "}
-          · <a href="/prototype/">старый прототип</a>
+          <a href="/prototype/">старый прототип</a>
         </p>
-        {online && <Lobby />}
       </div>
     </div>
   );

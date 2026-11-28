@@ -1,62 +1,106 @@
 import { useState } from "react";
-import { isChampionId, playableChampions } from "@smash/content";
-import { useLobby } from "../net/useLobby.ts";
+import { getChampion, type ChampionId } from "@smash/content";
+import type { OnlineRoomHandle } from "../net/useOnlineRoom.ts";
 
-/** Online rooms (M2). The lobby works; matches over the network are not implemented yet. */
-export function Lobby() {
-  const [name] = useState(() => `Игрок${Math.floor(Math.random() * 900 + 100)}`);
-  const [code, setCode] = useState("");
-  const net = useLobby(name);
-  const me = net.lobby?.players.find((p) => p.id === net.playerId);
-  const offline = net.status === "no-server" || net.status === "offline";
+export interface LobbyProps {
+  champion: ChampionId;
+  online: OnlineRoomHandle;
+}
+
+/** WebRTC P2P room lobby: create or join by 4-char /r/CODE link, pick champion, ready up. */
+export function Lobby({ champion, online }: LobbyProps) {
+  const [codeInput, setCodeInput] = useState("");
+  const [copied, setCopied] = useState(false);
+
+  const shareUrl = online.code ? `${location.origin}/r/${online.code}` : "";
+
+  const copyLink = () => {
+    if (!shareUrl || !navigator.clipboard) return;
+    void navigator.clipboard.writeText(shareUrl).then(() => {
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    });
+  };
 
   return (
     <div className="lobby">
-      <p className="keys">
-        Сервер: <b className={`status ${net.status}`}>{net.status}</b>
-        {offline && " — игровой сервер пока не развёрнут; локально он запускается через pnpm dev."}
-      </p>
-      {!net.lobby ? (
-        <div className="row">
-          <button className="ghost" onClick={net.create} disabled={net.status !== "online"}>
-            Создать комнату
-          </button>
-          <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="КОД" maxLength={4} />
-          <button className="ghost" onClick={() => net.join(code)} disabled={net.status !== "online" || code.length !== 4}>
-            Войти
-          </button>
-        </div>
+      {!online.code ? (
+        <>
+          <div className="row lobby-entry">
+            <button className="go" onClick={() => online.createRoom(champion)}>
+              Создать комнату
+            </button>
+            <input
+              value={codeInput}
+              onChange={(e) => setCodeInput(e.target.value.toUpperCase())}
+              placeholder="КОД"
+              maxLength={4}
+              aria-label="Код комнаты"
+            />
+            <button
+              className="ghost"
+              onClick={() => online.joinRoom(codeInput, champion)}
+              disabled={codeInput.trim().length !== 4}
+            >
+              Войти
+            </button>
+          </div>
+          <p className="keys">P2P через WebRTC — работает прямо в браузере по ссылке, без сервера.</p>
+        </>
       ) : (
         <>
+          <div className="lobby-head">
+            <div>
+              Комната <b>{online.code}</b>{" "}
+              <span className={`net-status ${online.status}`}>
+                {online.status === "waiting" && "· Ждём соперника… Отправь ссылку другу"}
+                {online.status === "connected" &&
+                  `· Подключено (P2P${online.pingMs !== null ? ` · ${online.pingMs} мс` : ""})`}
+                {online.status === "disconnected" && "· Соперник отключился"}
+              </span>
+            </div>
+            <div className="lobby-actions">
+              <button className="ghost copy-btn" onClick={copyLink}>
+                {copied ? "Скопировано!" : "Скопировать ссылку"}
+              </button>
+              <button className="ghost" onClick={online.leaveRoom}>
+                Выйти
+              </button>
+            </div>
+          </div>
           <p className="keys">
-            Комната <b>{net.lobby.code}</b> · ссылка{" "}
-            <code>
-              {location.origin}/r/{net.lobby.code}
-            </code>
+            Ссылка для друга: <code>{shareUrl}</code>
           </p>
           <ul className="players">
-            {net.lobby.players.map((p) => (
-              <li key={p.id} className={p.team === 0 ? "ally" : "enemy"}>
-                {p.name}
-                {p.id === net.lobby?.hostId ? " (хост)" : ""} — {p.champion ?? "выбирает…"} {p.ready ? "✓" : ""}
+            <li className="ally">
+              {online.me.name} (вы{online.role === "host" ? ", хост" : ""}) — {getChampion(online.me.champion).nameRu}{" "}
+              {online.me.ready ? "✓" : ""}
+            </li>
+            {online.opponent && (
+              <li className="enemy">
+                {online.opponent.name}
+                {online.role === "guest" ? " (хост)" : ""} — {getChampion(online.opponent.champion).nameRu}{" "}
+                {online.opponent.ready ? "✓" : ""}
               </li>
-            ))}
-          </ul>
-          <div className="row">
-            {playableChampions.map((c) => (
-              <button key={c.id} className="ghost" aria-pressed={me?.champion === c.id} onClick={() => isChampionId(c.id) && net.pick(c.id)}>
-                {c.nameRu}
-              </button>
-            ))}
-            {me && (
-              <button className="ghost" onClick={() => net.setReady(!me.ready)} disabled={!me.champion}>
-                {me.ready ? "Не готов" : "Готов"}
-              </button>
             )}
-          </div>
+          </ul>
+          {online.status === "connected" && (
+            <div className="row">
+              <span className="keys" style={{ margin: 0 }}>
+                Когда оба нажмут «Готов», матч начнётся автоматически.
+              </span>
+              <button
+                className="go"
+                aria-pressed={online.me.ready}
+                onClick={() => online.setReady(!online.me.ready)}
+              >
+                {online.me.ready ? "Не готов" : "Готов"}
+              </button>
+            </div>
+          )}
         </>
       )}
-      {net.error && <p className="keys warn">{net.error}</p>}
+      {online.error && <p className="keys warn">{online.error}</p>}
     </div>
   );
 }

@@ -1,12 +1,13 @@
 // One running match on the client: fixed-tick sim loop, input, and the view. Used for duels vs a bot,
 // the training range and the bot-vs-bot demo behind the menu.
 
-import { type AbilitySlot, type BotDifficulty, type Tuning } from "@smash/content";
+import { type AbilitySlot, type BotDifficulty, type ChampionId, type Tuning } from "@smash/content";
 import {
   TICK_DT,
   championOfTeam,
   createMatch,
   createTickClock,
+  emptyInput,
   step,
   trainingCommand,
   type MatchState,
@@ -15,11 +16,22 @@ import {
   type TrainingCommand,
 } from "@smash/sim";
 import type { AudioEngine } from "../audio/AudioEngine.ts";
+import type { P2PRoom } from "../net/p2p.ts";
+import { GuestSession, HostSession } from "../net/reconcile.ts";
 import { Hud } from "./Hud.ts";
 import { KILL_CAM, KillCam, frameKill, type Frame } from "./killcam.ts";
 import { GameView } from "./render/GameView.ts";
 
-export type GameMode = "duel" | "training" | "demo";
+export type GameMode = "duel" | "training" | "demo" | "online";
+
+export interface OnlineGameOptions {
+  role: "host" | "guest";
+  seed: number;
+  hostChampion: ChampionId;
+  guestChampion: ChampionId;
+  room: P2PRoom;
+  onOpponentLeft?: () => void;
+}
 
 export interface TrainingStats {
   /** Damage per second to the dummy over the last few seconds. */
@@ -39,12 +51,14 @@ export interface GameOptions {
   overlay: HTMLElement;
   hud: HTMLElement;
   audio: AudioEngine;
+  online?: OnlineGameOptions;
   onMatchEnd?: (won: boolean, score: [number, number]) => void;
   onPause?: (paused: boolean) => void;
   onTrainingStats?: (s: TrainingStats) => void;
 }
 
 const KEY_SLOTS: Record<string, AbilitySlot> = { Space: "mobility", KeyQ: "q", KeyE: "e", KeyR: "companion", KeyF: "ultimate" };
+const MOVE_KEYS = new Set(["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]);
 const TRAINING_KEYS: Record<string, TrainingCommand> = {
   Digit1: { t: "resetCooldowns" },
   Digit2: { t: "fillEnergy" },
@@ -58,7 +72,10 @@ const KILLCAM_CLASS = "killcam";
 const HISTORY_TICKS = Math.round(KILL_CAM.rewind / TICK_DT) + 2;
 
 export class Game {
-  readonly state: MatchState;
+  state: MatchState;
+  private readonly viewerTeam: 0 | 1;
+  private readonly hostSession: HostSession | null = null;
+  private readonly guestSession: GuestSession | null = null;
   private readonly view: GameView;
   private readonly hud: Hud | null;
   private readonly clock = createTickClock();
@@ -69,6 +86,7 @@ export class Game {
   private holdPrimary = false;
   private cancelPressed = false;
   private paused = false;
+  private menuOpen = false;
   private raf = 0;
   private last = performance.now();
   private time = 0;
@@ -87,28 +105,67 @@ export class Game {
 
   constructor(private readonly opts: GameOptions) {
     const { mode } = opts;
-    this.state = createMatch({
-      seed: (Math.random() * 0xffffffff) >>> 0,
-      mode: mode === "training" ? "training" : "duel",
-      players: [
-        { champion: opts.champion, controller: mode === "demo" ? "bot" : "human", difficulty: opts.difficulty },
-        mode === "training" ? { champion: "dummy", controller: "dummy" } : { champion: opts.opponent, controller: "bot", difficulty: opts.difficulty },
-      ],
-    });
+    this.viewerTeam = mode === "online" && opts.online?.role === "guest" ? 1 : 0;
+    if (mode === "online" && opts.online) {
+      if (opts.online.role === "host") {
+        this.hostSession = new HostSession(opts.online);
+        this.state = this.hostSession.state;
+      } else {
+        this.guestSession = new GuestSession(opts.online);
+        this.state = this.guestSession.state;
+      }
+    } else {
+      this.state = createMatch({
+        seed: (Math.random() * 0xffffffff) >>> 0,
+        mode: mode === "training" ? "training" : "duel",
+        players: [
+          { champion: opts.champion, controller: mode === "demo" ? "bot" : "human", difficulty: opts.difficulty },
+          mode === "training" ? { champion: "dummy", controller: "dummy" } : { champion: opts.opponent, controller: "bot", difficulty: opts.difficulty },
+        ],
+      });
+    }
     this.killcamEnabled = mode === "duel" && !matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const me = championOfTeam(this.state, 0);
-    const enemy = championOfTeam(this.state, 1);
-    this.hud = mode === "demo" ? null : new Hud(opts.hud, me, enemy, mode === "training");
+    const me = championOfTeam(this.state, this.viewerTeam);
+    const enemy = championOfTeam(this.state, this.viewerTeam === 0 ? 1 : 0);
+    this.hud = mode === "demo" ? null : new Hud(opts.hud, me, enemy, mode === "training", mode === "online");
     if (this.hud) this.hud.onEnergyFull = () => opts.audio.play("energy_full");
-    this.view = new GameView(opts.canvas, opts.overlay, this.state, 0, mode === "demo" ? null : opts.audio, {
+    this.view = new GameView(opts.canvas, opts.overlay, this.state, this.viewerTeam, mode === "demo" ? null : opts.audio, {
       message: (text, seconds, big) => this.hud?.message(text, seconds, big),
     });
     this.view.orbit = mode === "demo";
-    this.aim = { x: me.x, z: me.z - 6 };
+    this.aim = { x: me.x, z: me.z + (this.viewerTeam === 0 ? -6 : 6) };
     if (mode !== "demo") this.bindInput();
-    if (mode === "duel") this.hud?.message("Раунд 1", 1.1, true);
+    if (mode === "online" && opts.online) this.bindOnline(opts.online);
+    if (mode === "duel" || mode === "online") this.hud?.message("Раунд 1", 1.1, true);
     if (mode === "training") this.hud?.message("Тренировка: 1–5 — команды полигона", 2.5);
     this.raf = requestAnimationFrame(this.frame);
+  }
+
+  private bindOnline(online: OnlineGameOptions): void {
+    const { room, onOpponentLeft } = online;
+    if (this.hostSession) {
+      this.cleanup.push(room.onInput((inp) => this.hostSession!.pushGuestInput(inp)));
+    } else if (this.guestSession) {
+      this.cleanup.push(
+        room.onSnap((snap) => {
+          const res = this.guestSession!.applySnapshot(snap);
+          if (!res) return;
+          this.state = this.guestSession!.state;
+          this.track(res.events);
+          this.view.handle(res.events, res.authState);
+        }),
+      );
+    }
+    this.cleanup.push(
+      room.onPeerLeave(() => onOpponentLeft?.()),
+      room.onControl((msg) => {
+        if (msg.t === "leave") onOpponentLeft?.();
+      }),
+    );
+  }
+
+  setPing(ms: number | null): void {
+    this.hud?.setPing(ms);
   }
 
   private listen<K extends keyof WindowEventMap>(target: Window | HTMLElement, type: K, fn: (e: WindowEventMap[K]) => void): void {
@@ -121,9 +178,11 @@ export class Game {
     this.listen(window, "keydown", (e) => {
       const k = e.code;
       if (k === "Space" || k.startsWith("Arrow")) e.preventDefault();
+      if (MOVE_KEYS.has(k) && !this.menuOpen) this.keys.add(k);
       if (e.repeat) return;
-      if (k === "Escape" || k === "KeyP") return this.setPaused(!this.paused);
+      if (k === "Escape" || k === "KeyP") return this.setPaused(!this.isPaused);
       if (k === "KeyM") return this.opts.audio.setMuted(!this.opts.audio.muted);
+      if (this.menuOpen) return;
       if (k === "KeyC") this.cancelPressed = true;
       if (k === "Space" && this.killcam) return this.endKillcam(true);
       this.keys.add(k);
@@ -141,6 +200,7 @@ export class Game {
       this.mouse.x = e.clientX;
       this.mouse.y = e.clientY;
       this.opts.audio.unlock();
+      if (this.menuOpen) return;
       if (e.button === 0) {
         this.holdPrimary = true;
         this.presses.push("primary");
@@ -157,16 +217,27 @@ export class Game {
     this.listen(window, "blur", () => {
       this.keys.clear();
       this.holdPrimary = false;
-      if (this.state.phase !== "matchEnd") this.setPaused(true);
+      if (this.opts.mode !== "online" && this.state.phase !== "matchEnd") this.setPaused(true);
     });
   }
 
   get isPaused(): boolean {
-    return this.paused;
+    return this.opts.mode === "online" ? this.menuOpen : this.paused;
   }
 
   setPaused(paused: boolean): void {
-    if (this.opts.mode === "demo" || this.state.phase === "matchEnd" || paused === this.paused) return;
+    if (this.opts.mode === "demo" || this.state.phase === "matchEnd") return;
+    if (this.opts.mode === "online") {
+      if (paused === this.menuOpen) return;
+      this.menuOpen = paused;
+      if (paused) {
+        this.holdPrimary = false;
+        this.keys.clear();
+      }
+      this.opts.onPause?.(paused);
+      return;
+    }
+    if (paused === this.paused) return;
     this.paused = paused;
     this.holdPrimary = false;
     this.keys.clear();
@@ -185,6 +256,11 @@ export class Game {
   }
 
   private input(): PlayerInput {
+    if (this.menuOpen) {
+      this.presses.length = 0;
+      this.cancelPressed = false;
+      return { move: { x: 0, z: 0 }, aim: { ...this.aim }, press: [], holdPrimary: false, cancel: false };
+    }
     const k = this.keys;
     let x = 0;
     let z = 0;
@@ -202,7 +278,7 @@ export class Game {
   private track(events: SimEvent[]): void {
     const dummy = championOfTeam(this.state, 1);
     for (const e of events) {
-      if (e.t === "matchEnd") this.opts.onMatchEnd?.(e.winner === 0, e.score);
+      if (e.t === "matchEnd") this.opts.onMatchEnd?.(e.winner === this.viewerTeam, e.score);
       if (e.t === "damage" && e.targetKind === "champion") this.lastHitBy.set(e.target, e.source);
       if (this.opts.mode === "training" && e.t === "damage" && e.target === dummy.id) {
         this.hits.push({ t: this.time, amount: e.amount + e.absorbed });
@@ -275,6 +351,23 @@ export class Game {
     // Key presses are edges: they go into the first tick of the frame only.
     const input = ticks > 0 && this.opts.mode !== "demo" ? this.input() : null;
     for (let i = 0; i < ticks; i++) {
+      const tickInput = input && i > 0 ? { ...input, press: [], cancel: false } : input;
+      if (this.opts.mode === "online") {
+        if (this.hostSession) {
+          this.view.snapshot(this.state);
+          const { events, snapshot } = this.hostSession.stepTick(tickInput ?? emptyInput());
+          this.track(events);
+          this.view.handle(events, this.state);
+          if (snapshot) this.opts.online!.room.sendSnap(snapshot);
+        } else if (this.guestSession) {
+          if (this.state.phase === "matchEnd") continue;
+          this.view.snapshot(this.state);
+          const net = this.guestSession.stepLocal(tickInput ?? emptyInput());
+          this.state = this.guestSession.state;
+          this.opts.online!.room.sendInput(net);
+        }
+        continue;
+      }
       const cam = this.killcam;
       if (cam?.replaying) {
         this.view.snapshot(cam.state);
@@ -284,7 +377,6 @@ export class Game {
         }
         continue;
       }
-      const tickInput = input && i > 0 ? { ...input, press: [], cancel: false } : input;
       this.view.snapshot(this.state);
       if (this.killcamEnabled && this.state.phase === "fight") {
         this.history.push({ state: structuredClone(this.state), input: tickInput });
@@ -307,7 +399,7 @@ export class Game {
       this.opts.onMatchEnd?.(false, [0, 0]);
       return;
     }
-    const me = championOfTeam(this.state, 0);
+    const me = championOfTeam(this.state, this.viewerTeam);
     const shown = this.killcam?.replaying ? this.killcam.state : this.state;
     this.view.render(shown, this.paused ? 1 : this.clock.alpha, simDt, this.time, this.aim, dt);
     this.hud?.update(this.state, me, dt);

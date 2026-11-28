@@ -135,6 +135,9 @@ export class GameView {
     this.resizeObserver.observe(canvas);
     this.resize();
     this.snapshot(state);
+    const me = championOfTeam(state, viewerTeam);
+    this.camTarget.x = me.x;
+    this.camTarget.z = me.z + (viewerTeam === 0 ? -3 : 3);
   }
 
   dispose(): void {
@@ -337,7 +340,7 @@ export class GameView {
     this.snapshot(state);
     const me = championOfTeam(state, this.viewerTeam);
     this.camTarget.x = me.x;
-    this.camTarget.z = me.z - 3;
+    this.camTarget.z = me.z + (this.viewerTeam === 0 ? -3 : 3);
     this.shake = 0;
   }
 

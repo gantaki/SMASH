@@ -53,3 +53,6 @@ export function decode<T extends ClientMessage | ServerMessage>(raw: string): T 
     return null;
   }
 }
+
+export * from "./net.ts";
+

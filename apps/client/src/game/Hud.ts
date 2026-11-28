@@ -25,6 +25,7 @@ export class Hud {
     me: ChampionUnit,
     enemy: ChampionUnit,
     private readonly training: boolean,
+    private readonly online = false,
   ) {
     const champ = getChampion(me.champion);
     const foe = getChampion(enemy.champion);
@@ -35,11 +36,14 @@ export class Hud {
           <svg viewBox="0 0 24 24">${ABILITY_ICONS[a.icon] ?? ""}</svg><i class="cdv"></i><span class="cdt"></span><kbd>${KEY_LABELS[s]}</kbd></div>`;
       })
       .join("");
+    const hint = online
+      ? `C — отменить замах · Esc или P — меню · M — звук · <span class="net-ping">P2P</span>`
+      : "C — отменить замах · Esc или P — пауза · M — звук";
     root.innerHTML = `
       <div class="top">
-        <div class="side me"><b>${champ.nameRu}</b><span class="pips" data-team="0"></span></div>
+        <div class="side me"><b>${champ.nameRu}</b><span class="pips" data-team="${me.team}"></span></div>
         <div class="mid"><div class="rnd"></div><div class="clock">0:00</div></div>
-        <div class="side foe"><span class="pips" data-team="1"></span><b>${foe.nameRu}${enemy.controller === "bot" ? " · бот" : ""}</b></div>
+        <div class="side foe"><span class="pips" data-team="${enemy.team}"></span><b>${foe.nameRu}${enemy.controller === "bot" ? " · бот" : ""}</b></div>
       </div>
       <div class="msg"></div>
       <div class="dock">
@@ -48,12 +52,18 @@ export class Hud {
           <div class="vbar en"><i></i></div>
         </div>
         <div class="slots">${slotHtml}</div>
-        <div class="hint">C — отменить замах · Esc или P — пауза · M — звук</div>
+        <div class="hint">${hint}</div>
       </div>`;
     this.q = <T extends HTMLElement>(s: string) => root.querySelector<T>(s)!;
     for (const el of root.querySelectorAll<HTMLElement>(".slot")) {
       this.slots.set(el.dataset.slot as AbilitySlot, { el, text: el.querySelector<HTMLElement>(".cdt")!, last: "" });
     }
+  }
+
+  setPing(ms: number | null): void {
+    if (!this.online) return;
+    const el = this.root.querySelector<HTMLElement>(".net-ping");
+    if (el) el.textContent = ms === null ? "P2P" : `P2P · ${ms} мс`;
   }
 
   message(text: string, seconds: number, big = false): void {
